@@ -1,0 +1,41 @@
+{
+  "name": "mcp-selenium",
+  "version": "1.0.1",
+  "description": "MCP Server for browser automation using Selenium",
+  "main": "dist/index.js",
+  "bin": {
+    "mcp-selenium": "dist/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "postinstall": "node scripts/download-chromedriver.js"
+  },
+  "keywords": [
+    "mcp",
+    "selenium",
+    "browser",
+    "automation"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "@toon-format/toon": "^1.0.0",
+    "dockerode": "^4.0.8",
+    "node-fetch": "^3.3.2",
+    "selenium-webdriver": "^4.15.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.44",
+    "@types/node": "^20.19.21",
+    "@types/selenium-webdriver": "^4.1.28",
+    "@types/uuid": "^9.0.0",
+    "chromedriver": "^140.0.4",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

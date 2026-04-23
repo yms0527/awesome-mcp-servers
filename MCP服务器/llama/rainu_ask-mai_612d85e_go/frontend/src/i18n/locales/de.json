@@ -1,0 +1,52 @@
+{
+  "languages": {
+    "en": "English",
+    "de": "Deutsch"
+  },
+  "prompt": {
+    "placeholder": "Frage stellen..."
+  },
+  "dialog": {
+    "files": {
+      "title": "Dateien auswählen"
+    }
+  },
+  "toolCall": {
+    "builtin": {
+      "changeTimes": {
+        "access": "Zugriffszeit",
+        "mod": "Änderungszeit"
+      }
+    },
+    "mcp": {
+      "description": "Tool-Beschreibung"
+    },
+    "rejection": {
+      "dialog":{
+        "title": "Tool-Ausführung ablehnen",
+        "message": "Begründung",
+        "ok": "Ablehnen"
+      }
+    }
+  },
+  "history": {
+    "placeholder": "Suche in Verlauf..."
+  },
+  "edit": {
+    "apply": "Speichern",
+    "cancel": "Abbrechen"
+  },
+  "profile": {
+    "title": "Wähle Profil",
+    "default": "Standard"
+  },
+  "tool": {
+    "title": "Wähle Tools",
+    "builtin": {
+      "title": "Integrierte Tools"
+    },
+    "mcp": {
+      "title": "MCP Tools"
+    }
+  }
+}

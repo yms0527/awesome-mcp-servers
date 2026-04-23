@@ -1,0 +1,14 @@
+[project]
+name = "time-mcp"
+version = "0.1.0"
+description = "Claude MCP server for returning the current time with timezone support"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]",
+    # Use the built-in zoneinfo (Python 3.9+); if you prefer pytz, add "pytz"
+]
+license = "MIT"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

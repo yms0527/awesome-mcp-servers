@@ -1,0 +1,20 @@
+# Ignore build output folders
+dist/
+build/
+
+# Ignore node_modules
+node_modules/
+
+# Ignore debug folders
+debug/
+
+# Ignore removed code directories
+0-removed/
+0-private/
+
+# Ignore configuration files
+*.config.js
+*.config.ts
+
+# Ignore generated files
+*.d.ts

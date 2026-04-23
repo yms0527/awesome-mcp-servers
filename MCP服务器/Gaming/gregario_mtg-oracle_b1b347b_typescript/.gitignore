@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.sqlite
+# Runtime data directory (downloaded card data)
+/data/
+coverage/
+*.tsbuildinfo
+.mcpregistry_*

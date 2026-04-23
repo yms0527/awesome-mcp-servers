@@ -1,0 +1,52 @@
+{
+  "name": "shipi-mcp-server",
+  "version": "1.0.2",
+  "description": "AI-powered multi-carrier shipping — ship packages, compare rates, track shipments through Claude and any MCP client",
+  "main": "index.js",
+  "bin": {
+    "shipi-mcp-server": "index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "node-fetch": "^3.3.2"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "shipping",
+    "shipi",
+    "fedex",
+    "ups",
+    "dhl",
+    "usps",
+    "carrier",
+    "logistics",
+    "ecommerce",
+    "ai",
+    "claude",
+    "anthropic",
+    "labels",
+    "tracking",
+    "rates"
+  ],
+  "author": "Shipi <support@myshipi.com> (https://myshipi.com)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aarsiv-groups/shipi-mcp-server/"
+  },
+  "homepage": "https://myshipi.com",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ]
+}

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+tmp-doctool/
+*.env
+.env.*
+.claude/
+openspec/
+CLAUDE.md
+research/
+docs/launch-posts.md
+.mcpregistry_*

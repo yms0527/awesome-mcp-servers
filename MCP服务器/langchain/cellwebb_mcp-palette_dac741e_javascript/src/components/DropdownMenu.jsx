@@ -1,0 +1,104 @@
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
+import KebabIcon from "./KebabIcon";
+
+/**
+ * A dropdown menu component that displays a list of actions
+ * @param {Object} props - Component props
+ * @param {Array} props.items - Array of menu items with label and action properties
+ * @param {boolean} props.disabled - Whether the menu trigger is disabled
+ */
+const DropdownMenu = ({ items, disabled = false }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Toggle menu open/closed
+  const toggleMenu = (e) => {
+    e.stopPropagation();
+
+    if (disabled) return;
+
+    if (!isOpen && menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom,
+        left: rect.left,
+        right: window.innerWidth - rect.right,
+      });
+    }
+
+    setIsOpen(!isOpen);
+  };
+
+  // Handle menu item click
+  const handleItemClick = (e, action) => {
+    e.stopPropagation();
+    action();
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="dropdown-menu-container" ref={menuRef}>
+      <button
+        className={`dropdown-menu-trigger ${disabled ? "disabled" : ""}`}
+        onClick={toggleMenu}
+        aria-label="More options"
+        onMouseDown={(e) => e.stopPropagation()}
+        disabled={disabled}
+        style={{
+          opacity: disabled ? 0.5 : 1,
+          cursor: disabled ? "not-allowed" : "pointer",
+        }}
+      >
+        <KebabIcon />
+      </button>
+
+      {/* Render dropdown using Portal to escape stacking context issues */}
+      {isOpen &&
+        createPortal(
+          <div
+            className="dropdown-menu-portal"
+            style={{
+              position: "fixed",
+              top: `${menuPosition.top}px`,
+              right: `${menuPosition.right}px`,
+              zIndex: 9999,
+            }}
+          >
+            <div className="dropdown-menu">
+              {items.map((item, index) => (
+                <div
+                  key={index}
+                  className={`dropdown-menu-item ${item.type || ""}`}
+                  onClick={(e) => handleItemClick(e, item.action)}
+                >
+                  {item.icon && (
+                    <span className="dropdown-menu-item-icon">{item.icon}</span>
+                  )}
+                  <span className="dropdown-menu-item-label">{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+};
+
+export default DropdownMenu;

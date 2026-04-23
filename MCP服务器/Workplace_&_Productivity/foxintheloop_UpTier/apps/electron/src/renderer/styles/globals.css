@@ -1,0 +1,204 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Light mode (default when .light class is applied) */
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 224.3 76.3% 48%;
+    --radius: 0.5rem;
+  }
+
+  /* Dark mode (default) */
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+    --radius: 0.5rem;
+  }
+
+  /* Earth Dark theme */
+  .theme-earth-dark {
+    --background: 30 15% 7%;
+    --foreground: 40 25% 90%;
+    --card: 30 12% 10%;
+    --card-foreground: 40 25% 90%;
+    --popover: 30 12% 10%;
+    --popover-foreground: 40 25% 90%;
+    --primary: 150 25% 40%;
+    --primary-foreground: 40 25% 95%;
+    --secondary: 30 12% 15%;
+    --secondary-foreground: 40 20% 88%;
+    --muted: 30 10% 15%;
+    --muted-foreground: 30 10% 55%;
+    --accent: 30 12% 15%;
+    --accent-foreground: 40 20% 88%;
+    --destructive: 8 55% 38%;
+    --destructive-foreground: 40 25% 95%;
+    --border: 30 10% 18%;
+    --input: 30 10% 18%;
+    --ring: 150 25% 40%;
+    --radius: 0.5rem;
+  }
+
+  /* Earth Light theme */
+  .theme-earth-light {
+    --background: 40 35% 95%;
+    --foreground: 25 40% 15%;
+    --card: 40 40% 97%;
+    --card-foreground: 25 40% 15%;
+    --popover: 40 40% 97%;
+    --popover-foreground: 25 40% 15%;
+    --primary: 150 35% 32%;
+    --primary-foreground: 40 30% 96%;
+    --secondary: 35 25% 88%;
+    --secondary-foreground: 25 35% 18%;
+    --muted: 35 20% 88%;
+    --muted-foreground: 25 12% 45%;
+    --accent: 35 25% 88%;
+    --accent-foreground: 25 35% 18%;
+    --destructive: 5 70% 52%;
+    --destructive-foreground: 40 30% 96%;
+    --border: 35 20% 82%;
+    --input: 35 20% 82%;
+    --ring: 150 35% 32%;
+    --radius: 0.5rem;
+  }
+
+  /* Cyberpunk theme */
+  .theme-cyberpunk {
+    --background: 260 50% 5%;
+    --foreground: 185 70% 88%;
+    --card: 260 40% 8%;
+    --card-foreground: 185 70% 88%;
+    --popover: 260 40% 8%;
+    --popover-foreground: 185 70% 88%;
+    --primary: 185 100% 50%;
+    --primary-foreground: 260 60% 8%;
+    --secondary: 270 35% 14%;
+    --secondary-foreground: 185 60% 85%;
+    --muted: 260 25% 14%;
+    --muted-foreground: 200 25% 55%;
+    --accent: 300 30% 14%;
+    --accent-foreground: 185 60% 85%;
+    --destructive: 330 85% 50%;
+    --destructive-foreground: 260 50% 5%;
+    --border: 270 35% 16%;
+    --input: 270 35% 16%;
+    --ring: 185 100% 50%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Custom scrollbar for Windows */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* Priority tier colors */
+.tier-1 {
+  @apply bg-red-500/10 border-red-500/30 text-red-400;
+}
+
+.tier-2 {
+  @apply bg-amber-500/10 border-amber-500/30 text-amber-400;
+}
+
+.tier-3 {
+  @apply bg-gray-500/10 border-gray-500/30 text-gray-400;
+}
+
+/* Confetti animation */
+@keyframes confetti-fall {
+  0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+@keyframes confetti-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-15px); }
+  75% { transform: translateX(15px); }
+}
+.confetti-piece {
+  position: fixed;
+  top: -10px;
+  border-radius: 2px;
+  animation: confetti-fall 3s ease-in-out forwards, confetti-shake 0.5s ease-in-out infinite;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+/* Task item transitions */
+.task-item {
+  @apply transition-all duration-150 ease-in-out;
+}
+
+.task-item:hover {
+  @apply bg-accent/50;
+}
+
+/* Drag and drop styles */
+.dragging {
+  @apply opacity-50 scale-105 shadow-lg;
+}
+
+.drag-over {
+  @apply border-primary border-2;
+}

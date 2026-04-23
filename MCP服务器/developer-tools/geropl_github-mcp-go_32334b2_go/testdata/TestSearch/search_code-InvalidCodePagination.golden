@@ -1,0 +1,4 @@
+{
+  "output": "",
+  "err": "GitHub API Error: perPage must be between 1 and 100"
+}

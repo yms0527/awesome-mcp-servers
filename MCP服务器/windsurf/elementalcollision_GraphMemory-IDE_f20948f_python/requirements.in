@@ -1,0 +1,55 @@
+# Core server
+fastapi
+uvicorn
+kuzu
+
+# Database
+asyncpg
+alembic
+
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+
+# Analytics caching
+redis
+
+# Dashboard and real-time streaming
+sse-starlette
+streamlit
+streamlit-echarts
+
+# Testing
+pytest
+pytest-cov
+
+# Security testing
+docker
+
+# Async support
+httpx
+
+# E2E and performance (Python side)
+playwright
+locust
+
+# Observability
+prometheus-client
+
+# Workflow orchestration (if Python client needed)
+kestra
+
+# Linting and formatting (optional, for best practice)
+black
+flake8
+
+# Documentation (optional, for mkdocs)
+mkdocs
+mkdocs-material
+
+# Other utilities
+requests
+
+# Embeddings for Top-K endpoint
+sentence-transformers
+python-multipart

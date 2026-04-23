@@ -1,0 +1,94 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests with coverage
+        run: go test ./... -v -count=1 -coverprofile=coverage.out
+
+      - name: Coverage summary
+        run: |
+          total=$(go tool cover -func=coverage.out | tail -1 | awk '{print $NF}')
+          echo "## Test Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Total: ${total}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Package | Coverage |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|----------|" >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out | grep -v "total:" | awk -F'\t+' '{print $1, $NF}' | sort -u -t' ' -k1,1 | while read -r pkg cov; do
+            echo "| \`${pkg}\` | ${cov} |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+  e2e:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install ios-webkit-debug-proxy
+        run: brew install ios-webkit-debug-proxy
+
+      - name: Select Xcode with iOS 18 runtime
+        run: |
+          # iOS 19+ has breaking WebKit Inspector Protocol changes (many
+          # domains return "not found"). Use an older Xcode/iOS for testing.
+          echo "Available Xcode versions:"
+          ls -d /Applications/Xcode*.app 2>/dev/null || true
+          echo ""
+          # Prefer Xcode 16 (iOS 18) over Xcode 17 (iOS 19)
+          for xcode in /Applications/Xcode_16*.app; do
+            if [ -d "$xcode" ]; then
+              echo "Selecting $xcode"
+              sudo xcode-select -s "$xcode"
+              break
+            fi
+          done
+          echo "Active Xcode: $(xcode-select -p)"
+          echo "Available runtimes:"
+          xcrun simctl list runtimes
+
+      - name: Boot iOS Simulator and start iwdp
+        run: |
+          eval "$(./scripts/sim-setup.sh)"
+          echo "IWDP_SIM_WS_URL=$IWDP_SIM_WS_URL" >> "$GITHUB_ENV"
+
+      - name: Run e2e tests with coverage
+        run: go test -tags=simulator ./e2e/ -v -count=1 -timeout=300s -coverprofile=coverage-e2e.out
+
+      - name: E2E coverage summary
+        if: always()
+        run: |
+          if [ -f coverage-e2e.out ]; then
+            total=$(go tool cover -func=coverage-e2e.out | tail -1 | awk '{print $NF}')
+            echo "## E2E Test Coverage" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Total: ${total}**" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Package | Coverage |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|---------|----------|" >> "$GITHUB_STEP_SUMMARY"
+            go tool cover -func=coverage-e2e.out | grep -v "total:" | awk -F'\t+' '{print $1, $NF}' | sort -u -t' ' -k1,1 | while read -r pkg cov; do
+              echo "| \`${pkg}\` | ${cov} |" >> "$GITHUB_STEP_SUMMARY"
+            done
+          fi
+
+      - name: Teardown simulator
+        if: always()
+        run: ./scripts/sim-setup.sh --teardown

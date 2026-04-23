@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+vendor/
+.venv/
+__pycache__/
+*.pyc
+
+# Build output
+dist/
+build/
+out/
+.build/
+*.o
+*.a
+*.so
+*.dylib
+
+# Data files (dnd.sqlite is tracked — CC-BY-4.0 SRD data, needed for Glama deploy)
+*.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test output
+coverage/
+.coverage
+*.lcov
+
+# Platform-specific
+# iOS
+*.xcworkspace/xcuserdata/
+DerivedData/
+*.ipa
+
+# Android
+*.apk
+*.aab
+local.properties
+
+# MCP Registry tokens (created by mcp-publisher CLI)
+.mcpregistry_*
+
+# Misc
+*.tmp
+*.bak

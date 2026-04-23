@@ -1,0 +1,4 @@
+{
+  "output": "# Pull Request: Test PR\n\n**Number:** #2  \n**State:** closed  \n**Created:** Fri, 07 Mar 2025 08:33:10 UTC  \n**URL:** https://github.com/geropl/github-mcp-go-test/pull/2  \n\n## Description\n\nTest PR body\n\n## Details\n\n- **Head:** test/feature-branch-1741336388  \n- **Base:** main  \n- **Mergeable:** true  \n- **Draft:** false  \n- **Changes:** +3/-0 in 1 files  \n",
+  "err": ""
+}

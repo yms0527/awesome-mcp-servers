@@ -1,0 +1,10 @@
+# Security: Explicitly ignore sensitive token files
+.mcpregistry_*
+.env
+.DS_Store
+
+# Source/Build
+src/
+tsconfig.json
+.git
+.gitignore

@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "lib": ["ES2019"],
+    "module": "esnext",
+    "target": "ES2019",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "strict": true,
+    "downlevelIteration": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": true
+  }
+}

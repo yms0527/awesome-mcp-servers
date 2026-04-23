@@ -1,0 +1,29 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Retio-ai/pagemap",
+  "description": "Structured web intelligence for AI agents. 5x fewer tokens than Playwright/Firecrawl, 84.7% accuracy",
+  "title": "PageMap",
+  "repository": {
+    "url": "https://github.com/Retio-ai/Retio-pagemap",
+    "source": "github"
+  },
+  "version": "0.7.3",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "retio-pagemap",
+      "version": "0.7.3",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "oci",
+      "identifier": "docker.io/retio1001/pagemap:0.7.3",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

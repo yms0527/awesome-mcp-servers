@@ -1,0 +1,150 @@
+{
+  "total_servers": 19,
+  "successful": 15,
+  "failed": 4,
+  "results": [
+    {
+      "name": "ContributingAwesomeMCPModelContextProtocolSecurity",
+      "github_url": "https://github.com/Puliczek/awesome-mcp-security",
+      "owner": "Puliczek",
+      "repo": "awesome-mcp-security",
+      "status": "success",
+      "local_dir": "security\\Puliczek_awesome-mcp-security"
+    },
+    {
+      "name": "SSecurityOperationsMulti-ToolPlatformMCPAll-in-onesecuritytestingtoolboxthatbringstogetherpopularopensourcetoolsthroughasingleMCPinterfaceConnectedtoanAIagentitenablestaskslikepentestingbugbountyhuntingthreathuntingandmore",
+      "github_url": "https://github.com/securityfortech/secops-mcp",
+      "owner": "securityfortech",
+      "repo": "secops-mcp",
+      "status": "success",
+      "local_dir": "security\\securityfortech_secops-mcp"
+    },
+    {
+      "name": "PentestMCPAComprehensiveToolforProfessionalPenetrationTestingNOTforeducationalpurposesAnMCPserverforprofessionalpenetrationtestersincludingnmapgodirbusterniktoJtRwordlistbuildingandmore",
+      "github_url": "https://github.com/Karthikathangarasu/pentest-mcp",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "SShieldMCPAshieldforloggingdeepdebugandsanitizationforMCPserversatdevelopmentstage",
+      "github_url": "https://github.com/modelShield/shieldmcp",
+      "owner": "modelShield",
+      "repo": "shieldmcp",
+      "status": "success",
+      "local_dir": "security\\modelShield_shieldmcp"
+    },
+    {
+      "name": "MCPServerAuthenticationReferenceCollectionReferenceMCPserversthatdemohowauthenticationworkswiththecurrentModelContextProtocolspec",
+      "github_url": "https://github.com/localden/mcp-auth-servers",
+      "owner": "localden",
+      "repo": "mcp-auth-servers",
+      "status": "success",
+      "local_dir": "security\\localden_mcp-auth-servers"
+    },
+    {
+      "name": "PPentestMCPProfessionalPenetrationTestingToolkitNOTforeducationalpurposesAnMCPserverforprofessionalpenetrationtestersincludingnmapgodirbusterniktoJtRwordlistbuildingandmore",
+      "github_url": "https://github.com/DMontgomery40/pentest-mcp",
+      "owner": "DMontgomery40",
+      "repo": "pentest-mcp",
+      "status": "success",
+      "local_dir": "security\\DMontgomery40_pentest-mcp"
+    },
+    {
+      "name": "RRADSecurityMCPServerRadSecurityMCPServer",
+      "github_url": "https://github.com/rad-security/mcp-server",
+      "owner": "rad-security",
+      "repo": "mcp-server",
+      "status": "success",
+      "local_dir": "security\\rad-security_mcp-server"
+    },
+    {
+      "name": "OOpenMCPAuthProxyAuthenticationandAuthorizationProxyforMCPServers",
+      "github_url": "https://github.com/wso2/open-mcp-auth-proxy",
+      "owner": "wso2",
+      "repo": "open-mcp-auth-proxy",
+      "status": "success",
+      "local_dir": "security\\wso2_open-mcp-auth-proxy"
+    },
+    {
+      "name": "MobSFMCPToolThisMCPserverusesmobsfapistoscanandanalyzetheapkandipafiles",
+      "github_url": "https://github.com/pullkitsan/mobsf-mcp-server",
+      "owner": "pullkitsan",
+      "repo": "mobsf-mcp-server",
+      "status": "success",
+      "local_dir": "security\\pullkitsan_mobsf-mcp-server"
+    },
+    {
+      "name": "CCloudsword一款帮助云租户发现和测试云上风险增强云上防护能力的综合性开源工具",
+      "github_url": "https://github.com/wgpsec/cloudsword",
+      "owner": "wgpsec",
+      "repo": "cloudsword",
+      "status": "success",
+      "local_dir": "security\\wgpsec_cloudsword"
+    },
+    {
+      "name": "MmcpsshclientAnAgenticMCPserversshclient",
+      "github_url": "https://github.com/jonnadul/mcpsshclient",
+      "owner": "jonnadul",
+      "repo": "mcpsshclient",
+      "status": "success",
+      "local_dir": "security\\jonnadul_mcpsshclient"
+    },
+    {
+      "name": "AAsteriskMCPServerAsteriskModelContextProtocolMCPserver",
+      "github_url": "https://github.com/getAsterisk/asterisk-mcp-server",
+      "owner": "getAsterisk",
+      "repo": "asterisk-mcp-server",
+      "status": "success",
+      "local_dir": "security\\getAsterisk_asterisk-mcp-server"
+    },
+    {
+      "name": "MMetasploitMCPServerMetasploitMCPServer",
+      "github_url": "https://github.com/xcape-inc/chatsploit-mpc",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "GGUARDRAILSecurityFrameworkforLargeLanguageModelApplicationsGUARDRAIL-MCPSecurity-GatewayforUnifiedAccessResourceDelegationandRisk-AttenuatingInformationLimits",
+      "github_url": "https://github.com/nshkrdotcom/GUARDRAIL",
+      "owner": "nshkrdotcom",
+      "repo": "GUARDRAIL",
+      "status": "success",
+      "local_dir": "security\\nshkrdotcom_GUARDRAIL"
+    },
+    {
+      "name": "SSnykMCPServerMCPServerforSnykSecurityScanning",
+      "github_url": "https://github.com/sammcj/mcp-snyk",
+      "owner": "sammcj",
+      "repo": "mcp-snyk",
+      "status": "success",
+      "local_dir": "security\\sammcj_mcp-snyk"
+    },
+    {
+      "name": "SSecurityAuditToolApowerfulMCPModelContextProtocolServerthatauditsnpmpackagedependenciesforsecurityvulnerabilitiesBuiltwithremotenpmregistryintegrationforreal-timesecuritychecks",
+      "github_url": "https://github.com/qianniuspace/mcp-security-audit",
+      "owner": "qianniuspace",
+      "repo": "mcp-security-audit",
+      "status": "success",
+      "local_dir": "security\\qianniuspace_mcp-security-audit"
+    },
+    {
+      "name": "Bbetter-auth-mcp-serverMCPServerMirrorof",
+      "github_url": "https://github.com/MCP-Mirror/nahmanmate_better-auth-mcp-server",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "TTrivySecurityScannerMCPServerAModelContextProtocolMCPserverthatprovidesTrivysecurityscanningcapabilitiesthroughastandardizedinterface",
+      "github_url": "https://github.com/norbinsh/cursor-mcp-trivy",
+      "owner": "norbinsh",
+      "repo": "cursor-mcp-trivy",
+      "status": "success",
+      "local_dir": "security\\norbinsh_cursor-mcp-trivy"
+    },
+    {
+      "name": "SSnykMCPServerAstandaloneSnykserverforModelContextProtocolMCP",
+      "status": "failed",
+      "reason": "no_github_url"
+    }
+  ]
+}

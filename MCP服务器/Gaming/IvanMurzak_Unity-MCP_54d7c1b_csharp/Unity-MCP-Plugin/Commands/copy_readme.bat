@@ -1,0 +1,1 @@
+xcopy ..\README.md ..\Assets\root\README.md* /Y

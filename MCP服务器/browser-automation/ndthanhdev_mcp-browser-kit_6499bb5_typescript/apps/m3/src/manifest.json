@@ -1,0 +1,37 @@
+{
+	"$schema": "https://json.schemastore.org/chrome-manifest.json",
+	"manifest_version": 3,
+	"name": "MCP Browser Kit M3",
+	"version": "6.0.0",
+	"description": "Allow MCP Browser Kit to interact with this browser.",
+	"permissions": [
+		"tabs",
+		"activeTab",
+		"tabCapture",
+		"scripting",
+		"alarms",
+		"storage"
+	],
+	"host_permissions": [
+		"http://*/*",
+		"https://*/*",
+		"*://localhost:*/*",
+		"*://127.0.0.1:*/*"
+	],
+	"content_security_policy": {},
+	"content_scripts": [
+		{
+			"matches": [
+				"<all_urls>"
+			],
+			"js": [
+				"bootstrap-mbk-tab.js"
+			],
+			"run_at": "document_start"
+		}
+	],
+	"background": {
+		"service_worker": "bootstrap-mbk-sw.js",
+		"type": "module"
+	}
+}

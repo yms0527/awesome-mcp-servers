@@ -1,0 +1,31 @@
+# Rancher Ecosystem MCP Server — example config
+# Copy to config.yaml or pass with --config
+
+# Rancher connection (required for Harvester/K8s via Steve API)
+rancher_server_url: https://rancher.example.com
+rancher_token: token-xxxxx:yyyyyyyy
+tls_insecure: false
+
+# Server
+transport: stdio   # stdio (default) or http
+port: 0            # 0 = stdio; for transport=http use e.g. 8080
+log_level: 2
+
+# Security (read-only default)
+read_only: true
+disable_destructive: false
+show_sensitive_data: false
+
+# Toolsets to enable (harvester, rancher, kubernetes, helm, fleet)
+toolsets:
+  - harvester
+  - rancher
+  - kubernetes
+  - helm
+  - fleet
+
+# Optional: namespace allow/deny (empty = all allowed except denied)
+# allowed_namespaces: []   # If set, only these namespaces are accessible
+denied_namespaces:        # Always blocked (default includes system namespaces)
+  - kube-system
+  - cattle-system

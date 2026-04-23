@@ -1,0 +1,53 @@
+"""HTTP client module for TrainingPeaks API."""
+
+from tp_mcp.client.http import (
+    APIError,
+    APIResponse,
+    AuthenticationError,
+    ErrorCode,
+    NotFoundError,
+    RateLimitError,
+    TPClient,
+)
+from tp_mcp.client.models import (
+    AnalysisChannel,
+    AnalysisTotal,
+    PeakData,
+    PeaksResponse,
+    UserProfile,
+    WorkoutAnalysis,
+    WorkoutDetail,
+    WorkoutInterval,
+    WorkoutStructure,
+    WorkoutSummary,
+    parse_user_profile,
+    parse_workout_analysis,
+    parse_workout_detail,
+    parse_workout_list,
+    parse_workout_summary,
+)
+
+__all__ = [
+    "APIError",
+    "APIResponse",
+    "AnalysisChannel",
+    "AnalysisTotal",
+    "AuthenticationError",
+    "ErrorCode",
+    "NotFoundError",
+    "PeakData",
+    "PeaksResponse",
+    "RateLimitError",
+    "TPClient",
+    "UserProfile",
+    "WorkoutAnalysis",
+    "WorkoutDetail",
+    "WorkoutInterval",
+    "WorkoutStructure",
+    "WorkoutSummary",
+    "parse_user_profile",
+    "parse_workout_analysis",
+    "parse_workout_detail",
+    "parse_workout_list",
+    "parse_workout_summary",
+]

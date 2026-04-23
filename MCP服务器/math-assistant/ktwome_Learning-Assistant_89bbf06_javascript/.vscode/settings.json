@@ -1,0 +1,10 @@
+{
+    "dateTime.locale": "ko",
+    "dateTime.padHours": true,
+    "dateTime.showDayOfMonth": false,
+    "dateTime.showDayOfWeek": true,
+    "dateTime.showMonth": false,
+    "dateTime.showSeconds": true,
+    "dateTime.timeZone": "Asia/Seoul",
+    "dateTime.displayPrefix": "시간: "
+}

@@ -1,0 +1,1164 @@
+--- /dev/null
++++ net/alphaguts/PluginLoader.java
+@@ -1,0 +1,81 @@
++package net.alphaguts;
++
++import java.io.File;
++import java.io.FileInputStream;
++import java.io.IOException;
++import java.lang.reflect.Constructor;
++import java.lang.reflect.InvocationTargetException;
++import java.net.URL;
++import java.net.URLClassLoader;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.jar.JarEntry;
++import java.util.jar.JarInputStream;
++
++public class PluginLoader {
++
++    private final File pluginsDir;
++    private final List<JavaPlugin> loadedPlugins = new ArrayList<>();
++
++    public PluginLoader(String pluginsDirectoryPath) {
++        this.pluginsDir = new File(pluginsDirectoryPath);
++        if (!this.pluginsDir.exists()) {
++            this.pluginsDir.mkdirs(); // Create the directory if it doesn't exist
++        }
++    }
++
++    public void loadPlugins() {
++        File[] files = pluginsDir.listFiles((dir, name) -> name.endsWith(".jar"));
++        if (files == null) {
++            System.out.println("No plugins found in the plugins directory.");
++            return;
++        }
++
++        for (File file : files) {
++            try {
++                loadPlugin(file);
++            } catch (Exception e) {
++                System.err.println("Failed to load plugin: " + file.getName());
++                e.printStackTrace();
++            }
++        }
++    }
++
++    private void loadPlugin(File file) throws IOException, ClassNotFoundException, NoSuchMethodException,
++            IllegalAccessException, InvocationTargetException, InstantiationException {
++        // Load the jar file
++        try (JarInputStream jarFile = new JarInputStream(new FileInputStream(file))) {
++            JarEntry jarEntry;
++
++            // Create a class loader for the plugin
++            URL[] urls = {file.toURI().toURL()};
++            URLClassLoader classLoader = new URLClassLoader(urls, this.getClass().getClassLoader());
++
++            // Iterate over entries in the jar
++            while ((jarEntry = jarFile.getNextJarEntry()) != null) {
++                if (jarEntry.getName().endsWith(".class")) {
++                    String className = jarEntry.getName().replace("/", ".").replace(".class", "");
++                    Class<?> clazz = classLoader.loadClass(className);
++
++                    // Check if the class extends JavaPlugin
++                    if (JavaPlugin.class.isAssignableFrom(clazz)) {
++                        Constructor<?> constructor = clazz.getConstructor();
++                        JavaPlugin pluginInstance = (JavaPlugin) constructor.newInstance();
++
++                        // Store the loaded plugin
++                        loadedPlugins.add(pluginInstance);
++
++                        // Enable the plugin by calling the onEnable method
++                        pluginInstance.onEnable();
++                        System.out.println("Loaded and enabled plugin: " + className);
++                    }
++                }
++            }
++        }
++    }
++
++    public List<JavaPlugin> getLoadedPlugins() {
++        return loadedPlugins;
++    }
++}
++
+--- /dev/null
++++ net/alphaguts/Sounds.java
+@@ -1,0 +1,31 @@
++package net.alphaguts;
++public enum Sounds
++{
++    DOOR_OPEN("random.door_open"),
++    DOOR_CLOSE("random.door_close"),
++    FLUID_FIZZ("random.fizz"),
++    EXPLOSION("random.explode"),
++    FUSE("random.fuse"),
++    BOW_SHOOT("random.bow"),
++    POP("random.pop"),
++    IGNITE_FIRE("fire.ignite"),
++    LEVER("random.click"),
++    CAVE("ambient.cave.cave"),
++    SLIME("mob.slime"),
++    SLIME_ATTACK("mob.slimeattack"),
++    ZOMBIE_PIG("mob.zombiepig.zpigangry"),
++    GHAST_CHARGE("mob.ghast.charge"),
++    GHAST_FIREBALL("mob.ghast.fireball"),
++    HURT("random.hurt");
++
++
++    private final String value;
++
++    Sounds(String value) {
++        this.value = value;
++    }
++
++    public String getValue() {
++        return value;
++    }
++}
+--- /dev/null
++++ net/alphaguts/event/PlayerLeaveEvent.java
+@@ -1,0 +1,32 @@
++package net.alphaguts.event;
++
++import net.alphaguts.Player;
++
++public class PlayerLeaveEvent extends Event
++{
++     private final Player player;
++     private String message;
++     private final String reason;
++     public PlayerLeaveEvent(Player player, String message, String reason)
++     {
++         this.player = player;
++         this.message = message;
++         this.reason = reason;
++     }
++
++    public String getMessage() {
++        return message;
++    }
++
++    public void setMessage(String message) {
++        this.message = message;
++    }
++
++    public Player getPlayer() {
++        return player;
++    }
++
++    public String getReason() {
++        return reason;
++    }
++}
+--- /dev/null
++++ net/alphaguts/LivingEntity.java
+@@ -1,0 +1,46 @@
++package net.alphaguts;
++
++import net.minecraft.src.EntityLiving;
++
++public class LivingEntity
++{
++    protected EntityLiving nms;
++    public LivingEntity(EntityLiving nms)
++    {
++        this.nms = nms;
++    }
++
++    public void setRiding(LivingEntity livingEntity)
++    {
++        getNMS().func_6094_e(livingEntity.getNMS());
++    }
++
++    public Location getLocation()
++    {
++        return new Location(this.getNMS().posX, this.getNMS().posY, this.getNMS().posZ);
++    }
++
++    public EntityLiving getNMS()
++    {
++        return nms;
++    }
++
++    // Override equals to compare based on the NMS entity
++    @Override
++    public boolean equals(Object obj) {
++        if (this == obj) {
++            return true;  // Same reference
++        }
++        if (obj == null || getClass() != obj.getClass()) {
++            return false;  // Not the same class or null
++        }
++        LivingEntity that = (LivingEntity) obj;
++        return nms != null && nms.equals(that.nms);  // Compare based on the underlying NMS entity
++    }
++
++    // You should also override hashCode whenever you override equals
++    @Override
++    public int hashCode() {
++        return nms != null ? nms.hashCode() : 0;
++    }
++}
+--- /dev/null
++++ net/alphaguts/event/EventHandler.java
+@@ -1,0 +1,9 @@
++package net.alphaguts.event;
++
++import java.lang.annotation.Retention;
++import java.lang.annotation.RetentionPolicy;
++
++@Retention(RetentionPolicy.RUNTIME)
++public @interface EventHandler {
++    boolean ignoreCancelled() default false;
++}
+--- /dev/null
++++ net/alphaguts/Player.java
+@@ -1,0 +1,48 @@
++package net.alphaguts;
++
++import net.minecraft.src.EntityLiving;
++import net.minecraft.src.EntityPlayerMP;
++import net.minecraft.src.ItemStack;
++import net.minecraft.src.Packet3Chat;
++
++public class Player extends LivingEntity {
++
++    public Player(EntityPlayerMP entityPlayerMP) {
++        super((EntityLiving) entityPlayerMP);
++        this.nms = entityPlayerMP;
++    }
++
++    public String getName()
++    {
++        return getNMS().username;
++    }
++
++    public void giveItemStack(ItemStack stack)
++    {
++        getNMS().inventory.addItemStackToInventory(stack);
++        getNMS().field_421_a.func_40_d();
++
++    }
++
++    public void teleport(Location location)
++    {
++        this.getNMS().field_421_a.func_41_a(location.getX(), location.getY(), location.getZ(), this.getNMS().rotationYaw, this.getNMS().rotationPitch);//setPosition(location.getX(), location.getY(), location.getZ());
++    }
++    public void teleport(Player player)
++    {
++        teleport(player.getLocation());
++    }
++    public void sendMessage(String message)
++    {
++        this.getNMS().field_421_a.sendPacket(new Packet3Chat(message));
++    }
++
++    public boolean isOP()
++    {
++        return this.getNMS().mcServer.configManager.isOp(this.getNMS().username);
++    }
++
++    public EntityPlayerMP getNMS() {
++        return (EntityPlayerMP) nms;
++    }
++}
+--- net/minecraft/src/Item.java
++++ net/minecraft/src/Item.java
+@@ -122,7 +122,8 @@
+ 		return this;
+ 	}
+ 
+-	public boolean onItemUse(ItemStack var1, EntityPlayer var2, World var3, int var4, int var5, int var6, int var7) {
++	public boolean onItemUse(ItemStack var1, EntityPlayer var2, World var3, int var4, int var5, int var6, int var7)
++	{
+ 		return false;
+ 	}
+ 
+--- /dev/null
++++ net/alphaguts/ChatColor.java
+@@ -1,0 +1,22 @@
++package net.alphaguts;
++
++public class ChatColor
++{
++    public static final String DARK_RED = "§4\t";
++    public static final String RED = "§c\t";
++    public static final String GOLD = "§6\t";
++    public static final String YELLOW = "§e\t";
++    public static final String DARK_GREEN = "§2\t";
++    public static final String GREEN = "§a\t";
++    public static final String AQUA = "§b\t";
++    public static final String DARK_AQUA = "§3\t";
++    public static final String DARK_BLUE = "§1\t";
++    public static final String BLUE = "§9\t";
++    public static final String LIGHT_PURPLE = "§d\t";
++    public static final String PURPLE = "§5\t";
++    public static final String WHITE = "§f\t";
++    public static final String GRAY = "§7\t";
++    public static final String DARK_GRAY = "§8\t";
++    public static final String BLACK = "§0\t";
++
++}
+--- /dev/null
++++ net/alphaguts/Location.java
+@@ -1,0 +1,114 @@
++package net.alphaguts;
++
++import net.minecraft.src.Block;
++import net.minecraft.src.Entity;
++import net.minecraft.src.Explosion;
++
++import java.util.List;
++
++public class Location
++{
++    private double x;
++    private double y;
++    private double z;
++
++    public Location(double x, double y, double z)
++    {
++        this.x = x;
++        this.y = y;
++        this.z = z;
++    }
++
++
++    public Explosion createExplosion(LivingEntity immuneEntity, float radius, boolean ignite)
++    {
++        if (immuneEntity != null)
++        {
++            return API.getInstance().getNMS().worldMngr.func_12015_a(immuneEntity.getNMS(), getX(), getY(), getZ() ,radius, ignite);
++        } else {
++            return API.getInstance().getNMS().worldMngr.func_12015_a(null, getX(), getY(), getZ() ,radius, ignite);
++
++        }
++    }
++
++    public void playSound(String sound, float volume, float pitch)
++    {
++        API.getInstance().getNMS().worldMngr.playSoundEffect(getX(), getY(), getZ(), sound,volume, pitch);
++    }
++
++    public void playSound(Sounds sound, float volume, float pitch)
++    {
++        playSound(sound.getValue(), volume, pitch);
++    }
++
++    public void setBlockID(int blockID)
++    {
++        API.getInstance().getNMS().worldMngr.setBlockWithNotify((int) getX(), (int) getY(), (int) getZ(), blockID);
++    }
++
++    public void spawnEntity()
++    {
++
++    }
++
++    public void setBlock(Block block)
++    {
++        this.setBlockID(block.blockID);
++    }
++
++    public double distance(Location other) {
++        double deltaX = this.x - other.x;
++        double deltaY = this.y - other.y;
++        double deltaZ = this.z - other.z;
++        return Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
++    }
++
++    public Location add(double dx, double dy, double dz) {
++        return new Location(this.x + dx, this.y + dy, this.z + dz);
++    }
++
++    // Helper method to subtract coordinates from the current location
++    public Location subtract(double dx, double dy, double dz) {
++        return new Location(this.x - dx, this.y - dy, this.z - dz);
++    }
++
++    // Clone method to create a copy of this location
++    public Location clone() {
++        return new Location(this.x, this.y, this.z);
++    }
++
++
++    @Override
++    public String toString() {
++        return "Location{x=" + x + ", y=" + y + ", z=" + z + "}";
++    }
++
++    public Block getBlock() {
++        int blockID = API.getInstance().getNMS().worldMngr.getBlockId((int) getX(), (int) getY(), (int) getZ());
++
++        // Check if the block ID is within valid bounds
++        if (blockID >= 0 && blockID < Block.blocksList.length) {
++            Block block = Block.blocksList[blockID];
++
++            // Ensure the block exists (i.e., not null)
++            if (block != null) {
++                return block;
++            }
++        }
++
++        // Return a default value or handle the invalid block case
++        return null; // null is the representation for air/invalid blocks
++    }
++
++    public double getZ() {
++        return z;
++    }
++
++    public double getY() {
++        return y;
++    }
++
++    public double getX() {
++        return x;
++    }
++}
+--- net/minecraft/src/ChunkCache.java
++++ net/minecraft/src/ChunkCache.java
+@@ -1,10 +1,10 @@
+ package net.minecraft.src;
+ 
+ public class ChunkCache implements IBlockAccess {
+-	private int field_823_a;
+-	private int field_822_b;
+-	private Chunk[][] field_825_c;
+-	private World worldObj;
++	private final int field_823_a;
++	private final int field_822_b;
++	private final Chunk[][] field_825_c;
++	private final World worldObj;
+ 
+ 	public ChunkCache(World var1, int var2, int var3, int var4, int var5, int var6, int var7) {
+ 		this.worldObj = var1;
+@@ -14,45 +14,60 @@
+ 		int var9 = var7 >> 4;
+ 		this.field_825_c = new Chunk[var8 - this.field_823_a + 1][var9 - this.field_822_b + 1];
+ 
+-		for(int var10 = this.field_823_a; var10 <= var8; ++var10) {
+-			for(int var11 = this.field_822_b; var11 <= var9; ++var11) {
+-				this.field_825_c[var10 - this.field_823_a][var11 - this.field_822_b] = var1.getChunkFromChunkCoords(var10, var11);
++		// Synchronize chunk loading to ensure thread safety
++		synchronized (this) {
++			for (int var10 = this.field_823_a; var10 <= var8; ++var10) {
++				for (int var11 = this.field_822_b; var11 <= var9; ++var11) {
++					this.field_825_c[var10 - this.field_823_a][var11 - this.field_822_b] =
++							var1.getChunkFromChunkCoords(var10, var11);
++				}
+ 			}
+ 		}
+-
+-	}
+-
+-	public int getBlockId(int var1, int var2, int var3) {
+-		if(var2 < 0) {
+-			return 0;
+-		} else if(var2 >= 128) {
+-			return 0;
+-		} else {
+-			int var4 = (var1 >> 4) - this.field_823_a;
+-			int var5 = (var3 >> 4) - this.field_822_b;
+-			return this.field_825_c[var4][var5].getBlockID(var1 & 15, var2, var3 & 15);
+-		}
+-	}
+-
+-	public int getBlockMetadata(int var1, int var2, int var3) {
+-		if(var2 < 0) {
+-			return 0;
+-		} else if(var2 >= 128) {
+-			return 0;
+-		} else {
+-			int var4 = (var1 >> 4) - this.field_823_a;
+-			int var5 = (var3 >> 4) - this.field_822_b;
+-			return this.field_825_c[var4][var5].getBlockMetadata(var1 & 15, var2, var3 & 15);
+-		}
+-	}
+-
+-	public Material getBlockMaterial(int var1, int var2, int var3) {
+-		int var4 = this.getBlockId(var1, var2, var3);
+-		return var4 == 0 ? Material.air : Block.blocksList[var4].blockMaterial;
+-	}
+-
+-	public boolean doesBlockAllowAttachment(int var1, int var2, int var3) {
+-		Block var4 = Block.blocksList[this.getBlockId(var1, var2, var3)];
+-		return var4 == null ? false : var4.allowsAttachment();
++	}
++
++	// Helper method to check if coordinates are within bounds of the cached chunk array
++	private boolean isInBounds(int chunkX, int chunkZ) {
++		return chunkX >= 0 && chunkX < field_825_c.length && chunkZ >= 0 && chunkZ < field_825_c[0].length;
++	}
++
++	public synchronized int getBlockId(int var1, int var2, int var3) {
++		if (var2 < 0 || var2 >= 128) {
++			return 0; // Out of vertical bounds
++		}
++
++		int chunkX = (var1 >> 4) - this.field_823_a;
++		int chunkZ = (var3 >> 4) - this.field_822_b;
++
++		if (!isInBounds(chunkX, chunkZ)) {
++			return 0; // Out of chunk bounds
++		}
++
++		return this.field_825_c[chunkX][chunkZ].getBlockID(var1 & 15, var2, var3 & 15);
++	}
++
++	public synchronized int getBlockMetadata(int var1, int var2, int var3) {
++		if (var2 < 0 || var2 >= 128) {
++			return 0; // Out of vertical bounds
++		}
++
++		int chunkX = (var1 >> 4) - this.field_823_a;
++		int chunkZ = (var3 >> 4) - this.field_822_b;
++
++		if (!isInBounds(chunkX, chunkZ)) {
++			return 0; // Out of chunk bounds
++		}
++
++		return this.field_825_c[chunkX][chunkZ].getBlockMetadata(var1 & 15, var2, var3 & 15);
++	}
++
++	public synchronized Material getBlockMaterial(int var1, int var2, int var3) {
++		int blockId = this.getBlockId(var1, var2, var3);
++		return blockId == 0 ? Material.air : Block.blocksList[blockId].blockMaterial;
++	}
++
++	public synchronized boolean doesBlockAllowAttachment(int var1, int var2, int var3) {
++		int blockId = this.getBlockId(var1, var2, var3);
++		Block block = Block.blocksList[blockId];
++		return block != null && block.allowsAttachment();
+ 	}
+ }
+--- /dev/null
++++ net/alphaguts/JavaPlugin.java
+@@ -1,0 +1,18 @@
++package net.alphaguts;
++
++import net.minecraft.server.MinecraftServer;
++
++import java.util.logging.Logger;
++
++public class JavaPlugin
++{
++    public void onEnable()
++    {
++
++    }
++
++    protected Logger getLogger()
++    {
++        return MinecraftServer.logger;
++    }
++}
+--- /dev/null
++++ net/alphaguts/event/BlockClickedEvent.java
+@@ -1,0 +1,30 @@
++package net.alphaguts.event;
++
++import net.alphaguts.Location;
++import net.alphaguts.Player;
++import net.minecraft.src.Block;
++
++public class BlockClickedEvent extends Event {
++    private final Location location;
++    private final Block block;
++    private final Player player;
++    public BlockClickedEvent(Location location, Block block, Player player)
++    {
++        this.location = location;
++        this.block = block;
++        this.player = player;
++        //player.sendMessage(location.toString() + " " + block.getClass().getSimpleName());
++    }
++
++    public Location getLocation() {
++        return location;
++    }
++
++    public Block getBlock() {
++        return block;
++    }
++
++    public Player getPlayer() {
++        return player;
++    }
++}
+--- /dev/null
++++ net/alphaguts/Command.java
+@@ -1,0 +1,8 @@
++package net.alphaguts;
++
++import net.minecraft.server.MinecraftServer;
++
++public interface Command {
++    void execute(String[] args, Player playerSender);
++    boolean requiresOP();
++}
+--- /dev/null
++++ net/alphaguts/event/Listener.java
+@@ -1,0 +1,5 @@
++package net.alphaguts.event;
++
++public interface Listener {
++    // Marker interface
++}
+--- /dev/null
++++ net/alphaguts/event/Event.java
+@@ -1,0 +1,13 @@
++package net.alphaguts.event;
++
++public abstract class Event {
++    private boolean isCancelled = false;
++
++    public boolean isCancelled() {
++        return isCancelled;
++    }
++
++    public void setCancelled(boolean cancelled) {
++        this.isCancelled = cancelled;
++    }
++}
+--- /dev/null
++++ net/alphaguts/CommandRegistry.java
+@@ -1,0 +1,50 @@
++package net.alphaguts;
++
++import java.util.HashMap;
++import java.util.Map;
++
++public class CommandRegistry {
++    private final Map<String, Command> commandMap = new HashMap<>();
++
++    public void registerCommand(String command, Command action ) {
++        commandMap.put(command.toLowerCase(), action);
++    }
++
++    public boolean commandExists(String fullCommand) {
++        // Trim and check if the command is empty
++        fullCommand = fullCommand.trim();
++        if (fullCommand.isEmpty()) {
++            return false;
++        }
++
++        // Split the command into command and arguments
++        String[] parts = fullCommand.split(" ", 2);
++        String command = parts[0].startsWith("/") ? parts[0].substring(1) : parts[0];
++
++        // Check if the command exists in the registry
++        return commandMap.containsKey(command.toLowerCase());
++    }
++
++    public void execute(String fullCommand, Player player) {
++        // Trim and check if the command is empty
++        fullCommand = fullCommand.trim();
++        if (fullCommand.isEmpty()) {
++            return;
++        }
++
++        // Split the command into command and arguments
++        String[] parts = fullCommand.split(" ", 2);
++        String command = parts[0].startsWith("/") ? parts[0].substring(1) : parts[0];
++        String[] arguments = parts.length > 1 ? parts[1].split(" ") : new String[0];
++
++        // Find the corresponding action and execute it
++        Command action = commandMap.get(command);
++        if (action != null) {
++            if (!player.isOP() && action.requiresOP()) {
++                player.sendMessage(ChatColor.YELLOW + "This command requires OP");
++                return;
++            }
++            action.execute(arguments, player);
++        }
++    }
++}
+--- net/minecraft/server/MinecraftServer.java
++++ net/minecraft/server/MinecraftServer.java
+@@ -12,6 +12,8 @@
+ import java.util.List;
+ import java.util.logging.Level;
+ import java.util.logging.Logger;
++
++import net.alphaguts.API;
+ import net.minecraft.src.AxisAlignedBB;
+ import net.minecraft.src.ConsoleLogManager;
+ import net.minecraft.src.EntityPlayerMP;
+@@ -56,6 +58,7 @@
+ 
+ 	public MinecraftServer() {
+ 		new ThreadSleepForever(this);
++		API.getInstance(this);
+ 	}
+ 
+ 	private boolean func_6008_d() throws UnknownHostException {
+@@ -473,6 +476,8 @@
+ 	public static void main(String[] var0) {
+ 		try {
+ 			MinecraftServer var1 = new MinecraftServer();
++			API api = API.getInstance(var1);
++			api.getPluginLoader().loadPlugins();
+ 			if(!GraphicsEnvironment.isHeadless() && (var0.length <= 0 || !var0[0].equals("nogui"))) {
+ 				ServerGUI.initGui(var1);
+ 			}
+--- /dev/null
++++ net/alphaguts/event/EventDispatcher.java
+@@ -1,0 +1,53 @@
++package net.alphaguts.event;
++
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.HashMap;
++import java.util.List;
++import java.util.Map;
++
++public class EventDispatcher {
++    private final Map<Class<? extends Event>, List<EventExecutor>> listeners = new HashMap<>();
++
++    public void registerListener(Listener listener) {
++        for (Method method : listener.getClass().getMethods()) {
++            if (method.isAnnotationPresent(EventHandler.class)) {
++                Class<?>[] parameters = method.getParameterTypes();
++                if (parameters.length == 1 && Event.class.isAssignableFrom(parameters[0])) {
++                    Class<? extends Event> eventClass = parameters[0].asSubclass(Event.class);
++                    listeners.computeIfAbsent(eventClass, k -> new ArrayList<>())
++                            .add(new EventExecutor(listener, method));
++                }
++            }
++        }
++    }
++
++    public void dispatchEvent(Event event) {
++        List<EventExecutor> executors = listeners.get(event.getClass());
++        if (executors != null) {
++            for (EventExecutor executor : executors) {
++                executor.execute(event);
++            }
++        }
++    }
++
++    private static class EventExecutor {
++        private final Listener listener;
++        private final Method method;
++
++        EventExecutor(Listener listener, Method method) {
++            this.listener = listener;
++            this.method = method;
++        }
++
++        public void execute(Event event) {
++            try {
++                if (!event.isCancelled() || !method.getAnnotation(EventHandler.class).ignoreCancelled()) {
++                    method.invoke(listener, event);
++                }
++            } catch (Exception e) {
++                e.printStackTrace(); // Handle reflection exceptions
++            }
++        }
++    }
++}
+--- /dev/null
++++ net/alphaguts/event/BlockDropEvent.java
+@@ -1,0 +1,56 @@
++package net.alphaguts.event;
++
++import net.alphaguts.API;
++import net.alphaguts.ChatColor;
++import net.alphaguts.Location;
++import net.minecraft.src.Block;
++import net.minecraft.src.Item;
++import net.minecraft.src.World;
++
++public class BlockDropEvent extends Event {
++    private final Block block;
++    private int dropID;
++    private int quantity;
++
++    public BlockDropEvent(Block block, Location location, int dropID, int quantity) {
++        this.block = block;
++        this.dropID = dropID;
++        this.quantity = quantity;
++        //API.getInstance().broadcastMessage(ChatColor.AQUA + block.getClass().getSimpleName() + " " + getDrop().getClass().getName() + " " + getQuantity());
++    }
++
++    public Block getBlock() {
++        return block;
++    }
++
++    public int getDropID() {
++        return dropID;
++    }
++
++    public Item getDrop()
++    {
++        return Item.itemsList[this.getDropID()];
++    }
++
++    public void setDrop(Item item)
++    {
++        this.dropID = item.swiftedIndex;
++    }
++
++    public void setDrop(Block block)
++    {
++        this.dropID = block.blockID;
++    }
++
++    public void setDropID(int dropID) {
++        this.dropID = dropID;
++    }
++
++    public int getQuantity() {
++        return quantity;
++    }
++
++    public void setQuantity(int quantity) {
++        this.quantity = quantity;
++    }
++}
+--- /dev/null
++++ net/alphaguts/event/PlayerJoinEvent.java
+@@ -1,0 +1,26 @@
++package net.alphaguts.event;
++
++import net.alphaguts.Player;
++import net.alphaguts.event.Event;
++
++public class PlayerJoinEvent extends Event {
++    private final Player player;
++    private String message;
++
++    public PlayerJoinEvent(Player player, String message) {
++        this.player = player;
++        this.message = message;
++    }
++
++    public String getMessage() {
++        return message;
++    }
++
++    public void setMessage(String message) {
++        this.message = message;
++    }
++
++    public Player getPlayer() {
++        return player;
++    }
++}
+--- net/minecraft/src/NetLoginHandler.java
++++ net/minecraft/src/NetLoginHandler.java
+@@ -4,6 +4,11 @@
+ import java.net.Socket;
+ import java.util.Random;
+ import java.util.logging.Logger;
++
++import net.alphaguts.API;
++import net.alphaguts.ChatColor;
++import net.alphaguts.Player;
++import net.alphaguts.event.PlayerJoinEvent;
+ import net.minecraft.server.MinecraftServer;
+ 
+ public class NetLoginHandler extends NetHandler {
+@@ -79,20 +84,21 @@
+ 
+ 	public void doLogin(Packet1Login var1) {
+ 		EntityPlayerMP var2 = this.mcServer.configManager.login(this, var1.username, var1.password);
+-		if(var2 != null) {
++		PlayerJoinEvent event = new PlayerJoinEvent(new Player(var2),"\u00a7e" + var2.username + " joined the game.");
++		API.getInstance().getEventDispatcher().dispatchEvent(event);
++		if(!event.isCancelled()) {
+ 			logger.info(this.getUserAndIPString() + " logged in with entity id " + var2.field_331_c);
+ 			NetServerHandler var3 = new NetServerHandler(this.mcServer, this.netManager, var2);
+ 			var3.sendPacket(new Packet1Login("", "", var2.field_331_c, this.mcServer.worldMngr.randomSeed, (byte)this.mcServer.worldMngr.field_4272_q.field_6165_g));
+ 			var3.sendPacket(new Packet6SpawnPosition(this.mcServer.worldMngr.spawnX, this.mcServer.worldMngr.spawnY, this.mcServer.worldMngr.spawnZ));
+-			this.mcServer.configManager.sendPacketToAllPlayers(new Packet3Chat("\u00a7e" + var2.username + " joined the game."));
++			this.mcServer.configManager.sendPacketToAllPlayers(new Packet3Chat(event.getMessage()));
+ 			this.mcServer.configManager.playerLoggedIn(var2);
+ 			var3.func_41_a(var2.posX, var2.posY, var2.posZ, var2.rotationYaw, var2.rotationPitch);
+ 			var3.func_40_d();
+ 			this.mcServer.field_6036_c.func_4108_a(var3);
+ 			var3.sendPacket(new Packet4UpdateTime(this.mcServer.worldMngr.worldTime));
++			this.finishedProcessing = true;
+ 		}
+-
+-		this.finishedProcessing = true;
+ 	}
+ 
+ 	public void handleErrorMessage(String var1) {
+--- net/minecraft/src/Block.java
++++ net/minecraft/src/Block.java
+@@ -1,5 +1,12 @@
+ package net.minecraft.src;
+ 
++import net.alphaguts.API;
++import net.alphaguts.Location;
++import net.alphaguts.Player;
++import net.alphaguts.event.BlockClickedEvent;
++import net.alphaguts.event.BlockDropEvent;
++import net.alphaguts.event.EventDispatcher;
++
+ import java.util.ArrayList;
+ import java.util.Random;
+ 
+@@ -251,9 +258,15 @@
+ 	}
+ 
+ 	public int idDropped(int var1, Random var2) {
++
+ 		return this.blockID;
+ 	}
+ 
++	public Item asItem()
++	{
++		return Item.itemsList[this.blockID];
++	}
++
+ 	public float func_254_a(EntityPlayer var1) {
+ 		return this.blockHardness < 0.0F ? 0.0F : (!var1.func_167_b(this) ? 1.0F / this.blockHardness / 100.0F : var1.getCurrentPlayerStrVsBlock(this) / this.blockHardness / 30.0F);
+ 	}
+@@ -264,11 +277,13 @@
+ 
+ 	public void dropBlockAsItemWithChance(World var1, int var2, int var3, int var4, int var5, float var6) {
+ 		if(!var1.multiplayerWorld) {
+-			int var7 = this.quantityDropped(var1.rand);
++			BlockDropEvent blockDropEvent = new BlockDropEvent(this, new Location(var2, var3, var4), this.idDropped(var5, var1.rand), this.quantityDropped(var1.rand));
++			API.getInstance().getEventDispatcher().dispatchEvent(blockDropEvent);
++			int var7 = blockDropEvent.getQuantity();//this.quantityDropped(var1.rand);
+ 
+ 			for(int var8 = 0; var8 < var7; ++var8) {
+ 				if(var1.rand.nextFloat() <= var6) {
+-					int var9 = this.idDropped(var5, var1.rand);
++					int var9 = blockDropEvent.getDropID(); //this.idDropped(var5, var1.rand);
+ 					if(var9 > 0) {
+ 						float var10 = 0.7F;
+ 						double var11 = (double)(var1.rand.nextFloat() * var10) + (double)(1.0F - var10) * 0.5D;
+@@ -407,9 +422,12 @@
+ 	}
+ 
+ 	public void onBlockPlaced(World var1, int var2, int var3, int var4, int var5) {
++
+ 	}
+ 
+ 	public void onBlockClicked(World var1, int var2, int var3, int var4, EntityPlayer var5) {
++		BlockClickedEvent event = new BlockClickedEvent(new Location(var2, var3, var4), this, new Player((EntityPlayerMP) var5));
++		API.getInstance().getEventDispatcher().dispatchEvent(event);
+ 	}
+ 
+ 	public void velocityToAddToEntity(World var1, int var2, int var3, int var4, Entity var5, Vec3D var6) {
+--- /dev/null
++++ net/alphaguts/API.java
+@@ -1,0 +1,90 @@
++package net.alphaguts;
++
++import com.sun.source.util.Plugin;
++import net.alphaguts.event.EventDispatcher;
++import net.minecraft.server.MinecraftServer;
++import net.minecraft.src.*;
++
++import java.util.ArrayList;
++import java.util.List;
++
++public class API {
++    private static API instance;
++    private final MinecraftServer nmsServer;
++    private final CommandRegistry commandRegistry;
++    private final PluginLoader pluginLoader;
++    private final EventDispatcher eventDispatcher;
++    // Private constructor to prevent instantiation
++    private API(MinecraftServer nmsServer) {
++        this.nmsServer = nmsServer;
++        this.eventDispatcher = new EventDispatcher();
++        this.pluginLoader = new PluginLoader("plugins");
++        this.commandRegistry = new CommandRegistry();
++    }
++
++    public void broadcastMessage(String message)
++    {
++        this.getNMS().configManager.sendPacketToAllPlayers(new Packet3Chat(message));
++    }
++
++    public Player getPlayerByName(String name)
++    {
++        for (Object object : getNMS().worldMngr.playerEntities)
++        {
++            if (object instanceof EntityPlayerMP)
++            {
++                EntityPlayerMP playerMP = (EntityPlayerMP) object;
++                if (playerMP.username == name){
++                    return new Player(playerMP);
++                }
++            }
++        }
++        return null;
++    }
++
++    // Singleton instance getter
++    public static API getInstance(MinecraftServer nmsServer) {
++        if (instance == null) {
++            synchronized (API.class) {
++                if (instance == null) {
++                    instance = new API(nmsServer);
++                }
++            }
++        }
++        return instance;
++    }
++
++    public CommandRegistry getCommandRegistry() {
++        return commandRegistry;
++    }
++
++    public static API getInstance() {
++        return instance;
++    }
++
++    // Getter for the MinecraftServer instance
++    public MinecraftServer getNMS() {
++        return nmsServer;
++    }
++
++    public List<LivingEntity> getEntities()
++    {
++        List<LivingEntity> entities = new ArrayList<>();
++        for (Object entity : getNMS().worldMngr.field_815_a)
++        {
++            if (entity instanceof EntityLiving)
++            {
++                entities.add(new LivingEntity((EntityLiving) entity));
++            }
++        }
++        return entities;
++    }
++
++    public PluginLoader getPluginLoader() {
++        return pluginLoader;
++    }
++
++    public EventDispatcher getEventDispatcher() {
++        return eventDispatcher;
++    }
++}
+--- net/minecraft/src/NetServerHandler.java
++++ net/minecraft/src/NetServerHandler.java
+@@ -1,6 +1,12 @@
+ package net.minecraft.src;
+ 
+ import java.util.logging.Logger;
++
++import net.alphaguts.API;
++import net.alphaguts.CommandRegistry;
++import net.alphaguts.Player;
++import net.alphaguts.event.PlayerChatEvent;
++import net.alphaguts.event.PlayerLeaveEvent;
+ import net.minecraft.server.MinecraftServer;
+ 
+ public class NetServerHandler extends NetHandler implements ICommandListener {
+@@ -33,9 +39,14 @@
+ 	}
+ 
+ 	public void func_43_c(String var1) {
++		PlayerLeaveEvent event = new PlayerLeaveEvent(new Player(this.playerEntity),"\u00a7e" + this.playerEntity.username + " left the game.", var1);
++		API.getInstance().getEventDispatcher().dispatchEvent(event);
+ 		this.netManager.addToSendQueue(new Packet255KickDisconnect(var1));
+ 		this.netManager.serverShutdown();
+-		this.mcServer.configManager.sendPacketToAllPlayers(new Packet3Chat("\u00a7e" + this.playerEntity.username + " left the game."));
++		if (!event.isCancelled())
++		{
++			this.mcServer.configManager.sendPacketToAllPlayers(new Packet3Chat(event.getMessage()));
++		}
+ 		this.mcServer.configManager.playerLoggedOut(this.playerEntity);
+ 		this.field_18_c = true;
+ 	}
+@@ -343,15 +354,27 @@
+ 			if(var2.startsWith("/")) {
+ 				this.func_4010_d(var2);
+ 			} else {
+-				var2 = "<" + this.playerEntity.username + "> " + var2;
+-				logger.info(var2);
+-				this.mcServer.configManager.sendPacketToAllPlayers(new Packet3Chat(var2));
++				PlayerChatEvent playerChatEvent = new PlayerChatEvent(new Player(this.playerEntity), var2, "{player}:{message}");
++				API.getInstance().getEventDispatcher().dispatchEvent(playerChatEvent);
++				if (!playerChatEvent.isCancelled())
++				{
++					String formattedMsg = playerChatEvent.getFormattedMessage();
++					logger.info(formattedMsg);
++					this.mcServer.configManager.sendPacketToAllPlayers(new Packet3Chat(formattedMsg));
++				}
++
+ 			}
+ 
+ 		}
+ 	}
+ 
+ 	private void func_4010_d(String var1) {
++		CommandRegistry commandRegistry = API.getInstance().getCommandRegistry();
++		if (commandRegistry.commandExists(var1))
++		{
++			commandRegistry.execute(var1, new Player(this.playerEntity));
++			return;
++		}
+ 		if(var1.toLowerCase().startsWith("/me ")) {
+ 			var1 = "* " + this.playerEntity.username + " " + var1.substring(var1.indexOf(" ")).trim();
+ 			logger.info(var1);
+--- /dev/null
++++ net/alphaguts/event/PlayerChatEvent.java
+@@ -1,0 +1,57 @@
++package net.alphaguts.event;
++
++import net.alphaguts.Player;
++
++import java.util.HashMap;
++import java.util.Map;
++
++public class PlayerChatEvent extends Event{
++    private final Player player;
++    private String message;
++    private boolean cancelled;
++    private String format;
++
++    public PlayerChatEvent(Player player, String message, String format) {
++        this.player = player;
++        this.message = message;
++        this.cancelled = false;
++        this.format = format;
++    }
++
++    public void setFormat(String format) {
++        this.format = format;
++    }
++
++    public Player getPlayer() {
++        return player;
++    }
++
++    public String getMessage() {
++        return message;
++    }
++
++    public void setMessage(String message) {
++        this.message = message;
++    }
++
++    public boolean isCancelled() {
++        return cancelled;
++    }
++
++    public void setCancelled(boolean cancelled) {
++        this.cancelled = cancelled;
++    }
++
++    // Method to format the message with named placeholders
++    public String getFormattedMessage() {
++        Map<String, String> placeholders = new HashMap<>();
++        placeholders.put("player", player.getName());
++        placeholders.put("message", message);
++
++        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
++            format = format.replace("{" + entry.getKey() + "}", entry.getValue());
++        }
++
++        return format;
++    }
++}

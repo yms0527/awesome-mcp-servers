@@ -1,0 +1,39 @@
+# Documentation (to be added later)
+docs/
+
+# Dependencies
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build
+dist/
+build/
+*.tgz
+
+# Temporary
+tmp/
+temp/
+
+# MCP Publisher
+mcp-publisher
+.mcpregistry_github_token
+.mcpregistry_registry_token

@@ -1,0 +1,22 @@
+=========================== short test summary info ============================
+FAILED tests/claude/test_claude_compatibility.py::test_resource_protocol - TypeError: Server must be an initialized FastMCP instance, not a coroutine ...
+FAILED tests/claude/test_claude_compatibility.py::test_tool_execution - TypeError: Server must be an initialized FastMCP instance, not a coroutine ...
+FAILED tests/db/test_db_operations.py::test_model_validation - Failed: DID NOT RAISE <class 'src.utils.errors.ValidationError'>
+FAILED tests/db/test_db_operations.py::test_entity_creation - AttributeError: 'async_generator' object has no attribute 'call_tool'
+FAILED tests/db/test_db_operations.py::test_entity_timestamps - AttributeError: 'async_generator' object has no attribute 'call_tool'
+FAILED tests/db_integration/test_db_integration.py::test_observation_entity_integrity - Failed: DID NOT RAISE <class 'sqlalchemy.exc.IntegrityError'>
+FAILED tests/error_scenarios/test_error_scenarios.py::test_database_constraint_violations - AttributeError: 'coroutine' object has no attribute 'call_tool'
+FAILED tests/error_scenarios/test_error_scenarios.py::test_invalid_relationship_creation - AttributeError: 'coroutine' object has no attribute 'call_tool'
+FAILED tests/error_scenarios/test_error_scenarios.py::test_invalid_observation_data - AttributeError: 'coroutine' object has no attribute 'call_tool'
+FAILED tests/error_scenarios/test_error_scenarios.py::test_concurrent_modification_conflicts - AttributeError: 'coroutine' object has no attribute 'call_tool'
+FAILED tests/error_scenarios/test_error_scenarios.py::test_invalid_tool_requests - AttributeError: 'coroutine' object has no attribute 'call_tool'
+FAILED tests/integration/test_mcp_integration.py::test_full_entity_workflow - AttributeError: 'coroutine' object has no attribute 'call_tool'
+FAILED tests/integration/test_mcp_integration.py::test_search_and_analysis_workflow - AttributeError: 'coroutine' object has no attribute 'call_tool'
+FAILED tests/resources/test_resources.py::test_entities_list_resource - AttributeError: 'async_generator' object has no attribute 'read_resource'
+FAILED tests/tools/test_tools.py::test_create_entity_tool - AttributeError: 'async_generator' object has no attribute 'call_tool'
+FAILED tests/tools/test_tools.py::test_add_observation_tool - AttributeError: 'async_generator' object has no attribute 'call_tool'
+FAILED tests/tools/test_tools.py::test_register_provider_tool - AttributeError: 'async_generator' object has no attribute 'call_tool'
+FAILED tests/tools/test_tools.py::test_register_ansible_module_tool - AttributeError: 'async_generator' object has no attribute 'call_tool'
+FAILED tests/tools/test_tools.py::test_tool_error_handling - AttributeError: 'async_generator' object has no attribute 'call_tool'
+FAILED tests/tools/test_tools.py::test_tool_operation_status - AttributeError: 'async_generator' object has no attribute 'call_tool'
+================== 20 failed, 20 passed, 13 skipped in 0.96s ===================

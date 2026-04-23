@@ -1,0 +1,18 @@
+name: junipr-mcp
+description: >
+  Junipr MCP gives AI agents and LLM tools access to a full web intelligence platform.
+  Capture full-page screenshots, generate PDFs from URLs or HTML, extract structured
+  page metadata and Open Graph data, and tap into 75+ specialized data extractors
+  covering news, social media, SERP, pricing, real estate, and more.
+  Free tier: 500 credits/month. Sub-2s response times. Two-tier caching under 50ms for cached requests.
+homepage: https://junipr.io
+repository: https://github.com/junipr-labs/mcp-server
+tags:
+  - web
+  - screenshot
+  - pdf
+  - scraping
+  - metadata
+  - data-extraction
+  - developer-tools
+license: MIT

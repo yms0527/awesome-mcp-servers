@@ -1,0 +1,54 @@
+{
+  "name": "@demon24ru/video-transcribe-mcp",
+  "version": "0.0.1",
+  "description": "A video transcribe MCP server implementation that integrates with optivus server for LLMs.",
+  "keywords": [
+    "mcp",
+    "llm"
+  ],
+  "homepage": "https://github.com/demon24ru/video-transcribe-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/demon24ru/video-transcribe-mcp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/demon24ru/video-transcribe-mcp.git"
+  },
+  "bin": {
+    "video-transcribe-mcp": "lib/index.mjs"
+  },
+  "files": [
+    "lib",
+    "README.md"
+  ],
+  "main": "./lib/index.mjs",
+  "scripts": {
+    "prepare": "tsc && shx chmod +x ./lib/index.mjs",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --forceExit"
+  },
+  "author": "@demon24ru",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./lib/index.mjs"
+    }
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "0.7.0",
+    "global": "^4.4.0",
+    "rimraf": "^6.0.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
+    "spawn-rx": "^4.0.0"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "shx": "^0.3.4",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}

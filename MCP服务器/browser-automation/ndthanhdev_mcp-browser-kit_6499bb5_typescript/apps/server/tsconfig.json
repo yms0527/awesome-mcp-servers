@@ -1,0 +1,77 @@
+{
+	"extends": "../../tsconfig.options.json",
+	"compilerOptions": {
+		"emitDeclarationOnly": true,
+		"baseUrl": ".",
+		"paths": {
+			"@mcp-browser-kit/extension/*": [
+				"../extension/src/*"
+			],
+			"@mcp-browser-kit/core-server": [
+				"../../packages/core-server/src/index.ts"
+			],
+			"@mcp-browser-kit/core-server/*": [
+				"../../packages/core-server/src/*"
+			],
+			"@mcp-browser-kit/helper-base-extension-channel-provider": [
+				"../../packages/helper-base-extension-channel-provider/src/index.ts"
+			],
+			"@mcp-browser-kit/helper-base-extension-channel-provider/*": [
+				"../../packages/helper-base-extension-channel-provider/src/*"
+			],
+			"@mcp-browser-kit/driven-logger-factory": [
+				"../../packages/driven-logger-factory/src/index.ts"
+			],
+			"@mcp-browser-kit/driven-logger-factory/*": [
+				"../../packages/driven-logger-factory/src/*"
+			],
+			"@mcp-browser-kit/core-utils": [
+				"../../packages/core-utils/src/index.ts"
+			],
+			"@mcp-browser-kit/core-utils/*": [
+				"../../packages/core-utils/src/*"
+			],
+			"@mcp-browser-kit/server-driven-trpc-channel-provider": [
+				"../../packages/server-driven-trpc-channel-provider/src/index.ts"
+			],
+			"@mcp-browser-kit/server-driven-trpc-channel-provider/*": [
+				"../../packages/server-driven-trpc-channel-provider/src/*"
+			],
+			"@mcp-browser-kit/server-driving-mcp-server": [
+				"../../packages/server-driving-mcp-server/src/index.ts"
+			],
+			"@mcp-browser-kit/server-driving-mcp-server/*": [
+				"../../packages/server-driving-mcp-server/src/*"
+			]
+		},
+		"outDir": "../../.moon/cache/types/apps/server"
+	},
+	"include": [
+		"src/**/*.ts",
+		"../../packages/rpc/src/**/*",
+		"../../packages/core-server/src/**/*",
+		"../../packages/helper-base-extension-channel-provider/src/**/*",
+		"../../packages/server-driven-trpc-channel-provider/src/**/*",
+		"../../packages/server-driving-mcp-server/src/**/*"
+	],
+	"references": [
+		{
+			"path": "../../packages/core-server"
+		},
+		{
+			"path": "../../packages/driven-logger-factory"
+		},
+		{
+			"path": "../../packages/helper-base-extension-channel-provider"
+		},
+		{
+			"path": "../../packages/core-utils"
+		},
+		{
+			"path": "../../packages/server-driven-trpc-channel-provider"
+		},
+		{
+			"path": "../../packages/server-driving-mcp-server"
+		}
+	]
+}

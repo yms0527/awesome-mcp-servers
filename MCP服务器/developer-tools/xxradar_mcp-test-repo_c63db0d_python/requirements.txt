@@ -1,0 +1,4 @@
+fastapi==0.115.11
+fastapi-mcp==0.2.0
+typer==0.15.2
+openai==1.73.0

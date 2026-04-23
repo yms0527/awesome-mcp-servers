@@ -1,0 +1,2 @@
+This is some dummy content for the temp.txt file.
+Adding more content to demonstrate a second commit.

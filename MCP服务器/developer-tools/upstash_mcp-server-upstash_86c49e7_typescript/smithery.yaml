@@ -1,0 +1,18 @@
+startCommand:
+  type: "http"
+  configSchema:
+    type: "object"
+    required: ["email", "apiKey"]
+    additionalProperties: false
+    properties:
+      email:
+        type: "string"
+        title: "Email"
+        description: "Your Upstash email address"
+      apiKey:
+        type: "string"
+        title: "API Key"
+        description: "Your Upstash management API key"
+  exampleConfig:
+    email: "user@example.com"
+    apiKey: "sk-example123"

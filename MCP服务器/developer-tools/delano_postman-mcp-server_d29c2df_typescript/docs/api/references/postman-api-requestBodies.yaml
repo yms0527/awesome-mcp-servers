@@ -1,0 +1,2088 @@
+requestBodies:
+  createApi:
+    content:
+      application/json:
+        schema:
+          title: Create/Update API
+          description: Information about the API.
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
+              description: The API's name.
+              example: Test API
+            summary:
+              type: string
+              description: The API's short summary.
+              example: Testing API
+            description:
+              type: string
+              description: The API's description. This supports Markdown formatting.
+              example: This is a test API.
+        example:
+          name: Test API
+          summary: Testing API
+          description: This is a test API.
+  updateApi:
+    content:
+      application/json:
+        schema:
+          type: object
+          title: Create/Update API
+          description: Information about the API.
+          required:
+            - name
+          properties:
+            name:
+              type: string
+              description: The API's name.
+              example: Test API
+            summary:
+              type: string
+              description: The API's short summary.
+              example: Testing API
+            description:
+              type: string
+              description: The API's description. This supports Markdown formatting.
+              example: This is a test API.
+        example:
+          name: Test API
+          summary: Testing API
+          description: This is a test API.
+  addApiCollection:
+    content:
+      application/json:
+        schema:
+          anyOf:
+            - type: object
+              title: Copy Collection
+              properties:
+                data:
+                  type: object
+                  properties:
+                    collectionId:
+                      type: string
+                      description: The collection ID to copy to the API.
+                      example: 12345678-61867bcc-c4c1-11ed-afa1-0242ac120002
+                operationType:
+                  type: string
+                  description: The `COPY_COLLECTION` method.
+                  enum:
+                    - COPY_COLLECTION
+                  example: COPY_COLLECTION
+            - type: object
+              title: Generate from Schema
+              properties:
+                name:
+                  type: string
+                  description: The collection's name.
+                  example: Sample collection
+                operationType:
+                  type: string
+                  description: The `GENERATE_FROM_SCHEMA` method.
+                  enum:
+                    - GENERATE_FROM_SCHEMA
+                  example: GENERATE_FROM_SCHEMA
+                options:
+                  type: object
+                  additionalProperties: true
+                  description: The advanced creation options for collections and their values. For a complete list of properties and their values, see Postman's [OpenAPI to Postman Collection Converter OPTIONS documentation](https://github.com/postmanlabs/openapi-to-postman/blob/develop/OPTIONS.md). These properties are case-sensitive.
+            - type: object
+              title: Create Collection
+              properties:
+                data:
+                  type: object
+                  description: Information about the collection's contents, such as requests and responses. For a complete list of values, refer to the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+                  properties:
+                    info:
+                      type: object
+                      description: Information about the collection.
+                      properties:
+                        name:
+                          type: string
+                          description: The collection's name.
+                          example: Sample collection
+                        schema:
+                          type: string
+                          format: url
+                          description: The collection's schema format.
+                          enum:
+                            - https://schema.getpostman.com/json/collection/v2.1.0/collection.json
+                          example: https://schema.getpostman.com/json/collection/v2.1.0/collection.json
+                    item:
+                      type: array
+                      description: Information about the requests and responses in the collection. For a complete list of values, refer to the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+                      items: {}
+                operationType:
+                  type: string
+                  description: The `CREATE_NEW` method.
+                  enum:
+                    - CREATE_NEW
+                  example: CREATE_NEW
+        examples:
+          Copy a Collection:
+            value:
+              operationType: COPY_COLLECTION
+              data:
+                collectionId: 12ece9e1-2abf-4edc-8e34-de66e74114d2
+          Generate a Collection from Schema:
+            value:
+              name: Test Collection
+              operationType: GENERATE_FROM_SCHEMA
+              options:
+                enableOptionalParameters: true
+                folderStrategy: Tags
+          Add a New Collection:
+            value:
+              operationType: CREATE_NEW
+              data:
+                item:
+                  - protocolProfileBehavior:
+                      disableBodyPruning: true
+                    response:
+                      - originalRequest:
+                          url:
+                            host:
+                              - https://api.getpostman.com
+                            raw: https://api.getpostman.com/spacecrafts/:spacecraftId
+                            variable:
+                              - description: (Required) The unique identifier of the spacecraft
+                                key: spacecraftId
+                                value: <string>
+                            path:
+                              - spacecrafts
+                              - ':spacecraftId'
+                          method: GET
+                          header:
+                            - description: 'Added as a part of security scheme: apikey'
+                              key: X-Api-Key
+                              value: <API Key>
+                        code: 200
+                        _postman_previewlanguage: json
+                        responseTime: null
+                        header:
+                          - key: Content-Type
+                            value: application/json
+                        name: The spacecraft corresponding to the provided `spacecraftId`
+                        _postman_previewtype: html
+                        body: |-
+                          {
+                            "id": "<string>",
+                            "name": "commodo",
+                            "type": "capsule",
+                            "description": "pariatur dolo"
+                          }
+                        cookie: []
+                        status: OK
+                        id: 54467f6e-71d7-43d5-acc0-48f948e38528
+                      - originalRequest:
+                          url:
+                            host:
+                              - https://api.getpostman.com
+                            raw: https://api.getpostman.com/spacecrafts/:spacecraftId
+                            variable:
+                              - description: (Required) The unique identifier of the spacecraft
+                                key: spacecraftId
+                                value: <string>
+                            path:
+                              - spacecrafts
+                              - ':spacecraftId'
+                          method: GET
+                          header:
+                            - description: 'Added as a part of security scheme: apikey'
+                              key: X-Api-Key
+                              value: <API Key>
+                        code: 404
+                        _postman_previewlanguage: json
+                        responseTime: null
+                        header:
+                          - key: Content-Type
+                            value: application/json
+                        name: No spacecraft found for the provided `spacecraftId`
+                        _postman_previewtype: html
+                        body: |-
+                          {
+                            "message": "dolore Excepteur"
+                          }
+                        cookie: []
+                        status: Not Found
+                        id: 1231609a-7a3d-444d-aa0c-579703e618f4
+                      - originalRequest:
+                          url:
+                            host:
+                              - https://api.getpostman.com
+                            raw: https://api.getpostman.com/spacecrafts/:spacecraftId
+                            variable:
+                              - description: (Required) The unique identifier of the spacecraft
+                                key: spacecraftId
+                                value: <string>
+                            path:
+                              - spacecrafts
+                              - ':spacecraftId'
+                          method: GET
+                          header:
+                            - description: 'Added as a part of security scheme: apikey'
+                              key: X-Api-Key
+                              value: <API Key>
+                        code: 500
+                        _postman_previewlanguage: json
+                        responseTime: null
+                        header:
+                          - key: Content-Type
+                            value: application/json
+                        name: Unexpected error
+                        _postman_previewtype: html
+                        body: |-
+                          {
+                            "message": "dolore Excepteur"
+                          }
+                        cookie: []
+                        status: Internal Server Error
+                        id: db674465-8cec-4208-9724-42278ca9b83c
+                    id: d3779255-5293-4e58-9b65-8954936e1dca
+                    request:
+                      url:
+                        host:
+                          - https://api.getpostman.com
+                        raw: https://api.getpostman.com/spacecrafts/:spacecraftId
+                        variable:
+                          - description: (Required) The unique identifier of the spacecraft
+                            key: spacecraftId
+                            value: <string>
+                        path:
+                          - spacecrafts
+                          - ':spacecraftId'
+                      method: GET
+                      header:
+                        - key: Accept
+                          value: application/json
+                    name: Read a spacecraft
+                auth:
+                  apikey:
+                    - key: key
+                      value: X-Api-Key
+                    - key: value
+                      value: '{{apiKey}}'
+                    - key: in
+                      value: header
+                  type: apikey
+                info:
+                  description: Buy or rent spacecrafts
+                  _postman_id: e726de58-f1b3-4edd-a8a7-2579dc799d39
+                  schema: https://schema.getpostman.com/json/collection/v2.1.0/collection.json
+                  name: Generated
+                variable:
+                  - value: /
+                    type: string
+                    id: 526a20ba-acfb-4549-a841-8edf2d24b929
+                    key: baseUrl
+  commentCreate:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/commentCreate'
+        examples:
+          Create Comment:
+            $ref: '#/components/examples/commentCreate'
+          Reply to Comment Thread:
+            $ref: '#/components/examples/commentCreateReply'
+          Tag User in Comment:
+            $ref: '#/components/examples/commentTagUser'
+  commentUpdate:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/commentUpdate'
+        examples:
+          Update Comment:
+            $ref: '#/components/examples/commentCreate'
+          Tag User in Comment:
+            $ref: '#/components/examples/commentTagUser'
+  createApiSchema:
+    description: The request body to create an API schema.
+    content:
+      application/json:
+        schema:
+          description: Information about the API schema.
+          title: Create API Schema
+          type: object
+          required:
+            - type
+            - files
+          properties:
+            type:
+              type: string
+              description: The schema's type.
+              enum:
+                - proto:2
+                - proto:3
+                - graphql
+                - openapi:3_1
+                - openapi:3
+                - openapi:2
+                - openapi:1
+                - raml:1
+                - raml:0_8
+                - wsdl:2
+                - wsdl:1
+                - asyncapi:2
+              example: openapi:3
+            files:
+              type: array
+              description: The list of files that are part of the schema.
+              items:
+                type: object
+                properties:
+                  path:
+                    type: string
+                    description: The schema's file path.
+                    example: index.json
+                  root:
+                    type: object
+                    description: Information about the schema's root file.
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: true
+                        description: If true, tag the file as the root file. You can only update the root tag for protobuf specifications.
+                        example: true
+                  content:
+                    type: string
+                    description: The schema file's stringified contents.
+        examples:
+          Create JSON Schema:
+            $ref: '#/components/examples/createJsonSchema'
+          Create YAML Schema:
+            $ref: '#/components/examples/createYamlSchema'
+          Create GraphQL Schema:
+            $ref: '#/components/examples/createGraphQlSchema'
+          Create Schema with Proto:
+            $ref: '#/components/examples/createProtoSchema'
+  createUpdateApiSchemaFile:
+    content:
+      application/json:
+        schema:
+          type: object
+          description: Information about schema file.
+          properties:
+            name:
+              type: string
+              description: The schema file's name.
+              example: index.json
+            root:
+              type: object
+              description: Information about the schema's root file.
+              properties:
+                enabled:
+                  type: boolean
+                  description: If true, tag the file as the root file. You can only update the root tag for protobuf specifications.
+                  example: true
+            content:
+              type: string
+              description: The schema file's stringified contents.
+              example: |-
+                {
+                  "openapi": "3.1.0",
+                  "info": {
+                    "version": "1.0.0",
+                    "title": "Sample API",
+                    "description": "Buy or rent spacecrafts"
+                  },
+                  "paths": {
+                    "/spacecrafts/{spacecraftId}": {
+                      "parameters": [
+                        {
+                          "name": "spacecraftId",
+                          "description": "The unique identifier of the spacecraft",
+                          "in": "path",
+                          "required": true,
+                          "schema": {
+                            "$ref": "#/components/schemas/SpacecraftId"
+                          }
+                        }
+                      ],
+                      "get": {
+                        "summary": "Read a spacecraft",
+                        "responses": {
+                          "200": {
+                            "description": "The spacecraft corresponding to the provided `spacecraftId`",
+                            "content": {
+                              "application/json": {
+                                "schema": {
+                                  "$ref": "#/components/schemas/Spacecraft"
+                                }
+                              }
+                            }
+                          },
+                          "404": {
+                            "description": "No spacecraft found for the provided `spacecraftId`",
+                            "content": {
+                              "application/json": {
+                                "schema": {
+                                  "$ref": "#/components/schemas/Error"
+                                }
+                              }
+                            }
+                          },
+                          "500": {
+                            "description": "Unexpected error",
+                            "content": {
+                              "application/json": {
+                                "schema": {
+                                  "$ref": "#/components/schemas/Error"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "components": {
+                    "schemas": {
+                      "SpacecraftId": {
+                        "description": "The unique identifier of a spacecraft",
+                        "type": "string"
+                      },
+                      "Spacecraft": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name",
+                          "type"
+                        ],
+                        "properties": {
+                          "id": {
+                            "$ref": "#/components/schemas/SpacecraftId"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "capsule",
+                              "probe",
+                              "satellite",
+                              "spaceplane",
+                              "station"
+                            ]
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "Error": {
+                        "type": "object",
+                        "required": [
+                          "message"
+                        ],
+                        "properties": {
+                          "message": {
+                            "description": "A human readable error message",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "securitySchemes": {
+                      "ApiKey": {
+                        "type": "apiKey",
+                        "in": "header",
+                        "name": "X-Api-Key"
+                      }
+                    }
+                  },
+                  "security": [
+                    {
+                      "ApiKey": [
+
+                      ]
+                    }
+                  ]
+                }
+        examples:
+          JSON Schema:
+            $ref: '#/components/examples/updateJsonSchema'
+          YAML Schema:
+            $ref: '#/components/examples/updateYamlSchema'
+          GraphQL Schema:
+            $ref: '#/components/examples/updateGraphQlSchema'
+          Update root Tag:
+            value:
+              root:
+                enabled: true
+  tagUpdateTags:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/tagUpdateTags'
+        example:
+          tags:
+            - slug: needs-review
+  createApiVersion:
+    content:
+      application/json:
+        schema:
+          anyOf:
+            - type: object
+              title: Create Version Schema (Not Git-Linked)
+              description: Information about the API version.
+              required:
+                - name
+                - schemas
+                - collections
+              properties:
+                name:
+                  type: string
+                  description: The version's name.
+                  example: v1
+                schemas:
+                  type: array
+                  description: A list of the version's schemas.
+                  items:
+                    type: object
+                    description: Information about the schema.
+                    properties:
+                      id:
+                        type: string
+                        description: The schema's ID.
+                        example: 5381f010-c4c1-11ed-afa1-0242ac120002
+                collections:
+                  type: array
+                  description: A list of the version's collections.
+                  items:
+                    type: object
+                    description: Information about the collection.
+                    properties:
+                      id:
+                        type: string
+                        description: The collection's ID.
+                        example: 123456-12ece9e1-2abf-4edc-8e34-de66e74114d2
+                releaseNotes:
+                  type: string
+                  description: Information about the API version release. For example, changelog notes.
+                  example: This is the first release.
+            - type: object
+              title: Create Version Schema (Git-Linked with root File)
+              description: Information about the API version.
+              required:
+                - name
+                - branch
+                - schemas
+                - collections
+              properties:
+                name:
+                  type: string
+                  description: The version's name.
+                  example: v1
+                branch:
+                  type: string
+                  description: The branch ID.
+                  example: develop
+                schemas:
+                  type: array
+                  description: A list of the version's schemas.
+                  items:
+                    type: object
+                    description: Information about the schema.
+                    properties:
+                      filePath:
+                        type: string
+                        description: The path to the schema root file in the Git repository.
+                        example: index.yaml
+                collections:
+                  type: array
+                  description: A list of the version's collections.
+                  items:
+                    type: object
+                    description: Information about the collection.
+                    properties:
+                      filePath:
+                        type: string
+                        description: Path to a collection in the Git repository.
+                        example: postman/collection/c1.json
+                releaseNotes:
+                  type: string
+                  description: Information about the API version release. For example, changelog notes.
+                  example: This is the first release.
+            - type: object
+              title: Create Version Schema (Git-Linked)
+              description: Information about the API version.
+              required:
+                - name
+                - branch
+                - schemas
+                - collections
+              properties:
+                name:
+                  type: string
+                  description: The version's name.
+                  example: v1
+                branch:
+                  type: string
+                  description: The branch ID.
+                  example: main
+                schemas:
+                  type: array
+                  description: A list of the version's schemas.
+                  items:
+                    type: object
+                    description: Information about the schema.
+                    properties:
+                      directoryPath:
+                        type: string
+                        description: The path to the root directory where schemas are stored in the Git repository.
+                        example: postman/schemas
+                collections:
+                  type: array
+                  description: A list of the version's collections.
+                  items:
+                    type: object
+                    description: Information about the collection.
+                    properties:
+                      filePath:
+                        type: string
+                        description: The path to the collection in the Git repository.
+                        example: postman/collection/c1.json
+                releaseNotes:
+                  type: string
+                  example: This is the first release.
+                  description: Information about the API version release. For example, changelog notes.
+        examples:
+          Create Version:
+            value:
+              name: v1
+              releaseNotes: This is the first release.
+              collections:
+                - id: e8a015e0-f472-4bb3-a523-57ce7c4583ed
+              schemas:
+                - id: 18a015e0-f472-4bb3-a523-57ce7c458387
+          Git-Linked Version with Schema Directory Path:
+            value:
+              name: v1
+              branch: develop
+              releaseNotes: This is the first release.
+              collections:
+                - filePath: postman/collections/c1.json
+              schemas:
+                - directoryPath: postman/schema
+          Git-Linked Version with root File Integration:
+            value:
+              name: v1
+              branch: develop
+              releaseNotes: This is the first release.
+              schemas:
+                - directoryPath: /dir/index.yml
+              collections:
+                - filePath: postman/collections/c1.json
+  updateApiVersion:
+    content:
+      application/json:
+        schema:
+          type: object
+          description: Information about the API version.
+          required:
+            - name
+          properties:
+            name:
+              type: string
+              description: The version's name.
+              example: Release 1.5
+            releaseNotes:
+              type: string
+              description: The version's Markdown-supported release notes.
+              example: This is the first public release update.
+        example:
+          name: Release 1.5
+          releaseNotes: This is the first public release update.
+  asyncCollectionForkMerge:
+    content:
+      application/json:
+        schema:
+          required:
+            - strategy
+            - source
+            - destination
+          type: object
+          properties:
+            strategy:
+              type: string
+              description: |
+                The fork's merge strategy:
+                - `default` — Make no changes to the fork. You must have **Editor** access to the destination collection.
+                - `updateSourceWithDestination` — Merge changes and apply any differences in the destination collection to the source. You must have **Editor** access to both the source and destination collection.
+                - `deleteSource` — Merge the changes and delete the fork. You must have **Editor** access to both the source and destination collection.
+              enum:
+                - default
+                - updateSourceWithDestination
+                - deleteSource
+              example: default
+            source:
+              type: string
+              format: uid
+              description: The source collection's unique ID.
+              example: 12345678-5a027c05-056b-49f5-ac9d-37c29f2d91c3
+            destination:
+              type: string
+              format: uid
+              description: The destination collection's unique ID.
+              example: 12345678-b04fa319-3e7e-4fa3-b6a2-f5b29ad67583
+        examples:
+          Default:
+            value:
+              strategy: default
+              source: 12345678-5a027c05-056b-49f5-ac9d-37c29f2d91c3
+              destination: 12345678-b04fa319-3e7e-4fa3-b6a2-f5b29ad67583
+          Update Source with Destination:
+            value:
+              strategy: updateSourceWithDestination
+              source: 12345678-5a027c05-056b-49f5-ac9d-37c29f2d91c3
+              destination: 12345678-b04fa319-3e7e-4fa3-b6a2-f5b29ad67583
+          Delete Source:
+            value:
+              strategy: deleteSource
+              source: 12345678-5a027c05-056b-49f5-ac9d-37c29f2d91c3
+              destination: 12345678-b04fa319-3e7e-4fa3-b6a2-f5b29ad67583
+  createCollection:
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            collection:
+              type: object
+              description: For a complete list of values, refer to the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+              required:
+                - info
+              properties:
+                info:
+                  type: object
+                  required:
+                    - name
+                    - schema
+                  description: An object that contains basic information about the collection. For a complete list of values, refer to the **Information** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+                  properties:
+                    name:
+                      type: string
+                      description: The collection's name.
+                      example: Test Collection
+                    schema:
+                      type: string
+                      format: url
+                      description: A URL to the collection's schema.
+                      example: https://schema.getpostman.com/json/collection/v2.1.0/collection.json
+                item:
+                  type: array
+                  description: Information about the collection's HTTP requests and responses. For a complete list of values, refer to the **Items** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+                  items:
+                    required:
+                      - request
+                    type: object
+                    properties:
+                      request:
+                        type: object
+                        description: The collection's request information. For a complete list of values, refer to the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html). If you pass an empty object for this value, the system defaults to an untitled GET request.
+        example:
+          collection:
+            info:
+              name: Test Collection
+              description: This collection makes a request to the Postman Echo service to get a list of request headers sent by an HTTP client.
+              schema: https://schema.getpostman.com/json/collection/v2.1.0/collection.json
+            item:
+              - name: Test GET Response
+                event:
+                  - listen: test
+                    script:
+                      id: 7d2334fc-a84a-4c3d-b26c-7529afa4c0ae
+                      exec:
+                        - pm.test("Status code is 200", function () {
+                        - '    pm.response.to.have.status(200);'
+                        - '});'
+                      type: text/javascript
+                request:
+                  url: https://echo.getpostman.com/headers
+                  method: GET
+                  header:
+                    - key: Content-Type
+                      value: application/json
+  createCollectionFork:
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - label
+          properties:
+            label:
+              type: string
+              description: The fork's label.
+              example: Test Fork
+        example:
+          label: Test Fork
+  mergeCollectionFork:
+    content:
+      application/json:
+        schema:
+          required:
+            - source
+            - destination
+          type: object
+          properties:
+            destination:
+              type: string
+              format: uid
+              description: The destination (parent) collection's unique ID.
+              example: 12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2
+            source:
+              type: string
+              format: uid
+              description: The source collection's unique ID.
+              example: 12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2
+            strategy:
+              type: string
+              description: |
+                The fork's merge strategy:
+                - `deleteSource` — Merge the changes into the parent collection. After the merge process is complete, Postman deletes the fork. You must have Editor access to both the parent and forked collections.
+                - `updateSourceWithDestination` — Merge the changes into the parent collection. Any differences in the parent collection are also made to the fork.
+              enum:
+                - deleteSource
+                - updateSourceWithDestination
+              default: updateSourceWithDestination
+              example: deleteSource
+        example:
+          strategy: deleteSource
+          source: 12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2
+          destination: 12345678-09547fef-a9a5-4e00-998b-aa563e8db69a
+  putCollection:
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            collection:
+              type: object
+              description: For a complete list of values, refer to the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+              required:
+                - info
+                - item
+              properties:
+                info:
+                  type: object
+                  required:
+                    - name
+                    - schema
+                  description: An object that contains basic information about the collection. For a complete list of values, refer to the **Information** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+                  properties:
+                    name:
+                      type: string
+                      description: The collection's name.
+                      example: Test Collection
+                    schema:
+                      type: string
+                      format: url
+                      description: A URL to the collection's schema.
+                      example: https://schema.getpostman.com/json/collection/v2.1.0/collection.json
+                    description:
+                      type: string
+                      description: The collection's description.
+                      example: This collection makes a request to the Postman Echo service to get a list of request headers sent by an HTTP client.
+                item:
+                  type: array
+                  description: A list of the collection's folders and requests.
+                  items:
+                    type: object
+                    additionalProperties: true
+                    description: Information about the collection item. For a complete list of values, refer to the **Items** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html). The maximum collection size cannot exceed 20 MB.
+                    properties:
+                      name:
+                        type: string
+                        description: The collection item's name.
+                        example: Test F
+                      description:
+                        type: string
+                        description: If the item is a folder, the folder's description.
+                        example: This is a test folder.
+                      item:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties: true
+                          description: If the item is a folder, the folder's contents. For a complete list of values, refer to the **Items** entry's **Folder** section in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+                      protocolProfileBehavior:
+                        type: object
+                        description: If the item is a request, the [settings](https://learning.postman.com/docs/sending-requests/create-requests/request-settings/) used to alter the behavior of sending the request. For a complete list of values, refer to Postman's [Protocol Profile Behavior](https://github.com/postmanlabs/postman-runtime/blob/develop/docs/protocol-profile-behavior.md) documentation.
+                        additionalProperties: true
+                      auth:
+                        type: object
+                        description: The collection's updated authentication. Refer to the **Auth** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+                        properties:
+                          type:
+                            type: string
+                            description: The collection's [Authorization](https://learning.postman.com/docs/sending-requests/authorization/specifying-authorization-details/) details.
+                            example: apikey
+                          authorizationDetails:
+                            type: array
+                            description: The authorization's key-value pairs. The array's name is the authorization type. For example, `apiKey`. Refer to the **Auth** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+                            items:
+                              type: object
+                              properties:
+                                key:
+                                  type: string
+                                  description: The authorization key value.
+                                  example: X-Api-Key
+                                value:
+                                  type: string
+                                  description: The authorization's value.
+                                  example: '{{api-key}}'
+                      event:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties: true
+                          description: The collection's updated events. Refer to the **Event List** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+                      variable:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties: true
+                          description: The collection's updated variables. Refer to the **Variable List** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+        examples:
+          Replace a Basic Collection's Data:
+            value:
+              collection:
+                info:
+                  name: Test User Collection
+                  description: This is a basic test user collection.
+                  schema: https://schema.getpostman.com/json/collection/v2.1.0/collection.json
+                item:
+                  - name: Get a user
+                    event:
+                      - listen: prerequest
+                        script:
+                          id: fd554123-3124-444c-a4ab-a2ed3c21b794
+                          exec:
+                            - try {
+                            - '    const response = await pm.sendRequest({'
+                            - '        url: "https://postman-echo.com/get",'
+                            - '        method: "GET"'
+                            - '    });'
+                            - ''
+                            - '    console.log(response.json());'
+                            - '} catch (err) {'
+                            - '    console.error(err);'
+                            - '}'
+                          type: text/javascript
+                          packages: {}
+                      - listen: test
+                        script:
+                          id: 85a17bb9-3626-4f86-b206-79798e5f8cd7
+                          exec:
+                            - pm.test("Status code is 200", function () {
+                            - '    pm.response.to.have.status(200);'
+                            - '});'
+                          type: text/javascript
+                          packages: {}
+                    id: 5e1bef64-8201-489b-b07c-a1723e008594
+                    protocolProfileBehavior:
+                      disableBodyPruning: true
+                      strictSSL: true
+                    request:
+                      method: GET
+                      header: []
+                      url:
+                        raw: http://api.getpostman.com/v1/:userId
+                        protocol: http
+                        host:
+                          - api
+                          - getpostman
+                          - com
+                        path:
+                          - v1
+                          - ':userId'
+                        variable:
+                          - key: userId
+                            value: '{{userId}}'
+                            description: The user ID.
+                      description: Gets information about a user.
+                    response:
+                      - id: da76da3c-c418-4f72-b47a-24c540badd37
+                        name: 200 OK
+                        originalRequest:
+                          method: GET
+                          header: []
+                          url:
+                            raw: http://api.getpostman.com/v1/:userId
+                            protocol: http
+                            host:
+                              - api
+                              - getpostman
+                              - com
+                            path:
+                              - v1
+                              - ':userId'
+                            variable:
+                              - key: userId
+                                value: '{{userId}}'
+                                description: The user ID.
+                        status: OK
+                        code: 200
+                        _postman_previewlanguage: json
+                        header:
+                          - key: Content-Type
+                            value: application/json
+                            description: ''
+                            type: text
+                        cookie: []
+                        responseTime: null
+                        body: |-
+                          {
+                              "name": "Test User",
+                              "userId": 12345678
+                          }
+                        uid: 12345678-da76da3c-c418-4f72-b47a-24c540badd37
+                    uid: 12345678-5e1bef64-8201-489b-b07c-a1723e008594
+                  - name: Delete a user
+                    id: 496c0ff9-e602-4506-b7dc-00ecd709d5eb
+                    protocolProfileBehavior:
+                      disableBodyPruning: true
+                    request:
+                      method: DELETE
+                      header: []
+                      url:
+                        raw: http://api.getpostman.com/v1/:userId
+                        protocol: http
+                        host:
+                          - api
+                          - getpostman
+                          - com
+                        path:
+                          - v1
+                          - ':userId'
+                        variable:
+                          - key: userId
+                            value: '{{userId}}'
+                            description: The user ID.
+                      description: Deletes a user.
+                    response:
+                      - id: 06f9ea8b-55a7-4e8e-ae12-891a050367de
+                        name: 204 No Content
+                        originalRequest:
+                          method: DELETE
+                          header: []
+                          url:
+                            raw: http://api.getpostman.com/v1/:userId
+                            protocol: http
+                            host:
+                              - api
+                              - getpostman
+                              - com
+                            path:
+                              - v1
+                              - ':userId'
+                            variable:
+                              - key: userId
+                                value: '{{userId}}'
+                                description: The user ID.
+                        status: No Content
+                        code: 204
+                        _postman_previewlanguage: null
+                        header: null
+                        cookie: []
+                        responseTime: null
+                        body: null
+                        uid: 12345678-06f9ea8b-55a7-4e8e-ae12-891a050367de
+                    uid: 12345678-496c0ff9-e602-4506-b7dc-00ecd709d5eb
+                auth:
+                  type: apikey
+                  apikey:
+                    - key: value
+                      value: '{{api-key}}'
+                    - key: key
+                      value: x-api-key
+                event:
+                  - listen: prerequest
+                    script:
+                      id: 86cc41c1-a9ad-411f-923d-5f1d15344c94
+                      type: text/javascript
+                      packages: {}
+                      exec:
+                        - ''
+                  - listen: test
+                    script:
+                      id: 9f48d011-89cb-4a85-9179-b3554aa44aff
+                      type: text/javascript
+                      packages: {}
+                      exec:
+                        - pm.test("Content-Type is present", function () {
+                        - '    pm.response.to.have.header("Content-Type");'
+                        - '});'
+                variable:
+                  - key: userId
+                    value: '12345678'
+  patchCollection:
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            collection:
+              type: object
+              properties:
+                info:
+                  type: object
+                  description: An object that contains the collection's updated name and description.
+                  properties:
+                    name:
+                      type: string
+                      description: The collection's updated name.
+                      example: Test Collection v2
+                    description:
+                      type: string
+                      description: The collection's updated description.
+                      example: This collection makes a request to the Postman Echo service to get a list of request headers sent by an HTTP client.
+                variables:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+                    description: The collection's updated variables. Refer to the **Variable List** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+                auth:
+                  type: object
+                  required:
+                    - type
+                  properties:
+                    type:
+                      type: string
+                      description: The collection's [Authorization](https://learning.postman.com/docs/sending-requests/authorization/specifying-authorization-details/) details.
+                      example: apikey
+                    authorizationDetails:
+                      type: array
+                      description: The authorization's key-value pairs. The array's name is the authorization type. For example, `apiKey`. Refer to the **Auth** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+                      items:
+                        type: object
+                        properties:
+                          key:
+                            type: string
+                            description: The authorization key value.
+                            example: X-Api-Key
+                          value:
+                            type: string
+                            description: The authorization's value.
+                            example: '{{api-key}}'
+                  items:
+                    type: object
+                    additionalProperties: true
+                    description: The collection's updated authentication. Refer to the **Auth** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+                events:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+                    description: The collection's updated events. Refer to the **Event List** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+        examples:
+          Update Info:
+            value:
+              collection:
+                info:
+                  name: Test Collection v2
+                  description: This is a sample collection that makes a request to the Postman Echo service. It returns a list of request headers sent by an HTTP client.
+          Update Variables:
+            value:
+              collection:
+                variables:
+                  - key: userId
+                    value: 12345678
+                    type: integer
+                    disabled: true
+          Update Events:
+            value:
+              collection:
+                events:
+                  - listen: prerequest
+                    script:
+                      id: e74ce0d0-5acd-44b6-a3ae-95f617c1546e
+                      type: text/javascript
+                      exec:
+                        - ''
+                  - listen: test
+                    script:
+                      id: 28dc4f71-73bd-49cb-a6bd-8b41a06a3b36
+                      type: text/javascript
+                      exec:
+                        - ''
+          Update Auth:
+            value:
+              collection:
+                auth:
+                  type: apikey
+                  apikey:
+                    - key: value
+                      value: '{{apiKey}}'
+                    - key: key
+                      value: X-Api-Key
+                    - key: in
+                      value: header
+  createCollectionFolder:
+    content:
+      application/json:
+        schema:
+          type: object
+          additionalProperties: true
+          description: |
+            Information about the collection folder. For a complete list of properties, refer to the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v1.0.0/draft-07/collection.json).
+
+            **Note:**
+
+            It is recommended that you pass the `name` property in the request body. If you do not, the system uses a null value. As a result, this creates a folder with a blank name.
+          properties:
+            name:
+              type: string
+              example: Test Folder
+              description: The folder's name. It is recommended that you pass the `name` property in the request body. If you do not, the system uses a null value. As a result, this creates a folder with a blank name.
+            folder:
+              type: string
+              format: uid
+              description: The ID of a folder in which to create the folder.
+              example: 12345678-65a99e60-8e0a-4b6e-b79c-7d8264cc5caa
+        example:
+          name: Test Folder
+          description: This is a test collection folder.
+  pullRequestCreate:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/pullRequestCreate'
+        example:
+          title: Test PR
+          description: This is a test pull request.
+          reviewers:
+            - '87654321'
+            - '56781234'
+          destinationId: 12345678-ec548788-unftw-rgn8-83b8-0b59798648e4
+  createCollectionRequest:
+    content:
+      application/json:
+        schema:
+          type: object
+          additionalProperties: true
+          description: |
+            Information about the request. For a complete list of properties, refer to the **Request** property in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v1.0.0/draft-07/collection.json).
+
+            **Note:**
+
+            It is recommended that you pass the `name` property in the request body. If you do not, the system uses a null value. As a result, this creates a request with a blank name.
+          properties:
+            name:
+              type: string
+              example: Test Request
+              description: The request's name. It is recommended that you pass the `name` property in the request body. If you do not, the system uses a null value. As a result, this creates a request with a blank name.
+        example:
+          name: Example GET Request
+          description: This is an example GET request.
+          url: https://postman-echo.com/get?param=value
+          method: GET
+          headers:
+            - key: Host
+              value: postman-echo.com
+            - key: user-agent
+              value: curl/7.88.1
+            - key: accept
+              value: '*/*'
+            - key: content-type
+              value: application/json
+          queryParams:
+            - key: id
+              value: '{{id}}'
+              equals: true
+              description: Optional. The user's ID.
+              enabled: true
+          dataMode: raw
+          rawModeData: null
+          dataOptions:
+            raw:
+              language: json
+  createCollectionResponse:
+    content:
+      application/json:
+        schema:
+          type: object
+          additionalProperties: true
+          description: |
+            Information about the response. For a complete list of properties, refer to the **Response** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+
+            **Note:**
+
+            It is recommended that you pass the `name` property in the request body. If you do not, the system uses a null value. As a result, this creates a response with a blank name.
+          properties:
+            name:
+              type: string
+              example: Example POST Response
+              description: The response's name. It is recommended that you pass the `name` property in the request body. If you do not, the system uses a null value. As a result, this creates a response with a blank name.
+        example:
+          name: Example POST Response
+          description: This is an example POST response.
+          url: https://postman-echo.com/post
+          method: POST
+          headers:
+            - key: Host
+              value: postman-echo.com
+            - key: user-agent
+              value: curl/7.88.1
+            - key: accept
+              value: '*/*'
+            - key: content-type
+              value: application/json
+            - key: content-length
+              value: '22'
+          dataMode: raw
+          rawModeData: |-
+            {
+                "field": "Value"
+            }
+          dataOptions:
+            raw:
+              language: json
+  updateCollectionRoles:
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - roles
+          properties:
+            roles:
+              type: array
+              items:
+                type: object
+                required:
+                  - op
+                  - path
+                  - value
+                properties:
+                  op:
+                    type: string
+                    description: The operation to perform on the path.
+                    enum:
+                      - update
+                    example: update
+                  path:
+                    type: string
+                    description: The resource to perform the action on.
+                    enum:
+                      - /user
+                      - /group
+                      - /team
+                    example: /user
+                  value:
+                    type: array
+                    items:
+                      type: object
+                      description: Information about the updated role.
+                      required:
+                        - id
+                        - role
+                      properties:
+                        id:
+                          type: number
+                          description: The user, group, or team's ID.
+                          example: 12345678
+                        role:
+                          type: string
+                          description: |-
+                            The role type:
+                            - `VIEWER` — Can view, fork, and export collections.
+                            - `EDITOR` — Can edit collections directly.
+                          enum:
+                            - VIEWER
+                            - EDITOR
+                          example: VIEWER
+        example:
+          roles:
+            - op: update
+              path: /user
+              value:
+                - id: 12345678
+                  role: EDITOR
+                - id: 87654321
+                  role: VIEWER
+            - op: update
+              path: /team
+              value:
+                - id: 123
+                  role: VIEWER
+                - id: 543
+                  role: VIEWER
+            - op: update
+              path: /group
+              value:
+                - id: 12345
+                  role: EDITOR
+                - id: 123
+                  role: EDITOR
+  updateCollectionFolder:
+    content:
+      application/json:
+        schema:
+          type: object
+          additionalProperties: true
+          description: The folder properties to update. For a complete list of properties, refer to the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v1.0.0/draft-07/collection.json).
+          properties:
+            name:
+              type: string
+              description: The folder's name.
+              example: Test Folder
+            description:
+              type: string
+              description: The folder's description.
+              example: This is a test folder.
+        example:
+          name: Test Folder
+          description: This is a test folder.
+  updateCollectionRequest:
+    content:
+      application/json:
+        schema:
+          type: object
+          additionalProperties: true
+          description: The request properties to update. For a complete list of properties, refer to the **Request** property in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v1.0.0/draft-07/collection.json).
+          properties:
+            name:
+              type: string
+              description: The request's name.
+              example: Example GET request
+            method:
+              type: string
+              description: The request's method.
+              enum:
+                - GET
+                - PUT
+                - POST
+                - PATCH
+                - DELETE
+                - COPY
+                - HEAD
+                - OPTIONS
+                - LINK
+                - UNLINK
+                - PURGE
+                - LOCK
+                - UNLOCK
+                - PROPFIND
+                - VIEW
+              example: GET
+        example:
+          oauth: noauth
+          currentHelper: null
+          helperAttributes: null
+          owner: '12345678'
+          lastUpdatedBy: '12345678'
+          lastRevision: 32368133476
+          folder: null
+          collection: c05fb60e-bb28-4e7b-9cf7-55ada6ab320c
+          name: Example POST Request
+          dataMode: raw
+          data: null
+          events: null
+          rawModeData: |-
+            {
+                "field": "Value"
+            }
+          descriptionFormat: null
+          description: This is an example POST request.
+          variables: null
+          headers: null
+          method: POST
+          pathVariables: null
+          url: https://postman-echo.com/post
+          preRequestScript: null
+          tests: null
+          queryParams: []
+          headerData: []
+          pathVariableData: []
+          protocolProfileBehavior: null
+          dataDisabled: false
+          responses_order: []
+          createdAt: '2023-09-01T07:59:25.000Z'
+          updatedAt: '2023-09-01T09:29:54.000Z'
+          dataOptions:
+            raw:
+              language: json
+  updateCollectionResponse:
+    content:
+      application/json:
+        schema:
+          type: object
+          additionalProperties: true
+          description: The response properties to update. For a complete list of properties, refer to the **Response** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v1.0.0/draft-07/collection.json).
+          properties:
+            name:
+              type: string
+              description: The response's name.
+              example: Bad Request
+            responseCode:
+              type: object
+              description: The response's HTTP response code information.
+              properties:
+                code:
+                  type: number
+                  description: The response's HTTP response status code.
+                  example: 400
+                name:
+                  type: string
+                  description: The name of the status code.
+                  example: Bad Request
+        example:
+          owner: '12345678'
+          lastUpdatedBy: '12345678'
+          lastRevision: 32368133468
+          request: c82dd02c-4870-4907-8fcb-593a876cf05b
+          name: Example Response
+          status: null
+          responseCode:
+            code: 200
+            name: OK
+          time: '50'
+          headers:
+            - key: Date
+              value: Fri, 01 Sep 2023 07:36:18 GMT
+            - key: Content-Type
+              value: application/json; charset=utf-8
+            - key: Content-Length
+              value: '607'
+            - key: Connection
+              value: keep-alive
+          cookies: null
+          mime: null
+          text: |-
+            {
+                "args": {},
+                "data": {
+                    "field": "Value"
+                },
+                "files": {},
+                "form": {},
+                "headers": {
+                    "x-forwarded-proto": "https",
+                    "x-forwarded-port": "443",
+                    "host": "postman-echo.com",
+                    "x-amzn-trace-id": "Root=1-64f9cd12-62f18f3a048796d345508073",
+                    "content-length": "24",
+                    "content-type": "application/json",
+                    "x-api-key": "xxx",
+                    "user-agent": "PostmanRuntime/7.32.3",
+                    "accept": "*/*",
+                    "postman-token": "XXX",
+                    "accept-encoding": "gzip, deflate, br"
+                },
+                "json": {
+                    "field": "Value"
+                },
+                "url": "https://postman-echo.com/post"
+            }
+          language: json
+          rawDataType: null
+          requestObject: '{"data":null,"dataMode":"raw","dataOptions":{"raw":{"language":"json"}},"headerData":[],"method":"POST","pathVariableData":[],"queryParams":[],"url":"https://postman-echo.com/post","headers":"","pathVariables":{},"protocolProfileBehavior":{"disableBodyPruning":true},"rawModeData":"{\n    \"field\": \"Value\"\n}","graphqlModeData":{}}'
+          createdAt: '2023-09-01T09:29:54.000Z'
+          updatedAt: '2023-09-01T09:29:54.000Z'
+  transferCollectionItems:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/transferCollectionItems'
+        example:
+          ids:
+            - 12345678-bcb5648b-eecb-4468-ade7-4efb38431bd1
+          target:
+            model: collection
+            id: 12345678-2ba6b9c4-5327-4c46-9bf3-4ec84b74b720
+          location:
+            position: end
+            model: null
+            id: null
+          mode: copy
+  detectedSecretsQueries:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/detectedSecretsQueriesRequest'
+        examples:
+          Successful Response:
+            $ref: '#/components/examples/detectedSecretsQueries'
+          Filter by Resource Type:
+            $ref: '#/components/examples/detectedSecretsQueryResource'
+  updateSecretResolutions:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/updateSecretResolutionsRequest'
+        example:
+          resolution: ACCEPTED_RISK
+          workspaceId: e361eeb4-00dd-4225-9774-6146a2555999
+  createEnvironment:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/createEnvironment'
+        example:
+          environment:
+            name: Test Environment
+            values:
+              - key: collectionId
+                value: 12ece9e1-2abf-4edc-8e34-de66e74114d2
+                enabled: true
+                type: default
+              - key: variable_1
+                value: The variable_1 value.
+                enabled: false
+                type: default
+  updateEnvironment:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/updateEnvironment'
+        example:
+          environment:
+            name: Test A Environment
+            values:
+              - key: variable_a
+                value: The variable_a value.
+                enabled: false
+                type: default
+  forkEnvironment:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/forkEnvironment'
+        examples:
+          fork:
+            value:
+              forkName: My fork
+  mergeEnvironmentFork:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/mergeEnvironmentFork'
+        example:
+          source: 12345678-d9c7dc8f-904e-4bba-99b5-4d490aae1957
+          deleteSource: false
+  pullEnvironment:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/pullEnvironment'
+        example:
+          source: 12345678-d9c7dc8f-904e-4bba-99b5-4d490aae1957
+  importOpenApiDefinition:
+    content:
+      application/json:
+        schema:
+          anyOf:
+            - $ref: '#/components/schemas/jsonSchema'
+            - $ref: '#/components/schemas/jsonStringified'
+        example:
+          type: string
+          input: |-
+            {
+              "openapi": "3.0.0",
+              "info": {
+                "version": "1.0.0",
+                "title": "Test API"
+              },
+              "servers": [
+                {
+                  "url": "http://locahost:3000"
+                }
+              ],
+              "paths": {
+                "/user": {
+                  "get": {
+                    "summary": "List all users",
+                    "operationId": "listUser",
+                    "parameters": [
+                      {
+                        "name": "id",
+                        "in": "query",
+                        "required": true,
+                        "description": "The user's ID.",
+                        "example": 1234,
+                        "schema": {
+                          "type": "integer",
+                          "format": "int32"
+                        }
+                      }
+                    ],
+                    "responses": {
+                      "200": {
+                        "description": "Information about the user.",
+                        "headers": {
+                          "x-next": {
+                            "description": "A link to the next page of responses.",
+                            "schema": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "content": {
+                          "application/json": {
+                            "schema": {
+                              "$ref": "#/components/schemas/User"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "components": {
+                "schemas": {
+                  "User": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "integer",
+                        "format": "int64"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "tag": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "Error": {
+                    "type": "object",
+                    "required": [
+                      "code",
+                      "message"
+                    ],
+                    "properties": {
+                      "code": {
+                        "type": "integer",
+                        "format": "int32"
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+      multipart/form-data:
+        schema:
+          $ref: '#/components/schemas/importExportFile'
+        examples:
+          Form-Data Request Body:
+            externalValue: https://www.postman.com/postman/workspace/postman-public-workspace/example/12959542-08d74ce2-8150-4f72-99a7-11e60492eb47
+  createMock:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/createMock'
+        example:
+          mock:
+            name: Test Mock
+            collection: 12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2
+            environment: 12345678-5daabc50-8451-43f6-922d-96b403b4f28e
+            private: true
+  updateMock:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/updateMock'
+        example:
+          mock:
+            name: Test Mock
+            environment: 12345678-5daabc50-8451-43f6-922d-96b403b4f28e
+            description: This is a test mock server.
+            private: true
+            versionTag: abf07d3d-f8ec-47d4-8015-9fe83078b4ec
+  createMockServerResponse:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/createMockServerResponse'
+        example:
+          serverResponse:
+            name: Internal Server Error
+            statusCode: 500
+            header:
+              - key: Content-Type
+                value: application/json
+            language: json
+            body: |-
+              {
+                  "message": "Something went wrong; try again later."
+              }
+  updateMockServerResponse:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/updateMockServerResponse'
+        example:
+          serverResponse:
+            name: Internal Server Error
+            statusCode: 500
+            headers:
+              - key: Content-Type
+                value: application/json
+            language: json
+            body: |-
+              {
+                  "message": "Something went wrong; try again later."
+              }
+  createMonitor:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/createMonitor'
+        example:
+          monitor:
+            name: Test Monitor
+            schedule:
+              cron: '*/5 * * * *'
+              timezone: America/Chicago
+            collection: 12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2
+            environment: 12345678-5daabc50-8451-43f6-922d-96b403b4f28e
+  updateMonitor:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/updateMonitor'
+        example:
+          monitor:
+            name: Test Monitor
+            schedule:
+              cron: '*/5 * * * *'
+              timezone: America/Chicago
+  postPanElementOrFolder:
+    required: true
+    content:
+      application/json:
+        schema:
+          anyOf:
+            - $ref: '#/components/schemas/panCreateApi'
+            - $ref: '#/components/schemas/panCreateCollection'
+            - $ref: '#/components/schemas/panCreateWorkspace'
+            - $ref: '#/components/schemas/panCreateFolder'
+        examples:
+          Add a Collection:
+            value:
+              collection:
+                id: 12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2
+                parentFolderId: 1
+          Create a Folder:
+            value:
+              folder:
+                name: Billing
+                description: The Billing API.
+                parentFolderId: 0
+  updatePanElementOrFolder:
+    required: true
+    content:
+      application/json:
+        schema:
+          anyOf:
+            - $ref: '#/components/schemas/updatePanApi'
+            - $ref: '#/components/schemas/updatePanCollection'
+            - $ref: '#/components/schemas/updatePanWorkspace'
+            - $ref: '#/components/schemas/updatePanFolder'
+        examples:
+          Update a Collection:
+            value:
+              collection:
+                parentFolderId: 1
+          Update a Folder:
+            value:
+              folder:
+                name: Billing
+                description: The Billing API.
+                parentFolderId: 0
+  respondPanElementAddRequest:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/respondPanElementAddRequestBody'
+        example:
+          response:
+            message: The requested collection has a lot of governance violations. Please fix them.
+          status: denied
+  pullRequestUpdate:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/pullRequestUpdate'
+        example:
+          description: Updated description of the pull request.
+          reviewers:
+            - '12345678'
+            - '87654321'
+          title: Updated PR title
+  pullRequestReview:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/pullRequestReview'
+        examples:
+          Approve:
+            value:
+              action: approve
+          Merge:
+            value:
+              action: merge
+          Decline:
+            value:
+              action: decline
+              comment: Missing descriptions in requests
+          Unapprove:
+            value:
+              action: unapprove
+  schemaSecurityValidation:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/schemaSecurityValidationRequest'
+        examples:
+          Request Body:
+            $ref: '#/components/examples/schemaSecurityValidationRequest'
+  createScimGroup:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/createScimGroup'
+        example:
+          schemas:
+            - urn:ietf:params:scim:schemas:core:2.0:Group
+          displayName: Test-API
+          members:
+            - value: 405775fe15ed41872a8eea4c8aa2b38cda9749812cc55c99
+              displayName: Taylor Lee
+  scimUpdateGroup:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/scimUpdateGroup'
+        example:
+          schemas:
+            - urn:ietf:params:scim:api:messages:2.0:PatchOp
+          Operations:
+            - op: replace
+              value:
+                id: 561631fq14ed41872a8eea4c8aa2b38cda9749812cc55c00
+                displayName: Test-API
+  createScimUser:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/createScimUser'
+        example:
+          schemas:
+            - urn:ietf:params:scim:schemas:core:2.0:User
+          userName: taylor.lee@example.com
+          name:
+            givenName: Taylor
+            familyName: Lee
+          externalId: '12345678'
+          displayName: Taylor Lee
+          locale: en-US
+          groups:
+            - Test Group
+          active: true
+  updateScimUser:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/updateScimUser'
+        example:
+          schemas:
+            - urn:ietf:params:scim:schemas:core:2.0:User
+          name:
+            givenName: Taylor
+            familyName: Lee
+  updateScimUserState:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/updateScimUserState'
+        example:
+          schemas:
+            - urn:ietf:params:scim:api:messages:2.0:PatchOp
+          Operations:
+            - op: replace
+              value:
+                active: true
+  createWebhook:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/createWebhookRequest'
+        example:
+          webhook:
+            name: Test Webhook
+            collection: 12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2
+  createWorkspace:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/createWorkspace'
+        example:
+          workspace:
+            name: Team Workspace
+            type: team
+            description: This is a team workspace.
+  updateWorkspace:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/updateWorkspace'
+        example:
+          workspace:
+            name: Test Workspace
+            description: This is a test team workspace.
+            type: team
+  updateWorkspaceGlobalVariables:
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/updateWorkspaceGlobalVariables'
+        example:
+          values:
+            - key: api-key
+              type: secret
+              value: PMAK-XXXX
+              enabled: true
+            - key: collection_uid
+              type: default
+              value: 12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2
+              enabled: true
+  updateWorkspaceRoles:
+    content:
+      application/json-patch+json:
+        schema:
+          $ref: '#/components/schemas/updateWorkspaceRoles'
+        examples:
+          Update User Role:
+            $ref: '#/components/examples/updateUserRole'
+          Update Role with SCIM ID:
+            $ref: '#/components/examples/updateRoleSCIMId'
+          Update Role and Group with SCIM IDs:
+            $ref: '#/components/examples/updateRoleGroupSCIMId'
+          Add Workspace Group Role:
+            $ref: '#/components/examples/addWorkspaceGroupRole'
+          Remove Workspace Group Role:
+            $ref: '#/components/examples/removeWorkspaceGroupRole'

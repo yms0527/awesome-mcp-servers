@@ -1,0 +1,103 @@
+name: Build and Push Docker Image
+
+on:
+  # Run on the first day of every month at 2 AM UTC
+  schedule:
+    - cron: '0 2 1 * *'
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+  # Run on push to main for testing
+  push:
+    branches:
+      - main
+    paths:
+      - 'Dockerfile'
+      - 'src/**'
+      - 'pyproject.toml'
+      - '.github/workflows/docker-build.yml'
+
+  # Run on release publish to tag image with release version
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: rrmistry/tilt-mcp
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get latest Tilt version from GitHub releases
+        id: tilt-version
+        run: |
+          # Fetch latest Tilt release version from GitHub API
+          TILT_VERSION=$(curl -s https://api.github.com/repos/tilt-dev/tilt/releases/latest | jq -r '.tag_name')
+          if [ -z "$TILT_VERSION" ] || [ "$TILT_VERSION" = "null" ]; then
+            echo "Failed to fetch Tilt version from GitHub API"
+            exit 1
+          fi
+          # Remove 'v' prefix for Docker build arg (e.g., v0.36.0 -> 0.36.0)
+          TILT_VERSION_NUM=${TILT_VERSION#v}
+          echo "version=${TILT_VERSION}" >> $GITHUB_OUTPUT
+          echo "version_num=${TILT_VERSION_NUM}" >> $GITHUB_OUTPUT
+          echo "Latest Tilt version: ${TILT_VERSION} (${TILT_VERSION_NUM})"
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.tilt-version.outputs.version }}
+            type=raw,value=latest
+            type=sha,prefix=main-,enable=${{ github.event_name == 'push' }}
+            type=ref,event=tag
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            TILT_VERSION=${{ steps.tilt-version.outputs.version_num }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Generate summary
+        run: |
+          echo "## Docker Image Published 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tilt Version:** \`${{ steps.tilt-version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Pull command:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tilt-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

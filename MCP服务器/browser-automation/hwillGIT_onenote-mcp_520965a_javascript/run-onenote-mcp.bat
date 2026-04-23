@@ -1,0 +1,3 @@
+@echo off
+echo Starting Minimal OneNote MCP server...
+node D:\fetch-mcp\onenote-mcp\minimal-mcp-server.js

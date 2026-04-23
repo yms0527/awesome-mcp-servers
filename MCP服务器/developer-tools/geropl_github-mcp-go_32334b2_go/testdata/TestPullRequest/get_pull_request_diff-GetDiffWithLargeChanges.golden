@@ -1,0 +1,4 @@
+{
+  "output": "# Pull Request Diff (#4)\n\n```diff\ndiff --git a/test-file.md b/test-file.md\nnew file mode 100644\nindex 0000000..efab0c0\n--- /dev/null\n+++ b/test-file.md\n@@ -0,0 +1,3 @@\n+# Test file\n+\n+Created for testing at 2025-03-07T09:06:49Z\n\\ No newline at end of file\n\n```\n",
+  "err": ""
+}

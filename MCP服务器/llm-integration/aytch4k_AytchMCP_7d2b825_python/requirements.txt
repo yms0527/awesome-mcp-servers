@@ -1,0 +1,28 @@
+# Core dependencies
+fastmcp>=0.1.0
+fastapi>=0.104.0
+uvicorn>=0.23.2
+pydantic>=2.4.2
+python-dotenv>=1.0.0
+loguru>=0.7.2
+
+# HTTP client
+httpx>=0.25.0
+
+# LLM client libraries
+openai>=1.3.0
+anthropic>=0.5.0
+
+# Development dependencies
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+black>=23.10.1
+isort>=5.12.0
+mypy>=1.6.1
+ruff>=0.1.3
+build>=1.0.3
+
+# Optional dependencies for specific integrations
+pillow>=10.1.0
+numpy>=1.26.1
+psutil>=5.9.0

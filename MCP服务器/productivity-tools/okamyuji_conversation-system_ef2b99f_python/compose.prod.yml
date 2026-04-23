@@ -1,0 +1,143 @@
+# Upstash Redis Production Environment Configuration
+# Upstash Redis本番環境用設定
+
+services:
+  conversation_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: conversation_app_prod
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app
+      - conversation_data:/app/data
+      - conversation_logs:/app/logs
+      - ./conversations:/app/conversations
+      - ./migration-scripts:/app/migration-scripts
+    environment:
+      # Upstash Redis Configuration
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_SSL=${REDIS_SSL:-true}
+
+      # Upstash REST API (optional)
+      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
+
+      # Application Configuration
+      - PYTHONPATH=/app
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DATA_DIR=/app/data
+      - BACKUP_ENABLED=${BACKUP_ENABLED:-true}
+      - BACKUP_INTERVAL=${BACKUP_INTERVAL:-3600}
+
+      # Production Settings
+      - ENVIRONMENT=production
+      - API_SECRET_KEY=${API_SECRET_KEY}
+
+      # Cost Monitoring
+      - COST_MONITORING_ENABLED=${COST_MONITORING_ENABLED:-true}
+      - COST_ALERT_THRESHOLD=${COST_ALERT_THRESHOLD:-10.0}
+
+    networks:
+      - conversation_network
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - |
+          import redis
+          import os
+          try:
+              r = redis.Redis(
+                  host=os.getenv('REDIS_HOST'),
+                  port=int(os.getenv('REDIS_PORT', 6379)),
+                  password=os.getenv('REDIS_PASSWORD'),
+                  ssl=True,
+                  decode_responses=True
+              )
+              result = r.ping()
+              print(f"Redis ping: {result}")
+              exit(0 if result else 1)
+          except Exception as e:
+              print(f"Health check failed: {e}")
+              exit(1)
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # depends_on:
+    #   - backup_service
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Backup service for Upstash data (using Python scheduler instead of cron)
+  # backup_service:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: upstash_backup_service
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./migration-scripts:/app/scripts
+  #     - ./backups:/app/backups
+  #     - conversation_logs:/app/logs
+  #   environment:
+  #     - REDIS_HOST=${REDIS_HOST}
+  #     - REDIS_PORT=${REDIS_PORT:-6379}
+  #     - REDIS_PASSWORD=${REDIS_PASSWORD}
+  #     - REDIS_SSL=${REDIS_SSL:-true}
+  #     - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+  #     - BACKUP_INTERVAL_HOURS=${BACKUP_INTERVAL_HOURS:-6}
+  #     - PYTHONPATH=/app/scripts
+  #   command: ["python", "/app/scripts/backup_scheduler.py"]
+  #   networks:
+  #     - conversation_network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "5m"
+  #       max-file: "2"
+
+volumes:
+  conversation_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/app
+  conversation_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./logs
+  cost_reports:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./reports
+
+networks:
+  conversation_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.21.0.0/16
+
+# Health check and monitoring
+x-health-check-common: &health-check-common
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 40s

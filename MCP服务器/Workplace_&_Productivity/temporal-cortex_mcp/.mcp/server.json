@@ -1,0 +1,117 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "name": "io.github.temporal-cortex/mcp",
+  "description": "18 deterministic calendar tools: contact resolution, temporal context, availability, booking",
+  "title": "Temporal Cortex Calendar MCP",
+  "repository": {
+    "url": "https://github.com/temporal-cortex/mcp",
+    "source": "github"
+  },
+  "version": "0.9.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@temporal-cortex/cortex-mcp",
+      "version": "0.9.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "GOOGLE_CLIENT_ID",
+          "description": "Google OAuth Client ID (required for Google Calendar)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "GOOGLE_CLIENT_SECRET",
+          "description": "Google OAuth Client Secret (required if using Google Calendar)",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "GOOGLE_OAUTH_CREDENTIALS",
+          "description": "Path to Google OAuth JSON credentials file (alternative to CLIENT_ID + SECRET)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "MICROSOFT_CLIENT_ID",
+          "description": "Azure AD app ID (required for Outlook Calendar)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "MICROSOFT_CLIENT_SECRET",
+          "description": "Azure AD client secret (required for Outlook Calendar)",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "TIMEZONE",
+          "description": "IANA timezone override (e.g., America/New_York). Overrides stored config and OS detection.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "WEEK_START",
+          "description": "Week start day: 'monday' (default, ISO 8601) or 'sunday'. Overrides stored config.",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "monday"
+        },
+        {
+          "name": "TENANT_ID",
+          "description": "UUID for tenant isolation (auto-generated if not set)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "LOCK_TTL_SECS",
+          "description": "Lock time-to-live in seconds for booking safety",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "30"
+        },
+        {
+          "name": "OAUTH_REDIRECT_PORT",
+          "description": "Port for the local OAuth callback server",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "8085"
+        },
+        {
+          "name": "HTTP_PORT",
+          "description": "Port for HTTP transport. When set, enables streamable HTTP mode instead of stdio.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "HTTP_HOST",
+          "description": "Bind address for HTTP transport (default: 127.0.0.1)",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "127.0.0.1"
+        },
+        {
+          "name": "ALLOWED_ORIGINS",
+          "description": "Comma-separated allowed Origin headers for HTTP mode. Cross-origin requests rejected if unset.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "TEMPORAL_CORTEX_TELEMETRY",
+          "description": "Override telemetry consent: 'off' to disable, 'on' to enable anonymous usage analytics.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "REDIS_URLS",
+          "description": "Comma-separated Redis URLs for distributed locking within Platform Mode. Optional.",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,364 @@
+{
+  "name": "graphmemory-vscode",
+  "displayName": "GraphMemory IDE",
+  "description": "AI-powered memory management for developers using GraphMemory-IDE",
+  "version": "1.0.0",
+  "publisher": "graphmemory",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Other",
+    "Snippets",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "ai",
+    "memory",
+    "knowledge",
+    "graph",
+    "semantic search",
+    "mcp",
+    "model context protocol"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "graphmemory.searchMemories",
+        "title": "Search Memories",
+        "category": "GraphMemory",
+        "icon": "$(search)"
+      },
+      {
+        "command": "graphmemory.createMemory",
+        "title": "Create Memory",
+        "category": "GraphMemory",
+        "icon": "$(add)"
+      },
+      {
+        "command": "graphmemory.showMemoryPanel",
+        "title": "Show Memory Panel",
+        "category": "GraphMemory",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "graphmemory.connectServer",
+        "title": "Connect to Server",
+        "category": "GraphMemory",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "graphmemory.disconnectServer",
+        "title": "Disconnect from Server",
+        "category": "GraphMemory",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "graphmemory.refreshMemories",
+        "title": "Refresh Memories",
+        "category": "GraphMemory",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "graphmemory.analyzeGraph",
+        "title": "Analyze Memory Graph",
+        "category": "GraphMemory",
+        "icon": "$(graph-scatter)"
+      },
+      {
+        "command": "graphmemory.getRecommendations",
+        "title": "Get Recommendations",
+        "category": "GraphMemory",
+        "icon": "$(lightbulb)"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "graphmemoryExplorer",
+          "name": "GraphMemory",
+          "when": "graphmemory.connected"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "graphmemory",
+          "title": "GraphMemory",
+          "icon": "$(graph)"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "graphmemoryExplorer",
+        "contents": "Welcome to GraphMemory!\n\n[Connect to Server](command:graphmemory.connectServer)\n\nTo get started, connect to your GraphMemory server and begin managing your development knowledge.",
+        "when": "!graphmemory.connected"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "graphmemory.refreshMemories",
+          "when": "view == graphmemoryExplorer && graphmemory.connected",
+          "group": "navigation"
+        },
+        {
+          "command": "graphmemory.createMemory",
+          "when": "view == graphmemoryExplorer && graphmemory.connected",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "graphmemory.searchMemories",
+          "when": "view == graphmemoryExplorer && viewItem == memory",
+          "group": "inline"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "graphmemory.createMemory",
+          "when": "editorHasSelection",
+          "group": "graphmemory"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "graphmemory.searchMemories",
+          "when": "graphmemory.connected"
+        },
+        {
+          "command": "graphmemory.createMemory",
+          "when": "graphmemory.connected"
+        },
+        {
+          "command": "graphmemory.analyzeGraph",
+          "when": "graphmemory.connected"
+        },
+        {
+          "command": "graphmemory.getRecommendations",
+          "when": "graphmemory.connected"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "GraphMemory",
+      "properties": {
+        "graphmemory.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "GraphMemory server URL"
+        },
+        "graphmemory.auth.method": {
+          "type": "string",
+          "enum": ["jwt", "apikey", "mtls"],
+          "default": "jwt",
+          "description": "Authentication method"
+        },
+        "graphmemory.auth.token": {
+          "type": "string",
+          "description": "JWT token for authentication"
+        },
+        "graphmemory.auth.apiKey": {
+          "type": "string",
+          "description": "API key for authentication"
+        },
+        "graphmemory.features.autoComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable auto-completion suggestions"
+        },
+        "graphmemory.features.semanticSearch": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable semantic search"
+        },
+        "graphmemory.features.graphVisualization": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable graph visualization"
+        },
+        "graphmemory.performance.cacheEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable response caching"
+        },
+        "graphmemory.performance.cacheSize": {
+          "type": "number",
+          "default": 100,
+          "description": "Maximum cache size"
+        },
+        "graphmemory.performance.maxConcurrentRequests": {
+          "type": "number",
+          "default": 5,
+          "description": "Maximum concurrent requests"
+        },
+        "graphmemory.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug logging"
+        },
+        "graphmemory.logLevel": {
+          "type": "string",
+          "enum": ["debug", "info", "warn", "error"],
+          "default": "info",
+          "description": "Log level"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "graphmemory.searchMemories",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m",
+        "when": "graphmemory.connected"
+      },
+      {
+        "command": "graphmemory.createMemory",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+n",
+        "when": "editorHasSelection && graphmemory.connected"
+      },
+      {
+        "command": "graphmemory.getRecommendations",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "graphmemory.connected"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "lint:fix": "eslint src --ext ts --fix",
+    "test": "node ./out/test/runTest.js",
+    "test:unit": "npm run test -- --grep 'unit'",
+    "test:integration": "npm run test -- --grep 'integration'",
+    "test:watch": "npm run test -- --watch",
+    "test:coverage": "nyc npm run test",
+    "build": "npm run compile",
+    "build:prod": "npm run clean && npm run compile && npm run package",
+    "package": "vsce package",
+    "package:pre": "vsce package --pre-release",
+    "publish": "vsce publish",
+    "publish:pre": "vsce publish --pre-release",
+    "clean": "rimraf out dist *.vsix",
+    "format": "prettier --write src/**/*.ts",
+    "format:check": "prettier --check src/**/*.ts",
+    "typecheck": "tsc --noEmit",
+    "dev": "npm run watch",
+    "install:local": "code --install-extension graphmemory-vscode-*.vsix",
+    "uninstall:local": "code --uninstall-extension graphmemory.graphmemory-vscode",
+    "debug": "npm run compile && code --extensionDevelopmentPath=. --disable-extensions",
+    "validate": "npm run typecheck && npm run lint && npm run test",
+    "ci": "npm run validate && npm run build:prod",
+    "docs": "typedoc --out docs src",
+    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s",
+    "version:patch": "npm version patch && npm run changelog",
+    "version:minor": "npm version minor && npm run changelog",
+    "version:major": "npm version major && npm run changelog"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "typescript": "^5.2.0",
+    "@vscode/test-electron": "^2.3.0",
+    "vsce": "^2.15.0",
+    "prettier": "^3.0.0",
+    "rimraf": "^5.0.0",
+    "nyc": "^15.1.0",
+    "typedoc": "^0.25.0",
+    "conventional-changelog-cli": "^4.1.0",
+    "mocha": "^10.2.0",
+    "chai": "^4.3.0",
+    "@types/mocha": "^10.0.0",
+    "@types/chai": "^4.3.0",
+    "glob": "^10.3.0",
+    "@types/glob": "^8.1.0"
+  },
+  "dependencies": {
+    "@graphmemory/ide-plugins": "file:../",
+    "axios": "^1.6.0",
+    "zod": "^3.22.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/elementalcollision/GraphMemory-IDE.git",
+    "directory": "ide-plugins/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/elementalcollision/GraphMemory-IDE/issues"
+  },
+  "homepage": "https://github.com/elementalcollision/GraphMemory-IDE#readme",
+  "license": "MIT",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "prettier": {
+    "semi": true,
+    "trailingComma": "es5",
+    "singleQuote": true,
+    "printWidth": 100,
+    "tabWidth": 2,
+    "useTabs": false
+  },
+  "eslintConfig": {
+    "extends": [
+      "@typescript-eslint/recommended",
+      "prettier"
+    ],
+    "parser": "@typescript-eslint/parser",
+    "plugins": [
+      "@typescript-eslint",
+      "prettier"
+    ],
+    "rules": {
+      "prettier/prettier": "error",
+      "@typescript-eslint/no-unused-vars": "error",
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/explicit-function-return-type": "off",
+      "@typescript-eslint/explicit-module-boundary-types": "off"
+    },
+    "env": {
+      "node": true,
+      "es6": true
+    },
+    "parserOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module"
+    }
+  },
+  "nyc": {
+    "extension": [
+      ".ts"
+    ],
+    "exclude": [
+      "**/*.d.ts",
+      "out/**/*",
+      "src/test/**/*"
+    ],
+    "reporter": [
+      "text",
+      "html",
+      "lcov"
+    ],
+    "all": true
+  }
+} 

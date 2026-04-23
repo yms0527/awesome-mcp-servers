@@ -1,0 +1,64 @@
+{
+  "name": "ntfy-me-mcp",
+  "version": "1.3.51",
+  "description": "An ntfy MCP server for sending ntfy notifications to your self-hosted ntfy server from AI Agents 📤 (supports secure token auth & more - use with npx or docker!)",
+  "keywords": [
+    "ntfy",
+    "mcp",
+    "mcp-server",
+    "notifications",
+    "modelcontextprotocol",
+    "self-hosted",
+    "server",
+    "LLM",
+    "ntfy-me",
+    "ntfy-me-mcp",
+    "ntfy-mcp",
+    "ntfy-server",
+    "ntfy-notifications",
+    "ntfy-mcp-server",
+    "model-context-protocol",
+    "push-notifications",
+    "typescript",
+    "AI-integration",
+    "copilot",
+    "visual-studio-code",
+    "vscode",
+    "claude"
+  ],
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "ntfy-me-mcp": "build/index.js"
+  },
+  "files": [
+    "build/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc && chmod +x build/index.js",
+    "start": "node build/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "@types/markdown-it": "^14.1.2",
+    "dotenv": "^16.4.7",
+    "markdown-it": "^14.1.0",
+    "node-fetch": "^3.3.2",
+    "prompts": "^2.4.2",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/node-fetch": "^2.6.12",
+    "@types/prompts": "^2.4.9",
+    "typescript": "^5.8.2"
+  },
+  "author": "gitmotion",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gitmotion/ntfy-me-mcp.git"
+  }
+}

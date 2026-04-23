@@ -1,0 +1,4 @@
+{
+  "output": "# Workflows\n\nFound 1 workflows.\n\n## 1. Test Data Generation Workflow\n\n**ID:** 149593961  \n**Path:** .github/workflows/test-workflow.yml  \n**State:** active  \n**Created:** Thu, 13 Mar 2025 16:38:47 UTC  \n**Updated:** Thu, 13 Mar 2025 16:38:47 UTC  \n**URL:** https://github.com/geropl/github-mcp-go-test/blob/main/.github/workflows/test-workflow.yml  \n\n",
+  "err": ""
+}

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.cursor/
+# Cursor specific files
+.cursor/mcp.json
+# MCP registry auth tokens
+.mcpregistry_github_token                                                                                    
+.mcpregistry_registry_token
+# Ruflo / claude-flow scaffolding
+.claude-flow/
+.claude/
+.mcp.json
+CLAUDE.md
+coverage/

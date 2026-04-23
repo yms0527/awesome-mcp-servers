@@ -1,0 +1,60 @@
+name: Build DXT Packages
+
+# This workflow can be triggered manually from the Actions tab on GitHub
+on:
+  push:
+    branches: [ main, fastmcp2 ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    # Use a build matrix to run the job on all three major operating systems
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+        python-version: ['3.11']
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Prepare DXT package
+        run: python dxt/prepare-DXT.py
+
+      - name: Read package version
+        id: package_version
+        run: echo "version=$(cat dxt_build/version.txt)" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Install DXT CLI
+        run: npm install -g @anthropic-ai/dxt
+
+      - name: Create DXT package (Unix)
+        if: runner.os != 'Windows'
+        run: dxt pack ./dxt_build "mcp-simple-timeserver-${{ runner.os }}-${{ steps.package_version.outputs.version }}.dxt"
+
+      - name: Create DXT package (Windows)
+        if: runner.os == 'Windows'
+        run: dxt pack ./dxt_build "mcp-simple-timeserver-${{ runner.os }}-${{ steps.package_version.outputs.version }}.dxt"
+        shell: pwsh
+
+      - name: Upload DXT package
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-simple-timeserver-${{ runner.os }}-${{ steps.package_version.outputs.version }}
+          path: mcp-simple-timeserver-*.dxt 

@@ -1,0 +1,134 @@
+import React, { useEffect, useState } from 'react';
+import { Select, Card } from 'antd';
+import { fetcher } from '@/components/Amis/fetcher';
+import SSELogDisplayComponent from '@/components/Amis/custom/LogView/SSELogDisplay';
+import SSELogDownloadComponent from '@/components/Amis/custom/LogView/SSELogDownload';
+import LogOptionsComponent from '@/components/Amis/custom/LogView/LogOptions';
+import { replacePlaceholders } from '@/utils/utils';
+import { Container, Pod } from '@/store/pod';
+
+interface PodLogViewerProps {
+    namespace: string;
+    name: string;
+    data: Record<string, any>;
+    showTitle?: boolean;
+}
+
+const PodLogViewerComponent: React.FC<PodLogViewerProps> = ({ namespace, name, data, showTitle }) => {
+
+    namespace = replacePlaceholders(namespace, data);
+    name = replacePlaceholders(name, data);
+    const url = `/k8s/Pod/group//version/v1/ns/${namespace}/name/${name}/json`;
+
+    const [containers, setContainers] = useState<Container[]>([]);
+    const [selectedContainer, setSelectedContainer] = useState<string>('');
+    const [isAllContainers, setIsAllContainers] = useState<boolean>(false);
+
+    const [tailLines, setTailLines] = React.useState(100);
+    const [follow, setFollow] = React.useState(true);
+    const [timestamps, setTimestamps] = React.useState(false);
+    const [previous, setPrevious] = React.useState(false);
+    const [sinceTime, setSinceTime] = React.useState<string>();
+
+    useEffect(() => {
+        if (!namespace || !name) return;
+
+        fetcher({ url: url, method: 'get' })
+            .then(response => {
+                const data = response.data?.data as unknown as Pod;
+
+                // 合并普通容器和初始化容器的列表
+                const allContainers = [
+                    ...(data.spec?.containers || []),
+                    ...(data.spec?.initContainers || []),
+                    ...(data.spec?.ephemeralContainers || []),
+                ];
+
+                if (allContainers.length > 0) {
+                    setContainers(allContainers);
+                    setSelectedContainer(allContainers[0].name);
+                }
+            })
+            .catch(error => console.error('Error fetching pod details:', error));
+    }, [namespace, name]);
+
+    return (
+        <Card
+            variant="outlined"
+            style={{ width: '100%', height: 'calc(100vh - 12px)' }}
+            title={showTitle ? `${namespace}/${name}` : undefined}
+        >
+
+            {/* Remove separate toolbar div as it's now integrated into SSELogDisplayComponent */}
+            <div style={{ padding: '0', borderRadius: '4px', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
+                {(selectedContainer || isAllContainers) && (
+                    <SSELogDisplayComponent
+                        url={isAllContainers
+                            ? `/k8s/pod/logs/sse/ns/${namespace}/pod_name/${name}`
+                            : `/k8s/pod/logs/sse/ns/${namespace}/pod_name/${name}/container/${selectedContainer}`
+                        }
+                        data={{
+                            tailLines: tailLines,
+                            sinceTime: sinceTime,
+                            follow: follow,
+                            previous: previous,
+                            timestamps: timestamps,
+                            allContainers: isAllContainers,
+                            namespace: namespace,
+                            podName: name,
+                        }}
+                        extraControls={
+                            <>
+                                <Select
+                                    style={{ minWidth: 200 }}
+                                    value={isAllContainers ? 'ALL_CONTAINERS' : selectedContainer}
+                                    onChange={(value) => {
+                                        if (value === 'ALL_CONTAINERS') {
+                                            setIsAllContainers(true);
+                                            setSelectedContainer('');
+                                        } else {
+                                            setIsAllContainers(false);
+                                            setSelectedContainer(value);
+                                        }
+                                    }}
+                                    options={[
+                                        { label: '全部容器', value: 'ALL_CONTAINERS' },
+                                        ...containers.map(container => ({
+                                            label: container.name,
+                                            value: container.name
+                                        }))
+                                    ]}
+                                    placeholder="选择容器"
+                                />
+                                <LogOptionsComponent
+                                    tailLines={tailLines}
+                                    follow={follow}
+                                    timestamps={timestamps}
+                                    previous={previous}
+                                    sinceTime={sinceTime}
+                                    onTailLinesChange={setTailLines}
+                                    onFollowChange={setFollow}
+                                    onTimestampsChange={setTimestamps}
+                                    onPreviousChange={setPrevious}
+                                    onSinceTimeChange={setSinceTime}
+                                />
+                                <SSELogDownloadComponent
+                                    url={`/k8s/pod/logs/download/ns/${namespace}/pod_name/${name}/container/${selectedContainer}`}
+                                    data={{
+                                        tailLines: tailLines,
+                                        sinceTime: sinceTime,
+                                        previous: previous,
+                                        timestamps: timestamps,
+                                        allContainers: isAllContainers,
+                                    }}
+                                />
+                            </>
+                        }
+                    />
+                )}
+            </div>
+        </Card>
+    );
+};
+
+export default PodLogViewerComponent;

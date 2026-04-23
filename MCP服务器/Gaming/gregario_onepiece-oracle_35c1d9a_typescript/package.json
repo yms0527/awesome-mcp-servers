@@ -1,0 +1,51 @@
+{
+  "name": "onepiece-oracle",
+  "version": "0.1.0",
+  "description": "One Piece TCG MCP server \u2014 card search, deck analysis, and set browsing for the One Piece Card Game",
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "onepiece-oracle": "dist/server.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc && chmod +x dist/server.js",
+    "prepublishOnly": "npm run build",
+    "start": "node dist/server.js",
+    "dev": "tsx src/server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "one-piece",
+    "onepiece",
+    "tcg",
+    "trading-card-game",
+    "bandai",
+    "oracle"
+  ],
+  "mcpName": "io.github.gregario/onepiece-oracle",
+  "author": "gregario",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12",
+    "one-piece-card-game-json": "^0.2.46",
+    "zod": "^3.25"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0",
+    "tsx": "^4.0",
+    "typescript": "^5.8",
+    "vitest": "^3.0"
+  },
+  "packageManager": "npm@11.11.0"
+}

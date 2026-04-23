@@ -1,0 +1,142 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "uv: Install dependencies",
+            "type": "shell",
+            "command": "uv",
+            "args": [
+                "pip",
+                "install",
+                "-e",
+                "."
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "uv: Install dev dependencies",
+            "type": "shell",
+            "command": "uv",
+            "args": [
+                "pip",
+                "install",
+                "-e",
+                "'.[dev]'"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "uv: Run MCP Server",
+            "type": "shell",
+            "command": "uv",
+            "args": [
+                "run",
+                "python",
+                "-m",
+                "stock_price_server"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": [],
+            "dependsOn": [
+                "uv: Install dependencies"
+            ]
+        },
+        {
+            "label": "uv: Run Tests",
+            "type": "shell",
+            "command": "uv",
+            "args": [
+                "run",
+                "pytest",
+                "-v"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": [],
+            "dependsOn": [
+                "uv: Install dev dependencies"
+            ]
+        },
+        {
+            "label": "uv: Create Virtual Environment",
+            "type": "shell",
+            "command": "uv",
+            "args": [
+                "venv"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "uv: Format Code",
+            "type": "shell",
+            "command": "uv",
+            "args": [
+                "run",
+                "black",
+                "."
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": [],
+            "dependsOn": [
+                "uv: Install dev dependencies"
+            ]
+        },
+        {
+            "label": "uv: Sort Imports",
+            "type": "shell",
+            "command": "uv",
+            "args": [
+                "run",
+                "isort",
+                "."
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": [],
+            "dependsOn": [
+                "uv: Install dev dependencies"
+            ]
+        },
+        {
+            "label": "uv: Build Package",
+            "type": "shell",
+            "command": "uv",
+            "args": [
+                "run",
+                "python",
+                "-m",
+                "build"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

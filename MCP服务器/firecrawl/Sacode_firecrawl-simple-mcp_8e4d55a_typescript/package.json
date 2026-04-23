@@ -1,0 +1,91 @@
+{
+  "name": "firecrawl-simple-mcp",
+  "version": "1.0.2",
+  "description": "MCP server for Firecrawl Simple — a web scraping and site mapping tool enabling LLMs to access and process web content",
+  "main": "dist/index.js",
+  "bin": {
+    "firecrawl-simple-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "tsup",
+    "build:clean": "npm run clean && npm run build",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "prepare-release": "npm run clean && npm run build && npm run lint && npm run typecheck && npm run test",
+    "version-bump": "npm version",
+    "version-bump:patch": "npm version patch -m \"chore(release): %s\"",
+    "release": "npm run prepare-release && npm run version-bump",
+    "publish:full": "npm run release && git push && git push --tags && npm publish",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "firecrawl",
+    "web-scraping",
+    "crawling",
+    "llm",
+    "ai",
+    "claude",
+    "cursor",
+    "sitemap",
+    "web-crawler",
+    "headless-browser",
+    "site-mapping"
+  ],
+  "author": "Dmitry Safonov",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sacode/firecrawl-simple-mcp.git"
+  },
+  "homepage": "https://www.npmjs.com/package/firecrawl-simple-mcp",
+  "bugs": {
+    "url": "https://github.com/Sacode/firecrawl-simple-mcp/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "dependencies": {
+    "fastmcp": "^1.20.5",
+    "firecrawl-simple-client": "^1.0.2",
+    "pino": "^9.6.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "@types/node": "^22.14.0",
+    "@vitest/coverage-v8": "^3.1.1",
+    "eslint": "^9.24.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-prettier": "^5.2.6",
+    "prettier": "^3.5.3",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.29.0",
+    "vitest": "^3.1.1"
+  },
+  "module": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

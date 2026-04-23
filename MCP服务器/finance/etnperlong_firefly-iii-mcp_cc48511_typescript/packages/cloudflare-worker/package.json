@@ -1,0 +1,25 @@
+{
+  "name": "@firefly-iii-mcp/cloudflare-worker",
+  "version": "1.4.0",
+  "description": "One-click deploy firefly-iii-mcp to Cloudflare Worker edge.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler build",
+    "clean": "rimraf dist",
+    "deploy": "wrangler deploy --minify",
+    "cf-typegen": "wrangler types",
+    "lint": "eslint src/**/*.ts",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "dependencies": {
+    "@firefly-iii-mcp/core": "1.4.0",
+    "agents": "^0.0.94",
+    "hono": "^4.7.11"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "wrangler": "^4.20.0"
+  }
+}

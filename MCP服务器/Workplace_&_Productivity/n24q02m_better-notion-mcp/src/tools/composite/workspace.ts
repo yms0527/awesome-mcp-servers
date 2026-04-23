@@ -1,0 +1,146 @@
+/**
+ * Workspace Mega Tool
+ * Workspace exploration and info
+ */
+
+import type { Client } from '@notionhq/client'
+import { NotionMCPError, withErrorHandling } from '../helpers/errors.js'
+import { autoPaginate } from '../helpers/pagination.js'
+
+export interface WorkspaceInfoResult {
+  action: 'info'
+  bot: {
+    id: string
+    name: string
+    type: string
+    owner?: any
+  }
+}
+
+export interface WorkspaceSearchResultItem {
+  id: string
+  object: string
+  title: string
+  url: string
+  last_edited_time: string
+  database_id?: string
+}
+
+export interface WorkspaceSearchResult {
+  action: 'search'
+  query?: string
+  total: number
+  results: WorkspaceSearchResultItem[]
+}
+
+export type WorkspaceResult = WorkspaceInfoResult | WorkspaceSearchResult
+
+export interface WorkspaceInput {
+  action: 'info' | 'search'
+
+  // Search params
+  query?: string
+  filter?: {
+    object?: 'page' | 'data_source'
+    property?: string
+    value?: any
+  }
+  sort?: {
+    direction?: 'ascending' | 'descending'
+    timestamp?: 'last_edited_time' | 'created_time'
+  }
+  limit?: number
+}
+
+/**
+ * Unified workspace tool
+ * Maps to: GET /v1/users/me and POST /v1/search
+ */
+export async function workspace(notion: Client, input: WorkspaceInput): Promise<WorkspaceResult> {
+  return withErrorHandling(async () => {
+    switch (input.action) {
+      case 'info': {
+        const botUser = await notion.users.retrieve({ user_id: 'me' })
+
+        return {
+          action: 'info' as const,
+          bot: {
+            id: (botUser as any).id,
+            name: (botUser as any).name || 'Bot',
+            type: (botUser as any).type,
+            owner: (botUser as any).bot?.owner
+          }
+        }
+      }
+
+      case 'search': {
+        // Query is optional - empty query returns all accessible pages
+        const searchParams: any = {
+          query: input.query || ''
+        }
+
+        if (input.filter?.object) {
+          searchParams.filter = {
+            value: input.filter.object,
+            property: 'object'
+          }
+        }
+
+        if (input.sort) {
+          searchParams.sort = {
+            direction: input.sort.direction || 'descending',
+            timestamp: input.sort.timestamp || 'last_edited_time'
+          }
+        }
+
+        // Fetch results with pagination
+        const allResults = await autoPaginate((cursor) =>
+          notion.search({
+            ...searchParams,
+            start_cursor: cursor,
+            page_size: 100
+          })
+        )
+
+        const results = input.limit ? allResults.slice(0, input.limit) : allResults
+
+        const formattedResults = new Array(results.length)
+        for (let i = 0; i < results.length; i++) {
+          const item: any = results[i]
+          const result: any = {
+            id: item.id,
+            object: item.object,
+            title:
+              item.object === 'page'
+                ? item.properties?.title?.title?.[0]?.plain_text ||
+                  item.properties?.Name?.title?.[0]?.plain_text ||
+                  'Untitled'
+                : item.title?.[0]?.plain_text || 'Untitled',
+            url: item.url,
+            last_edited_time: item.last_edited_time
+          }
+          // For data_source objects, include the parent database_id
+          // This lets callers use either ID with the databases tool
+          if (item.object === 'data_source' && item.parent?.database_id) {
+            result.database_id = item.parent.database_id
+          }
+          formattedResults[i] = result
+        }
+
+        return {
+          action: 'search' as const,
+          query: input.query,
+          total: results.length,
+          results: formattedResults
+        }
+      }
+
+      default:
+        throw new NotionMCPError(
+          `Unknown action: ${input.action}`,
+          'VALIDATION_ERROR',
+          'Supported actions: info, search'
+        )
+    }
+  })()
+}

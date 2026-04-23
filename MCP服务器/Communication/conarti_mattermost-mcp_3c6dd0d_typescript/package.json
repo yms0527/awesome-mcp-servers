@@ -1,0 +1,40 @@
+{
+  "name": "@conarti/mattermost-mcp",
+  "version": "1.1.2",
+  "description": "Mattermost MCP Server",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/conarti/mattermost-mcp.git"
+  },
+  "author": "conarti",
+  "main": "build/index.js",
+  "type": "module",
+  "bin": {
+    "mattermost-mcp": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "postbuild": "chmod +x build/index.js",
+    "start": "node build/index.js",
+    "dev": "tsc && node build/index.js"
+  },
+  "keywords": [
+    "mattermost",
+    "mcp",
+    "model-context-protocol"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.7.0",
+    "node-cron": "^3.0.3",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/node-cron": "^3.0.11",
+    "typescript": "^5.3.3"
+  },
+  "files": [
+    "build"
+  ]
+}

@@ -1,0 +1,1211 @@
+examples:
+  api404ErrorNotFound:
+    value:
+      type: instanceNotFoundError
+      title: We could not find the API you are looking for
+      detail: We could not find the API you are looking for.
+  api403ErrorForbidden:
+    value:
+      title: You are not permitted to perform the action.
+      detail: Please ensure that you have required permissions
+      type: ForbiddenError
+  api403ErrorLimitReached:
+    value:
+      type: limitReachedError
+      title: You've reached the API limit
+      message: You can create up to 3 APIs on your current plan.
+      detail:
+        model: api
+        action: create
+        message: You can create up to 3 APIs on your current plan.
+  featureUnavailable403Error:
+    value:
+      type: https://api.postman.com/problems/forbidden
+      title: Forbidden
+      detail: This feature isn't available in your region.
+      status: 403
+  v10HeaderMissing:
+    value:
+      name: instanceNotFoundError
+      message: API not found. For v10 and later APIs, ensure that your request sends the "application/vnd.api.v10+json" Accept header.
+  apiSchema403ErrorForbidden:
+    value:
+      title: You are not permitted to perform the action.
+      detail: You do not have access to perform this operation.
+      type: ForbiddenError
+  api400ErrorVersionIdMissing:
+    value:
+      title: Invalid request body
+      type: invalidParamError
+      detail: Missing field 'versionId' in the request body
+  apiCollection404ErrorNotFound:
+    value:
+      error:
+        type: instanceNotFoundError
+        title: Collection not found
+        detail: The API does not contain the collection you are looking for
+  commentCreate:
+    value:
+      body: This is an example.
+  commentCreateReply:
+    value:
+      body: This is an example.
+      threadId: 12345
+  commentTagUser:
+    value:
+      body: This is an example. @alex-cruz
+      tags:
+        '@alex-cruz':
+          type: user
+          id: '87654321'
+  apiCollection400InvalidParam:
+    value:
+      type: invalidParamsError
+      title: The specified parameter is in an invalid format
+      detail: Parameter, collectionId is in an invalid format.
+  apiSchema404ErrorNotFound:
+    value:
+      type: instanceNotFoundError
+      title: Schema not found
+      detail: We could not find a schema linked to this API
+  comment403Error:
+    value:
+      type: https://api.postman.com/problems/forbidden
+      title: Forbidden
+      detail: Forbidden
+      status: 403
+  createJsonSchema:
+    value:
+      type: openapi:3
+      files:
+        - path: index.json
+          content: |-
+            {
+              "openapi": "3.0.0",
+              "info": {
+                "version": "1.0.0",
+                "title": "Sample API",
+                "description": "Buy or rent spacecrafts"
+              },
+              "paths": {
+                "/spacecrafts/{spacecraftId}": {
+                  "parameters": [
+                    {
+                      "name": "spacecraftId",
+                      "description": "The unique identifier of the spacecraft",
+                      "in": "path",
+                      "required": true,
+                      "schema": {
+                        "$ref": "#/components/schemas/SpacecraftId"
+                      }
+                    }
+                  ],
+                  "get": {
+                    "summary": "Read a spacecraft",
+                    "responses": {
+                      "200": {
+                        "description": "The spacecraft corresponding to the provided `spacecraftId`",
+                        "content": {
+                          "application/json": {
+                            "schema": {
+                              "$ref": "#/components/schemas/Spacecraft"
+                            }
+                          }
+                        }
+                      },
+                      "404": {
+                        "description": "No spacecraft found for the provided `spacecraftId`",
+                        "content": {
+                          "application/json": {
+                            "schema": {
+                              "$ref": "#/components/schemas/Error"
+                            }
+                          }
+                        }
+                      },
+                      "500": {
+                        "description": "Unexpected error",
+                        "content": {
+                          "application/json": {
+                            "schema": {
+                              "$ref": "#/components/schemas/Error"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "components": {
+                "schemas": {
+                  "SpacecraftId": {
+                    "description": "The unique identifier of a spacecraft",
+                    "type": "string"
+                  },
+                  "Spacecraft": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name",
+                      "type"
+                    ],
+                    "properties": {
+                      "id": {
+                        "$ref": "#/components/schemas/SpacecraftId"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "capsule",
+                          "probe",
+                          "satellite",
+                          "spaceplane",
+                          "station"
+                        ]
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "Error": {
+                    "type": "object",
+                    "required": [
+                      "message"
+                    ],
+                    "properties": {
+                      "message": {
+                        "description": "A human readable error message",
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "securitySchemes": {
+                  "ApiKey": {
+                    "type": "apiKey",
+                    "in": "header",
+                    "name": "X-Api-Key"
+                  }
+                }
+              },
+              "security": [
+                {
+                  "ApiKey": [
+
+                  ]
+                }
+              ]
+            }
+  createYamlSchema:
+    value:
+      type: openapi:3_1
+      files:
+        - path: index.yaml
+          content: |
+            openapi: "3.1.0"
+            info:
+              version: "1.0.0"
+              title: "Sample API"
+              description: Buy or rent spacecrafts
+
+            paths:
+              /spacecrafts/{spacecraftId}:
+                parameters:
+                  - name: spacecraftId
+                    description: The unique identifier of the spacecraft
+                    in: path
+                    required: true
+                    schema:
+                      $ref: "#/components/schemas/SpacecraftId"
+                get:
+                  summary: Read a spacecraft
+                  responses:
+                    "200":
+                      description: The spacecraft corresponding to the provided `spacecraftId`
+                      content:
+                        application/json:
+                          schema:
+                            $ref: "#/components/schemas/Spacecraft"
+                    404:
+                      description: No spacecraft found for the provided `spacecraftId`
+                      content:
+                        application/json:
+                          schema:
+                            $ref: "#/components/schemas/Error"
+                    500:
+                      description: Unexpected error
+                      content:
+                        application/json:
+                          schema:
+                            $ref: "#/components/schemas/Error"
+            components:
+              schemas:
+                SpacecraftId:
+                  description: The unique identifier of a spacecraft
+                  type: string
+                Spacecraft:
+                  type: object
+                  required:
+                    - id
+                    - name
+                    - type
+                  properties:
+                    id:
+                      $ref: "#/components/schemas/SpacecraftId"
+                    name:
+                      type: string
+                    type:
+                      type: string
+                      enum:
+                        - capsule
+                        - probe
+                        - satellite
+                        - spaceplane
+                        - station
+                    description:
+                      type: string
+                Error:
+                  type: object
+                  required:
+                    - message
+                  properties:
+                    message:
+                      description: A human readable error message
+                      type: string
+              securitySchemes:
+                ApiKey:
+                  type: apiKey
+                  in: header
+                  name: X-Api-Key
+            security:
+              - ApiKey: []
+  createGraphQlSchema:
+    value:
+      type: graphql
+      files:
+        - path: posts.graphql
+          content: "type Query {\r\n  allPosts: [Post]\r\n  allUsers: [User]\r\n  postById(id: Int!): Post\r\n  userById(id: Int!): User\r\n}\r\n\r\ntype Mutation {\r\n  createPost(input: CreatePostInput!): CreatePostPayload\r\n  createUser(input: CreateUserInput!): CreateUserPayload\r\n}\r\n\r\ntype Post {\r\n  id: Int!\r\n  title: String\r\n  body: String\r\n  createdDate: Datetime\r\n  authorId: Int!\r\n  userByAuthorId: User\r\n}\r\n\r\ntype User {\r\n  id: Int!\r\n  username: String\r\n  createdDate: Datetime\r\n  postsByAuthorId: [Post]\r\n}\r\n\r\ntype CreatePostPayload {\r\n  clientMutationId: String\r\n  post: Post\r\n  userByAuthorId: User\r\n}\r\n\r\ninput CreatePostInput {\r\n  clientMutationId: String\r\n  post: PostInput!\r\n}\r\n\r\ninput PostInput {\r\n  id: Int\r\n  title: String\r\n  body: String\r\n  createdDate: Datetime\r\n  authorId: Int!\r\n}\r\n\r\ntype CreateUserPayload {\r\n  clientMutationId: String\r\n  user: User\r\n}\r\n\r\ninput CreateUserInput {\r\n  clientMutationId: String\r\n  user: UserInput!\r\n}\r\n\r\ninput UserInput {\r\n  id: Int\r\n  username: String\r\n  createdDate: Datetime\r\n}\r\n\r\nscalar Datetime\r\n"
+  createProtoSchema:
+    value:
+      type: proto:2
+      files:
+        - path: index.proto
+          content: <file contents>
+          root:
+            enabled: true
+  apiSchema400ErrorInvalidParams:
+    value:
+      type: invalidParamsError
+      title: Could not create the resource
+      detail: Schema already exists for this API
+  api404ErrorInstanceNotFound:
+    value:
+      type: instanceNotFoundError
+      title: Resource not found
+      detail: We could not find the API you are looking for
+  apiSchema400ErrorNotLinked:
+    value:
+      type: invalidParamError
+      title: Invalid param error
+      detail: Schema is not linked to the API
+  updateJsonSchema:
+    value:
+      content: |-
+        {
+          "openapi": "3.0.0",
+          "info": {
+            "version": "1.0.0",
+            "title": "Sample API",
+            "description": "Buy or rent spacecrafts"
+          },
+          "paths": {
+            "/spacecrafts/{spacecraftId}": {
+              "parameters": [
+                {
+                  "name": "spacecraftId",
+                  "description": "The unique identifier of the spacecraft",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "$ref": "#/components/schemas/SpacecraftId"
+                  }
+                }
+              ],
+              "get": {
+                "summary": "Read a spacecraft",
+                "responses": {
+                  "200": {
+                    "description": "The spacecraft corresponding to the provided `spacecraftId`",
+                    "content": {
+                      "application/json": {
+                        "schema": {
+                          "$ref": "#/components/schemas/Spacecraft"
+                        }
+                      }
+                    }
+                  },
+                  "404": {
+                    "description": "No spacecraft found for the provided `spacecraftId`",
+                    "content": {
+                      "application/json": {
+                        "schema": {
+                          "$ref": "#/components/schemas/Error"
+                        }
+                      }
+                    }
+                  },
+                  "500": {
+                    "description": "Unexpected error",
+                    "content": {
+                      "application/json": {
+                        "schema": {
+                          "$ref": "#/components/schemas/Error"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "components": {
+            "schemas": {
+              "SpacecraftId": {
+                "description": "The unique identifier of a spacecraft",
+                "type": "string"
+              },
+              "Spacecraft": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "name",
+                  "type"
+                ],
+                "properties": {
+                  "id": {
+                    "$ref": "#/components/schemas/SpacecraftId"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "capsule",
+                      "probe",
+                      "satellite",
+                      "spaceplane",
+                      "station"
+                    ]
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              },
+              "Error": {
+                "type": "object",
+                "required": [
+                  "message"
+                ],
+                "properties": {
+                  "message": {
+                    "description": "A human readable error message",
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "securitySchemes": {
+              "ApiKey": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-Api-Key"
+              }
+            }
+          },
+          "security": [
+            {
+              "ApiKey": [
+
+              ]
+            }
+          ]
+        }
+  updateYamlSchema:
+    value:
+      content: |
+        openapi: "3.1.0"
+        info:
+          version: "1.0.0"
+          title: "Sample API"
+          description: Buy or rent spacecrafts
+
+        paths:
+          /spacecrafts/{spacecraftId}:
+            parameters:
+              - name: spacecraftId
+                description: The unique identifier of the spacecraft
+                in: path
+                required: true
+                schema:
+                  $ref: "#/components/schemas/SpacecraftId"
+            get:
+              summary: Read a spacecraft
+              responses:
+                "200":
+                  description: The spacecraft corresponding to the provided `spacecraftId`
+                  content:
+                    application/json:
+                      schema:
+                        $ref: "#/components/schemas/Spacecraft"
+                404:
+                  description: No spacecraft found for the provided `spacecraftId`
+                  content:
+                    application/json:
+                      schema:
+                        $ref: "#/components/schemas/Error"
+                500:
+                  description: Unexpected error
+                  content:
+                    application/json:
+                      schema:
+                        $ref: "#/components/schemas/Error"
+        components:
+          schemas:
+            SpacecraftId:
+              description: The unique identifier of a spacecraft
+              type: string
+            Spacecraft:
+              type: object
+              required:
+                - id
+                - name
+                - type
+              properties:
+                id:
+                  $ref: "#/components/schemas/SpacecraftId"
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum:
+                    - capsule
+                    - probe
+                    - satellite
+                    - spaceplane
+                    - station
+                description:
+                  type: string
+            Error:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  description: A human readable error message
+                  type: string
+          securitySchemes:
+            ApiKey:
+              type: apiKey
+              in: header
+              name: X-Api-Key
+        security:
+          - ApiKey: []
+  updateGraphQlSchema:
+    value:
+      content: "type Query {\r\n  allPosts: [Post]\r\n  allUsers: [User]\r\n  postById(id: Int!): Post\r\n  userById(id: Int!): User\r\n}\r\n\r\ntype Mutation {\r\n  createPost(input: CreatePostInput!): CreatePostPayload\r\n  createUser(input: CreateUserInput!): CreateUserPayload\r\n}\r\n\r\ntype Post {\r\n  id: Int!\r\n  title: String\r\n  body: String\r\n  createdDate: Datetime\r\n  authorId: Int!\r\n  userByAuthorId: User\r\n}\r\n\r\ntype User {\r\n  id: Int!\r\n  username: String\r\n  createdDate: Datetime\r\n  postsByAuthorId: [Post]\r\n}\r\n\r\ntype CreatePostPayload {\r\n  clientMutationId: String\r\n  post: Post\r\n  userByAuthorId: User\r\n}\r\n\r\ninput CreatePostInput {\r\n  clientMutationId: String\r\n  post: PostInput!\r\n}\r\n\r\ninput PostInput {\r\n  id: Int\r\n  title: String\r\n  body: String\r\n  createdDate: Datetime\r\n  authorId: Int!\r\n}\r\n\r\ntype CreateUserPayload {\r\n  clientMutationId: String\r\n  user: User\r\n}\r\n\r\ninput CreateUserInput {\r\n  clientMutationId: String\r\n  user: UserInput!\r\n}\r\n\r\ninput UserInput {\r\n  id: Int\r\n  username: String\r\n  createdDate: Datetime\r\n}\r\n\r\nscalar Datetime\r\n"
+  tag403Error:
+    value:
+      type: https://api.postman.com/problems/forbidden
+      title: Access Denied
+      detail: The tags feature is only available to enterprise teams
+      status: 403
+  tag400Error:
+    value:
+      title: Bad Request
+      detail: body/tags/0/slug must NOT have more than 64 characters
+      status: 400
+  apiVersion400ErrorInvalidParam:
+    value:
+      type: invalidParamsError
+      title: The specified parameter is in an invalid format
+      detail: Parameter, taskId is in an invalid format.
+  taskNotFound:
+    value:
+      detail: Parameter, taskId is in an invalid format.
+      title: The specified parameter is in an invalid format
+      type: invalidParamsError
+  apiVersion404ErrorNotFound:
+    value:
+      type: VersionNotFound
+      title: API Version not found.
+      details: We could not find the API Version you are looking for.
+  apiVersion400ErrorInstanceNotFound:
+    value:
+      error:
+        name: instanceNotFoundError
+        message: We could not find the API version you are looking for
+  getAuditLogs:
+    value:
+      trails:
+        - id: 12345678
+          ip: 192.0.2.0
+          userAgent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36
+          action: user.login_google_success
+          timestamp: '2022-08-31T15:19:32.000Z'
+          message: Taylor Lee successfully logged in using the Google OAuth.
+          data:
+            actor:
+              name: Taylor Lee
+              username: taylor-lee
+              email: taylor.lee@example.com
+              id: 12345678
+              active: true
+            user:
+              name: Taylor Lee
+              username: taylor-lee
+              email: taylor.lee@example.com
+              id: 12345678
+            team:
+              name: Test-Team
+              id: 1234
+        - id: 87654321
+          ip: 192.0.2.1
+          userAgent: PostmanRuntime/7.29.0 Postman/5.5.4 ChromeApp
+          action: user.login_password_success
+          timestamp: '2022-09-01T06:30:21.000Z'
+          message: Alex Cruz successfully logged in using the Postman password.
+          data:
+            actor:
+              name: Alex Cruz
+              username: alex-cruz
+              email: alex.cruz@example.com
+              id: 87654321
+              active: true
+            user:
+              name: Alex Cruz
+              username: alex-cruz
+              email: alex.cruz@example.com
+              id: 87654321
+            team:
+              name: Test-Team
+              id: 1234
+  getCollections:
+    value:
+      collections:
+        - id: 026fa484-c108-4223-af5e-e97137865143
+          name: Test API 3.1.0
+          owner: '892436'
+          createdAt: '2024-09-09T14:16:40.000Z'
+          updatedAt: '2024-09-09T14:16:40.000Z'
+          uid: 892436-026fa484-c108-4223-af5e-e97137865143
+          isPublic: false
+        - id: 02c5343c-0a8d-4bd9-941c-cd9dadd73770
+          name: Sanity tests collection changed all values
+          owner: '892436'
+          createdAt: '2024-03-01T23:01:22.000Z'
+          updatedAt: '2024-03-01T23:01:32.000Z'
+          uid: 892436-02c5343c-0a8d-4bd9-941c-cd9dadd73770
+          isPublic: false
+        - id: 044f35b0-dffe-4ce6-9114-165c720657de
+          name: Sanity tests collection
+          owner: '892436'
+          createdAt: '2023-08-21T15:06:57.000Z'
+          updatedAt: '2023-08-21T15:06:57.000Z'
+          uid: 892436-044f35b0-dffe-4ce6-9114-165c720657de
+          isPublic: false
+  getCollectionsPaginated:
+    value:
+      collections:
+        - id: 026fa484-c108-4223-af5e-e97137865143
+          name: Test API 3.1.0
+          owner: '892436'
+          createdAt: '2024-09-09T14:16:40.000Z'
+          updatedAt: '2024-09-09T14:16:40.000Z'
+          uid: 892436-026fa484-c108-4223-af5e-e97137865143
+          isPublic: false
+        - id: 02c5343c-0a8d-4bd9-941c-cd9dadd73770
+          name: Sanity tests collection changed all values
+          owner: '892436'
+          createdAt: '2024-03-01T23:01:22.000Z'
+          updatedAt: '2024-03-01T23:01:32.000Z'
+          uid: 892436-02c5343c-0a8d-4bd9-941c-cd9dadd73770
+          isPublic: false
+        - id: 044f35b0-dffe-4ce6-9114-165c720657de
+          name: Sanity tests collection
+          owner: '892436'
+          createdAt: '2023-08-21T15:06:57.000Z'
+          updatedAt: '2023-08-21T15:06:57.000Z'
+          uid: 892436-044f35b0-dffe-4ce6-9114-165c720657de
+          isPublic: false
+      meta:
+        total: 192
+        offset: 0
+        limit: 3
+  invalidWorkspace:
+    value:
+      collections: []
+  getCollection:
+    value:
+      collection:
+        info:
+          _postman_id: 12ece9e1-2abf-4edc-8e34-de66e74114d2
+          name: Test Collection
+          description: This is a sample collection that makes a tiny request to Postman Echo service to get the list of request headers sent by a HTTP client.
+          schema: https://schema.getpostman.com/json/collection/v2.1.0/collection.json
+          updatedAt: '2023-10-13T08:14:22.000Z'
+          uid: 12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2
+          createdAt: '2023-10-08T13:04:28.000Z'
+          lastUpdatedBy: '12345678'
+        item:
+          - name: Example GET Request
+            id: 6d64ff6f-8a48-4442-8109-25b7b4c8dcbf
+            protocolProfileBehavior:
+              disableBodyPruning: true
+            request:
+              method: GET
+              header: []
+              url:
+                raw: https://postman-echo.com/get
+                protocol: https
+                host:
+                  - postman-echo
+                  - com
+                path:
+                  - get
+            response: []
+            uid: 12345678-6d64ff6f-8a48-4442-8109-25b7b4c8dcbf
+  getCollectionForked:
+    value:
+      collection:
+        info:
+          _postman_id: 12ece9e1-2abf-4edc-8e34-de66e74114d2
+          name: Test Collection
+          description: This is a sample collection that makes a tiny request to Postman Echo service to get the list of request headers sent by a HTTP client.
+          fork:
+            label: Collection fork
+            createdAt: '2024-07-17T13:12:43.000Z'
+            from: 87654321-c8142d52-f97d-46a7-bc77-52bb99713o1n
+          schema: https://schema.getpostman.com/json/collection/v2.1.0/collection.json
+          updatedAt: '2023-10-13T08:14:22.000Z'
+          uid: 12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2
+          createdAt: '2023-10-08T13:04:28.000Z'
+          lastUpdatedBy: '12345678'
+        item:
+          - name: Example GET Request
+            id: 6d64ff6f-8a48-4442-8109-25b7b4c8dcbf
+            protocolProfileBehavior:
+              disableBodyPruning: true
+            request:
+              method: GET
+              header: []
+              url:
+                raw: https://postman-echo.com/get
+                protocol: https
+                host:
+                  - postman-echo
+                  - com
+                path:
+                  - get
+            response: []
+            uid: 12345678-6d64ff6f-8a48-4442-8109-25b7b4c8dcbf
+  forkCollection400ErrorBadForkRelation:
+    value:
+      type: https://api.postman.com/problems/bad-request
+      title: Bad Request
+      status: 400
+      detail: Fork relation not found
+  pullRequest400ErrorDuplicate:
+    value:
+      detail: A pull request for this source and destination already exists.
+      status: 400
+      title: Duplicate pull request
+      type: https://api.postman.com/problems/bad-request
+  detectedSecretsQueries:
+    value:
+      secretTypes:
+        - 1a7ec5d1-dcba-4ec7-8220-3c1ee490416b
+        - 3b6ec9d2-dabc-5e67-1220-6coie490416b
+      resolved: true
+      statuses:
+        - ACCEPTED_RISK
+        - REVOKED
+      workspaceIds:
+        - 0fe6c2f2-022d-48f7-8e7e-3244369445b0
+        - 80ab14ae-c17d-4fd6-88d5-99bf13f0b7f0
+      workspaceVisibilities:
+        - team
+  detectedSecretsQueryResource:
+    value:
+      resolved: false
+      secretTypes:
+        - 3fd32ec0-c2ee-45f4-9701-878c90127f79
+      resources:
+        - type: example
+          ids:
+            - 12345678-400005df-3cad-480c-a027-ea68aed35b60
+  detectedSecretsQueryResponse:
+    value:
+      meta:
+        limit: 2
+        nextCursor: MTA4
+      data:
+        - detectedAt: '2023-05-19T02:45:31.000Z'
+          secretType: Airtable API Key
+          workspaceVisibility: team
+          secretHash: 07afd1f787f3555d441b04870dbe1025db8309fbeb31f25b3a20f2f1241478b3
+          workspaceId: e361eeb4-00dd-4225-9774-6146a2555999
+          secretId: OTI3OTYx
+          obfuscatedSecret: keyTF2WAH******
+          resolution: FALSE_POSITIVE
+          occurrences: 3
+        - detectedAt: '2023-03-23T19:38:49.000Z'
+          secretType: Slack Access Token
+          workspaceVisibility: team
+          secretHash: 08074c0954fd29d1ee82ab5af9b4ad16f56b0907eca72446e98dc97e10da80a3
+          workspaceId: e361eeb4-00dd-4225-9774-6146a2555999
+          secretId: NDcyMjA=
+          obfuscatedSecret: xoxp-25519******
+          resolution: ACCEPTED_RISK
+          occurrences: 1
+  detectedSecretsQueryIncludeParam:
+    value:
+      meta:
+        limit: 2
+        nextCursor: MTA4
+        total: 10
+      data:
+        - detectedAt: '2023-05-19T02:45:31.000Z'
+          secretType: Airtable API Key
+          workspaceVisibility: team
+          secretHash: 07afd1f787f3555d441b04870dbe1025db8309fbeb31f25b3a20f2f1241478b3
+          workspaceId: e361eeb4-00dd-4225-9774-6146a2555999
+          secretId: OTI3OTYx
+          obfuscatedSecret: keyTF2WAH******
+          resolution: FALSE_POSITIVE
+          occurrences: 3
+        - detectedAt: '2023-03-23T19:38:49.000Z'
+          secretType: Slack Access Token
+          workspaceVisibility: team
+          secretHash: 08074c0954fd29d1ee82ab5af9b4ad16f56b0907eca72446e98dc97e10da80a3
+          workspaceId: e361eeb4-00dd-4225-9774-6146a2555999
+          secretId: NDcyMjA=
+          obfuscatedSecret: xoxp-25519******
+          resolution: ACCEPTED_RISK
+          occurrences: 1
+  detectedSecretsQueryFilterByResource:
+    value:
+      meta:
+        limit: 30
+        nextCursor: null
+      data:
+        - detectedAt: '2023-03-23T19:30:58.000Z'
+          secretType: Basic Auth
+          workspaceVisibility: team
+          secretHash: 3b4db9cb32935e885468d80744a65194b7abdb18bb91ce6cbc2ad7852057d96e
+          workspaceId: 01cb2666-9e05-47d3-9043-3b4743f42f1a
+          resourceId: 12345678-400005df-3cad-480c-a027-ea68aed35b60
+          resourceType: example
+          secretId: MTAxOTQ0Mw==
+          obfuscatedSecret: Basic Q2******
+          resolution: ACTIVE
+          occurrences: 3
+  secretScanner400Error:
+    value:
+      instance: ''
+      status: 400
+      title: limit specified is invalid
+      type: BAD_REQUEST
+  detectedSecrets400FilterError:
+    value:
+      type: BAD_REQUEST
+      title: Invalid filters specified
+      instance: ''
+      status: 400
+      detail: '`workspaceIds` and `resources` filters are exclusive - only one can be applied at a time.'
+  secretScanner403Error:
+    value:
+      instance: ''
+      status: 403
+      title: Only members with Superadmin, Admin, or Workspace Admin roles can view the detected secrets.
+      type: FORBIDDEN
+  getGroups:
+    value:
+      data:
+        - id: 123
+          teamId: 321
+          name: API Test Group
+          summary: API testing group.
+          createdBy: 12345678
+          createdAt: '2024-03-06T18:00:19.000Z'
+          updatedAt: '2024-03-06T18:01:14.000Z'
+          members:
+            - 12345678
+            - 87654321
+            - 56781234
+          roles:
+            - user
+        - id: 321
+          teamId: 123
+          name: Test Group
+          summary: ''
+          createdBy: 12345678
+          createdAt: '2024-10-03T14:05:05.000Z'
+          updatedAt: '2024-10-03T14:05:05.000Z'
+          members: []
+          roles:
+            - user
+        - id: 456
+          teamId: 456
+          name: Test A Group
+          summary: Group test.
+          createdBy: 12345678
+          createdAt: '2024-03-06T18:01:14.000Z'
+          updatedAt: '2024-06-08T13:19:30.000Z'
+          members:
+            - 12345678
+          roles: []
+  import400ErrorBadRequest:
+    value:
+      error:
+        name: invalidParamsError
+        message: The request body has invalid values for the type parameter. Value must be one of file, string, json
+        details:
+          param: type
+  import400ErrorUnsupportedOASVersion:
+    value:
+      error:
+        name: invalidParamsError
+        message: 'Unsupported OpenAPI version: 3.2.0. Postman API only supports versions 3.0.0, 3.0.1, 3.0.2, 3.0.3, 3.1.0'
+  monitors400ErrorInvalidCronPattern:
+    value:
+      error:
+        name: cronPatternNotAllowedError
+        message: Invalid cron pattern. Enter a valid cron pattern, such as "0 17 * * *"
+        details:
+          pattern: '* * * * *'
+  monitors400ErrorInvalidTimezone:
+    value:
+      error:
+        name: invalidParamsError
+        message: The request had invalid parameters
+        details:
+          param: schedule.timezone
+  monitors400ErrorInvalidCollectionUid:
+    value:
+      error:
+        name: invalidUidError
+        message: The specified uid is invalid.
+        details:
+          param: collection
+          uid: 12ece9e1-2abf-4edc-8e34-de66e74114d2
+  monitors400ErrorInvalidEnvironmentUid:
+    value:
+      error:
+        name: invalidUidError
+        message: The specified uid is invalid.
+        details:
+          param: environment
+          uid: 5daabc50-8451-43f6-922d-96b403b4f28e
+  monitors400ErrorMissingParameter:
+    value:
+      error:
+        name: paramMissingError
+        message: Parameter is missing in the request.
+        details:
+          param:
+            - name
+  pullRequestReview400ErrorActionNotAllowed:
+    value:
+      type: https://api.postman.com/problems/bad-request
+      title: Bad Request
+      detail: Given action on current pull request is not allowed
+      status: 400
+  pullRequestReview400ErrorInvalidAction:
+    value:
+      type: https://api.postman.com/problems/bad-request
+      title: Value must be one of "approve", "unapprove", "decline", "merge"
+      detail: 'POST request body for ''/pull-requests/4e1a6609-1a29-4037-a411-89ecc14c6cd8/tasks'' failed to validate schema. Location: /properties/action/enum'
+      status: 400
+  schemaSecurityValidationRequest:
+    value:
+      schema:
+        type: openapi3
+        language: json
+        schema: '{"openapi":"3.0.0","info":{"version":"1","title":"temp","license":{"name":"MIT"}},"servers":[{"url":"https://petstore.swagger.io/v1"}],"paths":{"/user":{"get":{"summary":"Details about a user","operationId":"listUser","tags":["user"],"parameters":[{"name":"id","in":"query","description":"ID of the user","required":true,"schema":{"type":"integer","format":"int32"}}],"responses":{"200":{"description":"Details about a user","headers":{"x-next":{"description":"A link to the next page of responses","schema":{"type":"string"}}},"content":{"application/json":{"schema":{$ref:"#/components/schemas/User"}}}},"default":{"description":"unexpected error","content":{"application/json":{"schema":{$ref:"#/components/schemas/Error"}}}}}}}},"components":{"schemas":{"User":{"type":"object","required":["id","name"],"properties":{"id":{"type":"integer","format":"int64"},"name":{"type":"string"},"tag":{"type":"string"}}},"Error":{"type":"object","required":["code","message"],"properties":{"code":{"type":"integer","format":"int32"},"message":{"type":"string"}}}},"securitySchemes":{"BasicAuth":{"type":"http","scheme":"basic"}}},"security":[{"BasicAuth":[]}]}'
+  schemaSecurityValidationNoWarnings:
+    value:
+      warnings: []
+  schemaSecurityValidationGovernanceWarnings:
+    value:
+      warnings:
+        - slug: OPENAPI_SPECTRAL_6_RULE_1027
+          severity: WARN
+          message: A schema property should have a $ref property referencing a reusable schema
+          location:
+            start:
+              line: 55
+              column: 26
+            end:
+              line: 58
+              column: 17
+          dataPath:
+            - components
+            - parameters
+            - userId
+            - schema
+          possibleFixUrl: https://go.pstmn.io/openapi3-security-warnings#a-schema-property-should-reference-a-reusable-schema
+          category:
+            name: governance
+            slug: governance
+          vulnerability:
+            name: A schema property should have a $ref property.
+            slug: OPENAPI_SPECTRAL_6_schema_reference_reusable
+          type: governance
+          checksum: 2fc9df0e8ccbcdb610ab1694651bb68731fc5add4ebb44da0e5f15faf634b035
+  schemaSecurityValidationSecurityWarnings:
+    value:
+      warnings:
+        - slug: POSTMAN_OWASP_GOVERNANCE_RULE_0005
+          severity: WARN
+          message: Security field is not defined
+          location:
+            start:
+              line: 1
+              column: 0
+            end:
+              line: 75
+              column: 21
+          dataPath: []
+          possibleFixUrl: https://go.pstmn.io/openapi3-security-warnings#security-field-is-not-defined
+          category:
+            name: governance
+            slug: governance
+          vulnerability:
+            name: Security field is not defined
+            slug: POSTMAN_OWASP_GOVERNANCE_VULNERABILITY_0005
+          type: governance
+          checksum: ff10236473b8bc137ecdb94c282de9375503772beffffd02eb7aa957e1a3e873
+        - slug: POSTMAN_OWASP_GOVERNANCE_RULE_0017
+          severity: WARN
+          message: Operation does not enforce any security scheme.
+          location:
+            start:
+              line: 16
+              column: 8
+            end:
+              line: 36
+              column: 50
+          dataPath:
+            - paths
+            - /spacecrafts/{spacecraftId}
+            - get
+          possibleFixUrl: https://go.pstmn.io/openapi3-security-warnings#operation-does-not-enforce-any-security-scheme
+          category:
+            name: governance
+            slug: governance
+          vulnerability:
+            name: Operation does not enforce any security scheme.
+            slug: POSTMAN_OWASP_GOVERNANCE_VULNERABILITY_0017
+          type: governance
+          checksum: 7760d7354c85b925141d708e14ecaef6512ef20a5b89ba8c722d1fc16c1e5b02
+  schemaSecurityValidation400Error:
+    value:
+      error:
+        name:
+          name: Invalid Schema
+          reason: Provided schema type is not supported.
+  getScimUserResources:
+    value:
+      schemas:
+        - urn:ietf:params:scim:api:messages:2.0:ListResponse
+      totalResults: 2
+      startIndex: 1
+      itemsPerPage: 2
+      Resources:
+        - schemas:
+            - urn:ietf:params:scim:schemas:core:2.0:User
+          id: 405775fe15ed41872a8eea4c8aa2b38cda9749812cc55c99
+          userName: taylor.lee@example.com
+          name:
+            givenName: Taylor
+            familyName: Lee
+          externalId: '12345678'
+          active: true
+          meta:
+            resourceType: User
+            created: '2021-02-22T04:24:13.000Z'
+            lastModified: '2021-02-22T04:24:13.000Z'
+        - schemas:
+            - urn:ietf:params:scim:schemas:core:2.0:User
+          id: 123775fe15ed41872a8eea4c8aa2b38cda9749812cc55c99
+          userName: alex.cruz@example.com
+          name:
+            givenName: Alex
+            familyName: Cruz
+          externalId: '87654321'
+          active: false
+          meta:
+            resourceType: User
+            created: '2021-02-22T04:24:13.000Z'
+            lastModified: '2021-02-22T04:24:13.000Z'
+  getInactiveScimUserResources:
+    value:
+      schemas:
+        - urn:ietf:params:scim:api:messages:2.0:ListResponse
+      totalResults: 1
+      startIndex: 1
+      itemsPerPage: 2
+      Resources:
+        - schemas:
+            - urn:ietf:params:scim:schemas:core:2.0:User
+          id: 123775fe15ed41872a8eea4c8aa2b38cda9749812cc55c99
+          userName: alex.cruz@example.com
+          name:
+            givenName: Alex
+            familyName: Cruz
+          externalId: '87654321'
+          active: false
+          meta:
+            resourceType: User
+            created: '2021-02-22T04:24:13.000Z'
+            lastModified: '2021-02-22T04:24:13.000Z'
+  getTeamUsers:
+    value:
+      data:
+        - id: 1
+          name: Taylor Lee
+          email: taylor.lee@example.com
+          roles:
+            - admin
+            - user
+          joinedAt: '2022-11-23T14:38:25.000Z'
+        - id: 2
+          name: Alex Cruz
+          email: alex.cruz@example.com
+          roles:
+            - user
+          joinedAt: '2022-11-24T10:18:11.000Z'
+  workspaceRoles:
+    value:
+      roles:
+        - id: '3'
+          displayName: Admin
+          user:
+            - '12345678'
+          group:
+            - '123'
+  workspaceRolesScimIds:
+    value:
+      roles:
+        - id: '3'
+          displayName: Admin
+          user:
+            - 405775fe15ed41872a8eea4c8aa2b38cda9749812cc55c99
+          group:
+            - 561631fq14ed41872a8eea4c8aa2b38cda9749812cc55c00
+  updateUserRole:
+    value:
+      roles:
+        - op: add
+          path: /user
+          value:
+            - id: '12345678'
+              role: '1'
+            - id: '87654321'
+              role: '2'
+        - op: remove
+          path: /user
+          value:
+            - id: '87612345'
+              role: '1'
+        - op: add
+          path: /usergroup
+          value:
+            - id: '123'
+              role: '2'
+        - op: remove
+          path: /usergroup
+          value:
+            - id: '312'
+              role: '3'
+  updateRoleSCIMId:
+    value:
+      roles:
+        - op: add
+          path: /user
+          value:
+            - id: 405775fe15ed41872a8eea4c8aa2b38cda9749812cc55c99
+              role: '1'
+  updateRoleGroupSCIMId:
+    value:
+      roles:
+        - op: add
+          path: /user
+          value:
+            - id: 405775fe15ed41872a8eea4c8aa2b38cda9749812cc55c99
+              role: '3'
+        - op: add
+          path: /usergroup
+          value:
+            - id: 561631fq14ed41872a8eea4c8aa2b38cda9749812cc55c00
+              role: '3'
+  addWorkspaceGroupRole:
+    value:
+      roles:
+        - op: add
+          path: /usergroup
+          value:
+            - id: '1234'
+              role: '3'
+  removeWorkspaceGroupRole:
+    value:
+      roles:
+        - op: remove
+          path: /usergroup
+          value:
+            - id: '1234'
+              role: '3'
+  userRoleUpdated:
+    value:
+      roles:
+        - id: '1'
+          displayName: Viewer
+          user:
+            - '12345678'
+          group:
+            - '123'
+        - id: '2'
+          displayName: Editor
+          user:
+            - '87654321'
+          group:
+            - '123'
+        - id: '3'
+          displayName: Admin
+          user:
+            - '13428756'
+          group:
+            - '132'
+  userRoleUpdatedSCIMId:
+    value:
+      roles:
+        - id: '1'
+          displayName: Viewer
+          user:
+            - 405775fe15ed41872a8eea4c8aa2b38cda9749812cc55c99
+  userRoleGroupUpdatedSCIMId:
+    value:
+      roles:
+        - id: '3'
+          displayName: Admin
+          user:
+            - e982929dadd02cf627e8c111925fc37a93dbc86f510840db
+          group:
+            - 561631fq14ed41872a8eea4c8aa2b38cda9749812cc55c00

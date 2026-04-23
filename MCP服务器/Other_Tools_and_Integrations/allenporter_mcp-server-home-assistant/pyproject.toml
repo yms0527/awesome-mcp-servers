@@ -1,0 +1,56 @@
+[project]
+name = "mcp-server-home-assistant"
+version = "0.1.0"
+description = "A Model Context Protocol Server for Home Assistant"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "click>=8.1.7",
+  "hass-client>=1.2.0",
+  "mcp>=1.0.0",
+]
+
+[tool.setuptools.package-data]
+"mcp_server_home_assistant" = ["py.typed"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["mcp_server_home_assistant"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+mcp-server-home-assistant = "mcp_server_home_assistant.__main__:main"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+log_level = "DEBUG"
+
+[tool.mypy]
+exclude = [
+  "setup.py",
+  "venv/",
+]
+platform = "linux"
+show_error_codes = true
+follow_imports = "normal"
+local_partial_types = true
+strict_equality = true
+no_implicit_optional = true
+warn_incomplete_stub = true
+warn_redundant_casts = true
+warn_unused_configs = true
+warn_unused_ignores = true
+disable_error_code = [
+    "import-untyped",
+]
+extra_checks = false
+check_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+warn_return_any = true
+warn_unreachable = true

@@ -1,0 +1,236 @@
+# Project Requirements Document: Multi-Tool Support
+
+## Overview
+
+This document outlines the requirements for adding multi-tool support to the GitHub MCP Server, similar to how it's implemented in the linear-mcp-go project. This enhancement allows the GitHub MCP Server to be easily configured for use with multiple AI assistants, including Cline, Roo Code, and Claude Desktop, through a unified setup command.
+
+## Background
+
+Previously, the GitHub MCP Server supported setup for Cline and Claude Desktop, but the implementation didn't follow the same pattern as linear-mcp-go, which has a more flexible approach to supporting multiple tools. The linear-mcp-go project uses a comma-separated list of tools in the setup command and processes each tool individually, allowing for a more streamlined setup process.
+
+By implementing a similar approach in our GitHub MCP Server, we make it easier for users to set up the server for multiple AI assistants without having to run the setup command multiple times.
+
+## Requirements
+
+### Command-Line Interface
+
+1. Modify the `setup` command to accept a comma-separated list of tools via the `--tool` flag:
+   ```
+   github-mcp-go setup --tool=cline,roo-code,claude-desktop
+   ```
+
+2. Update the help text to reflect the new functionality:
+   ```
+   --tool string   The AI assistant tool(s) to set up for (comma-separated, e.g., cline, roo-code, claude-desktop) (default "cline")
+   ```
+
+### Setup Process
+
+1. Process each tool in the comma-separated list individually
+2. For each tool:
+   - Find the appropriate configuration directory
+   - Update the settings file with the GitHub MCP Server configuration
+   - Handle any tool-specific configuration requirements
+
+3. Provide clear feedback for each tool's setup status:
+   - Success or failure message for each tool
+   - Overall success or failure message at the end
+
+### Tool Support
+
+Add support for the following tools:
+1. **Cline** (already supported)
+2. **Roo Code** (new)
+3. **Claude Desktop** (already supported)
+
+### Error Handling
+
+1. Implement proper error handling for each tool's setup process
+2. Continue processing other tools if one fails
+3. Return a non-zero exit code if any tool setup fails
+4. Provide clear error messages for troubleshooting
+
+## Implementation Details
+
+### Code Structure
+
+1. Update the `setup.go` file in the `cmd` package:
+   - Modify the `--tool` flag to accept a comma-separated list
+   - Process each tool in the list
+
+2. Update the `setup.go` file in the `pkg/setup` package:
+   - Add support for Roo Code
+   - Modify the `Setup` function to handle a single tool
+   - Create a new function to process multiple tools
+
+3. Update the `utils.go` file in the `pkg/setup` package:
+   - Add Roo Code to the `FindConfigDir` function
+   - Update any other utility functions as needed
+
+### Roo Code Support
+
+Add support for Roo Code with the following configuration:
+
+1. **Configuration Directory**:
+   - Linux: `~/.vscode-server/data/User/globalStorage/rooveterinaryinc.roo-cline/settings`
+   - macOS: `~/Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline/settings`
+   - Windows: `%APPDATA%\Code\User\globalStorage\rooveterinaryinc.roo-cline\settings`
+
+2. **Settings File**: `cline_mcp_settings.json`
+
+3. **Configuration Format**: Same as Cline
+
+### Error Handling Strategy
+
+1. Process each tool individually and collect any errors
+2. Continue processing other tools even if one fails
+3. At the end, report all errors and return a non-zero exit code if any tool setup failed
+
+## Testing Strategy
+
+### Comprehensive Unit Testing
+
+Following the approach used in linear-mcp-go, we will implement a robust testing framework in `cmd/setup_test.go` with the following features:
+
+1. **Test Environment Isolation**:
+   - Create temporary directories for each test case
+   - Set custom HOME environment variable to control file locations
+   - Set test API keys to avoid using real credentials
+   - Clean up all temporary files after tests complete
+
+2. **Binary Building and Execution**:
+   - Build the binary specifically for testing
+   - Execute the binary with various parameter combinations
+   - Capture stdout and stderr for verification
+   - Check exit codes for success/failure cases
+
+3. **File Verification**:
+   - Define expected file paths and content for each test case
+   - Verify that configuration files are created in the correct locations
+   - Parse and compare JSON content with expected structure
+   - Normalize JSON for comparison (sorting arrays, ignoring variable paths)
+
+4. **Test Cases Coverage**:
+   - Single tool setup (Cline)
+   - Single tool setup (Roo Code)
+   - Single tool setup (Claude Desktop)
+   - Multiple tools setup (comma-separated)
+   - Multiple tools setup (with spaces)
+   - Invalid tool handling
+   - Mixed valid and invalid tools
+   - Various flag combinations (write-access, auto-approve)
+
+5. **Error Handling Verification**:
+   - Verify correct error messages for invalid inputs
+   - Verify correct exit codes for error conditions
+   - Verify partial success when some tools succeed and others fail
+
+### Test Implementation Structure
+
+The test implementation will follow this structure:
+
+```go
+func TestSetupCommand(t *testing.T) {
+    // Build the binary
+    binaryPath, err := buildBinary()
+    if err != nil {
+        t.Fatalf("Failed to build binary: %v", err)
+    }
+    defer os.RemoveAll(filepath.Dir(binaryPath))
+
+    // Define test cases
+    testCases := []struct {
+        name        string
+        toolParam   string
+        writeAccess bool
+        autoApprove string
+        expect      expectations
+    }{
+        // Test cases here
+    }
+
+    // Run each test case
+    for _, tc := range testCases {
+        t.Run(tc.name, func(t *testing.T) {
+            // Create isolated environment
+            // Execute command with parameters
+            // Verify results
+        })
+    }
+}
+```
+
+### Helper Functions
+
+The test implementation will include these helper functions:
+
+1. `buildBinary()`: Builds the binary for testing
+2. `verifyFileExpectations()`: Verifies file existence and content
+3. `normalizeJSON()`: Normalizes JSON for comparison
+4. `copyFile()`: Copies files for test setup
+
+### Definition of Done for Testing
+
+A test is considered complete when:
+
+1. All test cases pass consistently
+2. Test coverage includes all supported tools and combinations
+3. All error conditions are properly tested
+4. Test environment is properly isolated and cleaned up
+5. Test results are documented in the PRD
+
+## Implementation Status
+
+| Task | Status | Progress |
+|------|--------|----------|
+| Update cmd/setup.go | Completed | 100% |
+| Update pkg/setup/setup.go | Completed | 100% |
+| Add Roo Code support to pkg/setup/utils.go | Completed | 100% |
+| Update error handling | Completed | 100% |
+| Update help text and documentation | Completed | 100% |
+| Implement comprehensive testing | Completed | 100% |
+| **Overall Progress** | **Completed** | **100%** |
+
+## Completed Work
+
+1. Updated `cmd/setup.go`:
+   - Modified the `--tool` flag to accept a comma-separated list
+   - Updated the help text to reflect the new functionality
+   - Updated the `Run` function to process each tool in the list
+   - Added error handling to collect and report errors for each tool
+
+2. Updated `pkg/setup/setup.go`:
+   - Created a new `SetupMultiple` function to handle multiple tools
+   - Kept the existing `Setup` function for backward compatibility
+   - Created a new `setupSingleTool` function to handle a single tool
+   - Added support for Roo Code in the settings file path
+
+3. Updated `pkg/setup/utils.go`:
+   - Added Roo Code to the `FindConfigDir` function
+   - Added support for Roo Code configuration directories on different platforms
+
+4. Created a basic test script to verify the implementation:
+   - Tested single tool setup for Cline and Roo Code
+   - Tested multiple tool setup with comma-separated and space-separated lists
+   - Tested error handling for invalid tools
+   - Tested mixed valid and invalid tools
+
+5. Implemented comprehensive testing in `cmd/setup_test.go`:
+   - Created a robust testing framework based on linear-mcp-go's approach
+   - Implemented test cases for all supported tools and combinations
+   - Added helper functions for environment setup and verification
+   - Integrated with the Go testing framework
+   - Implemented test environment isolation with temporary directories
+   - Added JSON normalization for reliable content comparison
+   - All tests pass successfully
+
+## Work Remaining
+
+All tasks have been completed. The multi-tool support feature has been fully implemented and tested.
+
+## Future Considerations
+
+1. Add support for additional AI assistants as they become available
+2. Implement a more flexible configuration system that can adapt to different AI assistants' requirements
+3. Consider adding a `--config` flag to specify a custom configuration file
+4. Add support for tool-specific configuration options

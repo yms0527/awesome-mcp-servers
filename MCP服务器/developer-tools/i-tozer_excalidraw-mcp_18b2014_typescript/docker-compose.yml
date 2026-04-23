@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  excalidraw-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./storage:/app/storage
+    restart: unless-stopped
+    # If we add an HTTP server in the future, we can uncomment this
+    # ports:
+    #   - "3000:3000" 

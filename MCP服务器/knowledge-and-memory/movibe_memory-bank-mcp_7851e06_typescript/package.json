@@ -1,0 +1,65 @@
+{
+  "name": "@movibe/memory-bank-mcp",
+  "version": "0.4.1",
+  "description": "MCP Server for managing Memory Bank",
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "memory-bank-mcp": "build/index.js"
+  },
+  "scripts": {
+    "clean": "rm -rf build",
+    "build": "bun run clean && bun build src/index.ts --outdir build --target node",
+    "start": "bun build/index.js",
+    "dev": "bun --watch src/index.ts",
+    "build:start": "bun run build && bun run start",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "prepublishOnly": "bun run build",
+    "release": "standard-version",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major",
+    "release:patch": "standard-version --release-as patch"
+  },
+  "keywords": [
+    "mcp",
+    "memory-bank",
+    "ai",
+    "assistant",
+    "context"
+  ],
+  "author": "Movibe",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/movibe/memory-bank-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/movibe/memory-bank-mcp/issues"
+  },
+  "homepage": "https://github.com/movibe/memory-bank-mcp#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.6.1",
+    "@types/js-yaml": "4.0.9",
+    "fs-extra": "^11.1.1",
+    "js-yaml": "4.1.0",
+    "path": "^0.12.7"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.4",
+    "@types/fs-extra": "^11.0.1",
+    "@types/node": "^20.4.5",
+    "standard-version": "^9.5.0",
+    "ts-node": "10.9.2",
+    "typescript": "^5.1.6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "directories": {
+    "doc": "docs"
+  }
+}

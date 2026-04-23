@@ -1,0 +1,160 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions: {}  # Restrict default token permissions
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write  # Required for keyless signing with Cosign and SLSA provenance
+      attestations: write  # Required for GitHub attestations
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: '1.25'
+
+      - name: Verify and prepare Go modules
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Install MinGW for Windows CGO cross-compilation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@57aae528053a48a3f6235f2d9461b05fbcb7366d # v0.23.1
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
+        with:
+          distribution: goreleaser
+          version: "~> v2.13"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Build MCPB bundles
+        run: |
+          # Extract version from tag (remove 'v' prefix)
+          VERSION="${GITHUB_REF_NAME#v}"
+          ./mcpb/build.sh "$VERSION" --use-dist
+
+      - name: Sign MCPB bundles with Cosign
+        run: |
+          for mcpb in dist/mcpb/*.mcpb; do
+            echo "Signing $mcpb..."
+            cosign sign-blob --yes \
+              --bundle="${mcpb}.sigstore.json" \
+              "$mcpb"
+          done
+
+      - name: Upload MCPB bundles to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Upload each .mcpb file and its signature to the release
+          for mcpb in dist/mcpb/*.mcpb; do
+            echo "Uploading $mcpb..."
+            gh release upload "$GITHUB_REF_NAME" "$mcpb" --clobber
+            gh release upload "$GITHUB_REF_NAME" "${mcpb}.sigstore.json" --clobber
+          done
+
+      - name: Publish release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false
+
+      - name: Generate artifact hashes
+        id: hash
+        run: |
+          cd dist
+          # Find all release artifacts and generate hashes
+          # Using find to avoid glob expansion issues when files don't exist
+          find . -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.mcpb" \) -exec sha256sum {} \; > /tmp/hashes.txt
+          if [ -s /tmp/hashes.txt ]; then
+            cat /tmp/hashes.txt | base64 -w0 > /tmp/hashes_b64.txt
+            echo "hashes=$(cat /tmp/hashes_b64.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "No artifacts found for hashing"
+          fi
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz
+          sudo mv mcp-publisher /usr/local/bin/
+
+      - name: Prepare server.json for MCP Registry
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          # Calculate SHA-256 hashes for each MCPB bundle
+          SHA_DARWIN_ARM64=$(sha256sum dist/mcpb/kubefwd-${VERSION}-darwin-arm64.mcpb | cut -d' ' -f1)
+          SHA_DARWIN_AMD64=$(sha256sum dist/mcpb/kubefwd-${VERSION}-darwin-amd64.mcpb | cut -d' ' -f1)
+          SHA_WINDOWS_AMD64=$(sha256sum dist/mcpb/kubefwd-${VERSION}-windows-amd64.mcpb | cut -d' ' -f1)
+
+          # Update server.json with version and SHA-256 hashes
+          sed -i "s/0.0.0/${VERSION}/g" server.json
+          sed -i "s/kubefwd-0.0.0-darwin-arm64.mcpb/kubefwd-${VERSION}-darwin-arm64.mcpb/" server.json
+          sed -i "s/kubefwd-0.0.0-darwin-amd64.mcpb/kubefwd-${VERSION}-darwin-amd64.mcpb/" server.json
+          sed -i "s/kubefwd-0.0.0-windows-amd64.mcpb/kubefwd-${VERSION}-windows-amd64.mcpb/" server.json
+
+          # Replace placeholder hashes (in order: arm64, amd64, windows)
+          sed -i "0,/PLACEHOLDER_SHA256/{s/PLACEHOLDER_SHA256/${SHA_DARWIN_ARM64}/}" server.json
+          sed -i "0,/PLACEHOLDER_SHA256/{s/PLACEHOLDER_SHA256/${SHA_DARWIN_AMD64}/}" server.json
+          sed -i "0,/PLACEHOLDER_SHA256/{s/PLACEHOLDER_SHA256/${SHA_WINDOWS_AMD64}/}" server.json
+
+          echo "Updated server.json:"
+          cat server.json
+
+      - name: Publish to MCP Registry
+        run: |
+          # Login using GitHub OIDC (id-token: write permission required)
+          mcp-publisher login github-oidc
+
+          # Publish the server to the MCP registry
+          mcp-publisher publish
+
+  provenance:
+    needs: [release]
+    if: needs.release.outputs.hashes != ''
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
+    with:
+      base64-subjects: "${{ needs.release.outputs.hashes }}"
+      upload-assets: true

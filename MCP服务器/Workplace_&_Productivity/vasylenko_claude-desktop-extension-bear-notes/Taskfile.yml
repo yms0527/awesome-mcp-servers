@@ -1,0 +1,138 @@
+version: '3'
+
+vars:
+  BUNDLE_NAME: bear-notes-mcpb-{{now | date "20060102"}}.mcpb
+  
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+  
+  inspector:
+    desc: Run MCP inspector with Web UI
+    cmds:
+      - npx @modelcontextprotocol/inspector node dist/main.js
+      
+  setup:
+    desc: Project setup (install + build)
+    cmds:
+      - npm install
+      - npm run build 
+
+  style:
+    desc: Runs linter and formatter with fixes
+    cmds:
+      - npm run lint
+      - npm run format
+  
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf dist tmp *.mcpb
+      
+  build:
+    desc: Build with quality checks
+    deps: [clean]
+    cmds:
+      - npm run check
+      - npm run test
+      - npm run build
+      
+  test:system:
+    if: '{{ ne .CI "true" }}' # Skip in CI as there is no system test environment set up yet
+    desc: Run system tests with MCP Inspector CLI
+    cmds:
+      - npm run test:system
+
+
+  # === Bundle Build ===
+
+  pack:
+    desc: Create production bundle
+    # deps: [build, test:system]
+    cmds:
+      - task: build      
+      - task: test:system # In CI, when skipped, this will be considered as success run
+      - rm -rf tmp/bundle && mkdir -p tmp/bundle
+      - cp -r dist/*.js manifest.json assets/* package.json tmp/bundle/
+      - cd tmp/bundle && npx mcpb validate manifest.json
+      - cd tmp/bundle && npm install --omit=dev    
+      - npx mcpb pack tmp/bundle {{.BUNDLE_NAME}}
+      - echo "Bundle created {{.BUNDLE_NAME}}"   
+    
+  info:
+    desc: Show bundle info
+    cmds:
+      - npx mcpb info {{.BUNDLE_NAME}}
+  
+  docs:sync:
+    desc: Sync tools list from manifest.json into README.md and docs/NPM.md
+    cmds:
+      - node scripts/sync-tools-to-docs.mjs
+  
+  version:
+    desc: Update version across all files
+    interactive: true
+    requires:
+      vars: 
+        - VERSION
+    prompt: "Confirm version update to {{.VERSION}}?"
+    preconditions:
+      - sh: echo "{{.VERSION}}" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$'
+        msg: "VERSION must follow semver format (x.y.z)"
+    cmds:
+      - |
+        echo "Updating version to {{.VERSION}}"
+        
+        sed -i '' 's/"version": "[^"]*"/"version": "{{.VERSION}}"/' package.json
+        
+        sed -i '' 's/"version": "[^"]*"/"version": "{{.VERSION}}"/' manifest.json
+        
+        sed -i '' "s/export const APP_VERSION = '[^']*'/export const APP_VERSION = '{{.VERSION}}'/" src/config.ts
+        
+        echo "Version updated to {{.VERSION}} in package.json, manifest.json, and src/config.ts"
+      - npm install --package-lock-only
+
+  prepare-release:
+    desc: Prepare release by updating version and docs
+    cmds:
+      - task: docs:sync
+      - task: version
+  
+  push-release:
+    desc: Commit, tag, and push a release
+    requires:
+      vars:
+        - VERSION
+        - SHORT_DESCRIPTION
+    preconditions:
+      - sh: test "$(git branch --show-current)" = "main"
+        msg: Must be on main branch
+      - sh: test -z "$(git status --porcelain)"
+        msg: Working tree must be clean
+    prompt: "Release v{{.VERSION}} ({{.SHORT_DESCRIPTION}})?"
+    cmds:
+      - |
+        git commit --allow-empty -m "release: {{.VERSION}} - {{.SHORT_DESCRIPTION}}"
+        git tag -a "v{{.VERSION}}" -m "release: {{.VERSION}}"
+        git push --follow-tags
+  
+  changelog:
+    silent: true
+    desc: Extract changelog for specific version
+    vars:
+      VERSION: '{{.VERSION | default "1.0.0"}}'
+    cmds:
+      - |
+        if [ ! -f CHANGELOG.md ]; then
+          echo "CHANGELOG.md not found"
+          exit 1
+        fi
+        
+        # Extract content between ## [VERSION] and next ## section
+        sed -n "/^## \[{{.VERSION}}\]/,/^## \[/p" CHANGELOG.md | \
+        sed '$d' | \
+        tail -n +3 | \
+        sed '/^$/d'
+

@@ -1,0 +1,33 @@
+POST https://advanced-query.us-east-1.prod.alienvault.cloud/advanced-query/search HTTP/1.1
+host: advanced-query.us-east-1.prod.alienvault.cloud
+Connection: keep-alive
+Content-Length: 329
+sec-ch-ua-platform: "Linux"
+Authorization: Bearer gA8-pbz3WwC_H7B5ayIaVYER_RfgQYFzZ49wU06ijSs
+sec-ch-ua: "Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"
+sec-ch-ua-mobile: ?0
+User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36
+X-ATT-TENANT-URI: /usma:3f4969b6-5e20-4704-af4e-8977ffe110a7
+Accept: application/json, text/plain, */*
+Content-Type: application/json
+Origin: https://avsolardemo.alienvault.cloud
+Sec-Fetch-Site: same-site
+Sec-Fetch-Mode: cors
+Sec-Fetch-Dest: empty
+Referer: https://avsolardemo.alienvault.cloud/
+Accept-Language: en-US,en;q=0.9
+
+{"tenant_id":"3f4969b6-5e20-4704-af4e-8977ffe110a7","time_range_start":1753569092775,"time_range_end":1753655492775,"query_string":"SELECT message.event_name, message.source_address FROM logs WHERE message.source_country != 'US' AND UPPER(message.event_name) LIKE UPPER('%login%')","query_language":"SQL","page":1,"page_size":20}HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Connection: keep-alive
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Headers: Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-ATT-TENANT-URI
+Access-Control-Allow-Methods: POST, OPTIONS
+Access-Control-Allow-Origin: *
+X-Usm-Request-Id: 6dedd706-73e4-4d70-9132-25de5896b8c0
+X-Usm-Transaction-Id: 11f45d55-8e9c-4e1a-b738-c628f6c5436e
+Date: Sun, 27 Jul 2025 22:31:42 GMT
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+content-length: 2921
+
+{"schema":[{"name":"message.event_name","type":"keyword"},{"name":"message.source_address","type":"keyword"}],"total":914,"datarows":[["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"],["A remote WebVPN user has logged in successfully and the login information has been installed on the standby unit.","179.199.114.59"]],"size":20,"error":{},"status":200,"results_id":"bab1ae92-f87e-4e97-afb6-e50307f89ffa"}

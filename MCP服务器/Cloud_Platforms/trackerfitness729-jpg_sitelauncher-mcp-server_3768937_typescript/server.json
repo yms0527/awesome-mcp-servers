@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.trackerfitness729-jpg/sitelauncher-mcp-server",
+  "description": "Deploy live HTTPS websites in seconds. Instant subdomains or custom .xyz domains via USDC.",
+  "repository": {
+    "url": "https://github.com/trackerfitness729-jpg/sitelauncher-mcp-server",
+    "source": "github"
+  },
+  "version": "1.0.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "sitelauncher-mcp-server",
+      "version": "1.0.1",
+      "transport": {
+        "type": "stdio",
+        "args": ["--stdio"]
+      },
+      "environmentVariables": [
+        {
+          "description": "SiteLauncher API base URL",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false,
+          "name": "SITELAUNCHER_API_URL"
+        }
+      ]
+    }
+  ]
+}

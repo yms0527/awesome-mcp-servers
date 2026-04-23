@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Setting up FLM NPU software stack - Lemonade Server</title>
+  <link rel="icon" href="./assets/favicon.ico">
+  <link rel="stylesheet" href="assets/website-styles.css">
+</head>
+<body>
+  <div class="navbar-placeholder"></div>
+
+  <main class="main">
+    <div class="hero-section">
+      <div class="main-heading">
+        Setting up FLM NPU software stack
+      </div>
+    </div>
+
+    <!-- NPU Setup Content -->
+    <div class="install-content">
+      <div class="install-section">
+        <h2>System requirements</h2>
+        <p>
+          FLM on Linux requires an <strong>AMD XDNA 2</strong> NPU.
+        </p>
+        <ul>
+          <li><strong>Ryzen™ AI Max 300-series:</strong> Strix Halo</li>
+          <li><strong>Ryzen™ AI 300-series:</strong> Kraken Point, Strix Point</li>
+          <li><strong>Ryzen™ AI 400-series:</strong> Gorgon Point</li>
+          <li><strong>Ryzen™ AI Z2 Extreme:</strong> For example, ASUS ROG Ally X handhelds</li>
+        </ul>
+        <div class="option-note">
+          <strong>Note:</strong> XDNA 1 NPUs are not supported (including Ryzen™ AI 7000-series,
+          8000-series, and 200-series chips).
+        </div>
+      </div>
+
+      <div class="install-section">
+        <h2>Background</h2>
+        <p>
+          Your system has an AMD NPU (Neural Processing Unit), but the software stack required
+          to use it is not properly configured. The NPU requires specific firmware, kernel version,
+          driver, and runtime software to function.
+        </p>
+        <p>
+          <strong>Requirements:</strong>
+        </p>
+        <ul>
+          <li><strong>NPU Firmware:</strong> Version 1.1.0.0 or later</li>
+          <li><strong>Kernel:</strong> Must have the <strong>amdxdna</strong> driver (from kernel 7.0 or later, or via DKMS package as provided in instructions below)</li>
+          <li><strong>Runtime:</strong> FLM (FastFlowLM) installed</li>
+          <li><strong>System limits:</strong> Sufficient memlock limits (handled by Lemonade's systemd service)</li>
+        </ul>
+        <p>
+          NOTE: This is a beta feature right now, and to use it you will need to
+          run lemonade-server with the environment variable
+          <code>LEMONADE_FLM_LINUX_BETA=1</code> set.
+        </p>
+      </div>
+
+      <div class="install-section">
+        <h2>Setup</h2>
+        <div class="distro-selector-section">
+          <label for="distro-select" class="distro-label"><strong>Select your Linux distribution:</strong></label>
+          <select id="distro-select" class="distro-selector">
+            <option value="" selected disabled>Select your distro…</option>
+            <option value="ubuntu-24">Ubuntu 24.04</option>
+            <option value="ubuntu-25">Ubuntu 25.10</option>
+            <option value="ubuntu-26">Ubuntu 26.04</option>
+            <option value="arch">Arch Linux</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <!-- Ubuntu 24.04 and 25.10 Instructions -->
+        <div class="distro-instructions" id="distro-ubuntu-24" style="display:none;">
+          <div class="option-box option-primary">
+            <div class="option-header">
+              <span class="option-label">For Ubuntu 24.04</span>
+            </div>
+            <ol>
+              <li>Add the PPA by running:<br>
+                <div class="code-block"><code>sudo add-apt-repository ppa:amd-team/xrt<br>sudo apt update</code></div>
+                <span style="font-size:0.95em; color:#666;">See <a href="https://launchpad.net/~amd-team/+archive/ubuntu/xrt" target="_blank">amd-team/xrt</a> for details.</span>
+              </li>
+              <li>Install packages:<br>
+                <div class="code-block"><code>sudo apt install libxrt-npu2 amdxdna-dkms</code></div>
+              </li>
+              <li>Reboot your system:<br>
+                <div class="code-block"><code>sudo reboot</code></div>
+              </li>
+              <li>Download FLM from <a href="https://github.com/FastFlowLM/FastFlowLM/releases" target="_blank">GitHub</a></li>
+              <li>Install FLM:<br>
+                <div class="code-block"><code>sudo apt install ./&lt;flm_package.deb&gt;</code></div>
+              </li>
+              <li>Run validation:<br>
+                <div class="code-block"><code>flm validate</code></div>
+                Check that the NPU is detected and working.<br>
+                <div class="code-block" style="margin-top:0.5rem; background:#222; color:#fff;">
+❮ flm validate<br>[Linux]  Kernel: 7.0.0-rc1-00052-g27936bfca73d<br>[Linux]  NPU: /dev/accel/accel0<br>[Linux]  NPU FW Version: 1.1.2.64<br>[Linux]  Memlock Limit: infinity
+                </div>
+              </li>
+              <li>See memlock notes below</li>
+            </ol>
+          </div>
+        </div>
+        <div class="distro-instructions" id="distro-ubuntu-25" style="display:none;">
+          <div class="option-box option-primary">
+            <div class="option-header">
+              <span class="option-label">For Ubuntu 25.10</span>
+            </div>
+            <ol>
+              <li>Add the PPA by running:<br>
+                <div class="code-block"><code>sudo add-apt-repository ppa:amd-team/xrt<br>sudo apt update</code></div>
+                <span style="font-size:0.95em; color:#666;">See <a href="https://launchpad.net/~amd-team/+archive/ubuntu/xrt" target="_blank">amd-team/xrt</a> for details.</span>
+              </li>
+              <li>Install packages:<br>
+                <div class="code-block"><code>sudo apt install libxrt-npu2 amdxdna-dkms</code></div>
+              </li>
+              <li>Reboot your system:<br>
+                <div class="code-block"><code>sudo reboot</code></div>
+              </li>
+              <li>Download FLM from <a href="https://github.com/FastFlowLM/FastFlowLM/releases" target="_blank">GitHub</a></li>
+              <li>Install FLM:<br>
+                <div class="code-block"><code>sudo apt install ./&lt;flm_package.deb&gt;</code></div>
+              </li>
+              <li>Run validation:<br>
+                <div class="code-block"><code>flm validate</code></div>
+                Check that the NPU is detected and working.<br>
+                <div class="code-block" style="margin-top:0.5rem; background:#222; color:#fff;">
+❮ flm validate<br>[Linux]  Kernel: 7.0.0-rc1-00052-g27936bfca73d<br>[Linux]  NPU: /dev/accel/accel0<br>[Linux]  NPU FW Version: 1.1.2.64<br>[Linux]  Memlock Limit: infinity
+                </div>
+              </li>
+              <li>See memlock notes below</li>
+            </ol>
+          </div>
+        </div>
+        <!-- Ubuntu 26.04 Instructions -->
+        <div class="distro-instructions" id="distro-ubuntu-26" style="display:none;">
+          <div class="option-box option-primary">
+            <div class="option-header">
+              <span class="option-label">For Ubuntu 26.04</span>
+            </div>
+            <ol>
+              <li>Install <code>libxrt-npu2</code> from Ubuntu repos:<br>
+                <div class="code-block"><code>sudo apt install libxrt-npu2</code></div>
+              </li>
+              <li>Add the PPA by running:<br>
+                <div class="code-block"><code>sudo add-apt-repository ppa:amd-team/xrt<br>sudo apt update</code></div>
+                <span style="font-size:0.95em; color:#666;">See <a href="https://launchpad.net/~amd-team/+archive/ubuntu/xrt" target="_blank">amd-team/xrt</a> for details.</span>
+              </li>
+              <li>Install <code>amdxdna-dkms</code>:<br>
+                <div class="code-block"><code>sudo apt install amdxdna-dkms</code></div>
+              </li>
+              <li>Reboot your system:<br>
+                <div class="code-block"><code>sudo reboot</code></div>
+              </li>
+              <li>Download FLM from <a href="https://github.com/FastFlowLM/FastFlowLM/releases" target="_blank">GitHub</a></li>
+              <li>Install FLM:<br>
+                <div class="code-block"><code>sudo apt install ./&lt;flm_package.deb&gt;</code></div>
+              </li>
+              <li>Run validation:<br>
+                <div class="code-block"><code>flm validate</code></div>
+                Check that the NPU is detected and working.<br>
+                <div class="code-block" style="margin-top:0.5rem; background:#222; color:#fff;">
+❮ flm validate<br>[Linux]  Kernel: 7.0.0-rc1-00052-g27936bfca73d<br>[Linux]  NPU: /dev/accel/accel0<br>[Linux]  NPU FW Version: 1.1.2.64<br>[Linux]  Memlock Limit: infinity
+                </div>
+              </li>
+              <li>See memlock notes below</li>
+            </ol>
+            <div class="option-note">These steps are only applicable until Ubuntu moves to 7.0-rc2. They will be updated after that.</div>
+          </div>
+        </div>
+        <!-- Arch Instructions -->
+        <div class="distro-instructions" id="distro-arch" style="display:none;">
+          <div class="option-box option-primary">
+            <div class="option-header">
+              <span class="option-label">For Arch Linux</span>
+            </div>
+            <ol>
+              <li>Install xrt from the arch linux repos
+                <div class="code-block"><code>sudo pacman -Sy xrt</code></div>
+              </li>
+              <li>Install xrt-plugin-amdxdna from the arch linux repos
+                <div class="code-block"><code>sudo pacman -Sy xrt-plugin-amdxdna</code></div>
+              </li>
+              <li>Update kernel to 7.0-rc2 or later:<br>
+                <div class="code-block"><code>sudo pacman -Sy linux</code></div>
+              </li>
+              <li>For older kernels (6.18, 6.19), use the amdxdna-dkms package from AUR<br>
+                <div class="code-block"><code>paru -S amdxdna-dkms</code></div>
+              </li>
+              <li>Update linux-firmware to 20260221 or later:<br>
+                <div class="code-block"><code>sudo pacman -Sy linux-firmware</code></div>
+              </li>
+              <li>Clone the FastFlowLM repository:<br>
+                <div class="code-block"><code>git clone https://github.com/FastFlowLM/FastFlowLM.git</code></div>
+              </li>
+              <li>Build FLM using cmake and ninja:<br>
+                <div class="code-block"><code>cmake -S src --preset linux-default<br>ninja -C src/build<br>sudo ninja -C src/build install</code></div>
+              </li>
+              <li>Run validation:<br>
+                <div class="code-block"><code>flm validate</code></div>
+                Check that the NPU is detected and working.<br>
+                <div class="code-block" style="margin-top:0.5rem; background:#222; color:#fff;">
+❮ flm validate<br>[Linux]  Kernel: 7.0.0-rc1-00052-g27936bfca73d<br>[Linux]  NPU: /dev/accel/accel0<br>[Linux]  NPU FW Version: 1.1.2.64<br>[Linux]  Memlock Limit: infinity
+                </div>
+              </li>
+              <li>See memlock notes below</li>
+            </ol>
+          </div>
+        </div>
+        <!-- Other Instructions -->
+        <div class="distro-instructions" id="distro-other" style="display:none;">
+          <div class="option-box option-primary">
+            <div class="option-header">
+              <span class="option-label">For Other Distributions</span>
+            </div>
+            <ol>
+                <li>Build and install XRT and the AMD DNA plugin from source: <a href="https://github.com/amd/xdna-driver/" target="_blank">amd/xdna-driver</a></li>
+                <li>Update to kernel 7.0-rc2 or later and update linux-firmware to 20260221 or later.<br>
+                  <span style="font-size:0.95em; color:#666;">Refer to your distribution's documentation for the exact commands.</span>
+                </li>
+                <li>Clone the FastFlowLM repository:<br>
+                  <div class="code-block"><code>git clone https://github.com/FastFlowLM/FastFlowLM.git</code></div>
+                </li>
+                <li>Build FLM using cmake and ninja:<br>
+                  <div class="code-block"><code>cmake -S src --preset linux-default<br>ninja -C src/build<br>sudo ninja -C src/build install</code></div>
+                </li>
+                <li>Run validation:<br>
+                  <div class="code-block"><code>flm validate</code></div>
+                  Check that the NPU is detected and working.<br>
+                  <div class="code-block" style="margin-top:0.5rem; background:#222; color:#fff;">
+  ❮ flm validate<br>[Linux]  Kernel: 7.0.0-rc1-00052-g27936bfca73d<br>[Linux]  NPU: /dev/accel/accel0<br>[Linux]  NPU FW Version: 1.1.2.64<br>[Linux]  Memlock Limit: infinity
+                  </div>
+                </li>
+                <li>See memlock notes below</li>
+            </ol>
+          </div>
+        </div>
+        <script>
+          // Distro selector logic
+          document.addEventListener('DOMContentLoaded', function() {
+            const select = document.getElementById('distro-select');
+            const ids = ['ubuntu-24', 'ubuntu-25', 'ubuntu-26', 'arch', 'other'];
+            const faq = document.getElementById('flm-faq-section');
+            // Hide all by default
+            ids.forEach(id => {
+              const el = document.getElementById('distro-' + id);
+              if (el) el.style.display = 'none';
+            });
+            if (faq) faq.style.display = 'none';
+            select.addEventListener('change', function() {
+              ids.forEach(id => {
+                const el = document.getElementById('distro-' + id);
+                if (el) el.style.display = 'none';
+              });
+              if (faq) faq.style.display = 'block';
+              const val = select.value;
+              if (val === 'ubuntu-24') {
+                document.getElementById('distro-ubuntu-24').style.display = 'block';
+              } else if (val === 'ubuntu-25') {
+                document.getElementById('distro-ubuntu-25').style.display = 'block';
+              } else if (val === 'ubuntu-26') {
+                document.getElementById('distro-ubuntu-26').style.display = 'block';
+              } else if (val === 'arch') {
+                document.getElementById('distro-arch').style.display = 'block';
+              } else if (val === 'other') {
+                document.getElementById('distro-other').style.display = 'block';
+              }
+            });
+          });
+        </script>
+      </div>
+
+      <div class="install-section" id="flm-faq-section" style="display:none;">
+        <h2>Common flm validate issues</h2>
+
+        <h3>1. Outdated NPU Firmware</h3>
+        <p>If <code>flm validate</code> reports a firmware issue, ensure you have version <strong>1.1.0.0 or later</strong>.</p>
+        <p>You can check your version manually with:</p>
+        <div class="code-block">
+          <code>cat /sys/bus/pci/drivers/amdxdna/*/fw_version</code>
+        </div>
+        <p>If the firmware is older than 1.1.0.0, you'll need to update it through your Linux distribution (typically by updating the <code>linux-firmware</code> package).</p>
+
+        <h3>2. Missing or Outdated amdxdna Driver</h3>
+        <p>The NPU requires the <strong>amdxdna</strong> driver, which is included in Linux kernel 7.0 and later, or can be installed via the <code>amdxdna-dkms</code> package as described in the instructions above.</p>
+        <p>To check if the driver is loaded, run:</p>
+        <div class="code-block">
+          <code>lsmod | grep amdxdna</code>
+        </div>
+        <p>If you do not see <code>amdxdna</code> listed, ensure you have either upgraded to a kernel with amdxdna support or installed the <code>amdxdna-dkms</code> package.</p>
+        <p>To check your kernel version (for reference):</p>
+        <div class="code-block">
+          <code>uname -r</code>
+        </div>
+        <p>The kernel version is only relevant if you are relying on in-tree support. If using DKMS, the driver version is determined by the installed package.</p>
+
+        <h3>3. Memlock limit too low</h3>
+        <p>NPU workloads require the ability to lock memory. If you see an error like <strong>"Memlock limit is too low (8MB)"</strong>, you need to increase it.</p>
+        <p><strong>Most users do not need to adjust this manually if running Lemonade as a service:</strong> Lemonade's systemd service automatically sets <code>LimitMEMLOCK=infinity</code> for you.</p>
+        <p>If you are running FLM or NPU workloads outside of Lemonade, or not using the systemd service, you may need to set this manually:</p>
+        <p>Edit <code>/etc/security/limits.conf</code>:</p>
+        <div class="code-block">
+          <code>sudo nano /etc/security/limits.conf</code>
+        </div>
+        <p>Add these lines at the end:</p>
+        <div class="code-block">
+          <pre><code>*    soft    memlock    unlimited
+*    hard    memlock    unlimited</code></pre>
+        </div>
+        <p>Then <strong>log out and log back in</strong> for changes to take effect.</p>
+      </div>
+
+      <div class="install-section">
+        <h2>Additional Resources</h2>
+        <p>
+          For detailed NPU setup instructions and troubleshooting:
+        </p>
+        <ul>
+          <li><a href="https://github.com/FastFlowLM/FastFlowLM" target="_blank">FastFlowLM GitHub Repository</a></li>
+        </ul>
+      </div>
+
+      <div class="install-section">
+        <h2>Need Help?</h2>
+        <p>
+          If you continue to experience issues after setting up the NPU stack:
+        </p>
+        <ul>
+          <li>Check the <a href="https://github.com/lemonade-sdk/lemonade/issues">GitHub Issues</a> page</li>
+          <li>Contact us on <a href="https://discord.gg/lemonade-server">Discord</a></li>
+        </ul>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer will be inserted here by footer.js -->
+  <div class="footer-placeholder"></div>
+
+  <script src="assets/navbar.js"></script>
+  <script src="assets/footer.js"></script>
+  <script>
+    // Initialize footer when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      if (typeof initializeNavbar === 'function') {
+        initializeNavbar('./');
+      }
+      if (typeof initializeFooter === 'function') {
+        initializeFooter('./');
+      }
+    });
+  </script>
+
+  <style>
+    .distro-selector-section {
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .distro-label {
+      font-size: 1.05rem;
+      color: #2c3e50;
+    }
+    .distro-selector {
+      padding: 0.5rem 1.2rem 0.5rem 0.7rem;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: 2px solid #e6b800;
+      background: #fffbe9;
+      color: #222;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .distro-selector:focus {
+      border: 2px solid #f39c12;
+      box-shadow: 0 0 0 2px #ffe06655;
+    }
+    .distro-instructions {
+      margin-bottom: 2rem;
+    }
+    .install-content {
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 0 2rem;
+    }
+
+    .install-section {
+      margin-bottom: 3rem;
+    }
+
+    .install-section h2 {
+      color: #2c3e50;
+      border-bottom: 2px solid #e74c3c;
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .install-section ul {
+      margin-left: 2rem;
+      line-height: 1.8;
+    }
+
+    .install-section p {
+      line-height: 1.6;
+      color: #555;
+      margin-bottom: 1rem;
+    }
+
+    .code-block {
+      background: #2c3e50;
+      color: #ecf0f1;
+      padding: 1rem;
+      border-radius: 6px;
+      margin: 1rem 0;
+      font-family: 'Courier New', monospace;
+      overflow-x: auto;
+    }
+
+    .code-block code {
+      color: #ecf0f1;
+      background: none;
+      padding: 0;
+    }
+
+    .option-box {
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+    }
+
+    .option-primary {
+      background: linear-gradient(135deg, #fef5e7, #fdebd0);
+      border: 2px solid #f39c12;
+    }
+
+    .option-secondary {
+      background: #f8f9fa;
+      border: 2px solid #bdc3c7;
+    }
+
+    .option-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .option-label {
+      font-weight: bold;
+      font-size: 1.1rem;
+      color: #2c3e50;
+    }
+
+    .option-tag {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .option-tag.recommended {
+      background: #27ae60;
+      color: white;
+    }
+
+    .option-box h3 {
+      margin: 0 0 0.75rem 0;
+      color: #2c3e50;
+    }
+
+    .option-note {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: #666;
+      font-style: italic;
+    }
+
+    .step-container {
+      margin: 2rem 0;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      background: white;
+      border-radius: 8px;
+      border-left: 4px solid #e74c3c;
+    }
+
+    .step-number {
+      background: #e74c3c;
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 1.2rem;
+      margin-right: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .step-content h3 {
+      margin: 0 0 0.5rem 0;
+      color: #2c3e50;
+    }
+
+    .step-content p {
+      margin: 0 0 1rem 0;
+    }
+
+    .step-content ul {
+      margin: 0.5rem 0 0.5rem 2rem;
+    }
+
+    @media (max-width: 768px) {
+      .install-content {
+        padding: 0 1rem;
+      }
+
+      .step {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .step-number {
+        margin: 0 auto 1rem auto;
+      }
+    }
+  </style>
+</body>
+</html>

@@ -1,0 +1,18 @@
+node_modules/
+build/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+*.p12
+credentials.json
+service-account.json
+token.json
+client_secret*.json
+
+# OS
+.DS_Store
+Thumbs.db

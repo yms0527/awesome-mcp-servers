@@ -1,0 +1,47 @@
+{
+    "name": "ragalgo-mcp-server",
+    "version": "1.0.6",
+    "mcpName": "io.github.kokogo100/ragalgo",
+    "files": [
+        "dist",
+        "README.md",
+        "server.json"
+    ],
+    "description": "Dynamic RAG Engine for AI Reliability. We provide mathematically scored context & sanitized data to prevent hallucinations in both static & volatile domains (starting with Korean Finance).",
+    "main": "dist/index.js",
+    "bin": {
+        "ragalgo-mcp-server": "./dist/index.js"
+    },
+    "type": "module",
+    "scripts": {
+        "build": "npx tsc",
+        "start": "node dist/index.js",
+        "dev": "npx tsx src/index.ts"
+    },
+    "keywords": [
+        "mcp",
+        "rag",
+        "ai-reliability",
+        "context-scoring",
+        "finance",
+        "korea-market"
+    ],
+    "author": "RagAlgo Team",
+    "license": "MIT",
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.0.0",
+        "@types/uuid": "^10.0.0",
+        "cors": "^2.8.5",
+        "express": "^4.21.2",
+        "uuid": "^13.0.0",
+        "zod": "^3.25.0",
+        "zod-to-json-schema": "^3.25.1"
+    },
+    "devDependencies": {
+        "@types/cors": "^2.8.19",
+        "@types/express": "^5.0.6",
+        "@types/node": "^20.19.26",
+        "tsx": "^4.21.0",
+        "typescript": "^5.9.3"
+    }
+}

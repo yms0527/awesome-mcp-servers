@@ -1,0 +1,52 @@
+{
+  "languages": {
+    "en": "English",
+    "de": "Deutsch"
+  },
+  "prompt": {
+    "placeholder": "Enter question..."
+  },
+  "dialog": {
+    "files": {
+      "title": "Choose files"
+    }
+  },
+  "toolCall": {
+    "builtin": {
+      "changeTimes": {
+        "access": "Access time",
+        "mod": "Modification time"
+      }
+    },
+    "mcp": {
+      "description": "Tool description"
+    },
+    "rejection": {
+      "dialog":{
+        "title": "Reject tool execution",
+        "message": "Reason",
+        "ok": "Reject"
+      }
+    }
+  },
+  "history": {
+    "placeholder": "Search in history..."
+  },
+  "edit": {
+    "apply": "Save",
+    "cancel": "Cancel"
+  },
+  "profile": {
+    "title": "Pick profile",
+    "default": "Default"
+  },
+  "tool": {
+    "title": "Setup builtin tools",
+    "builtin": {
+      "title": "BuiltIn Tools"
+    },
+    "mcp": {
+      "title": "MCP Tools"
+    }
+  }
+}

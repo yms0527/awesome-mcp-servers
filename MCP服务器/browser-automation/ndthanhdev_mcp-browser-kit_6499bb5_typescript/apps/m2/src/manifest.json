@@ -1,0 +1,44 @@
+{
+	"$schema": "https://json.schemastore.org/webextension.json",
+	"manifest_version": 2,
+	"name": "MCP Browser Kit M2",
+	"version": "6.0.1",
+
+	"description": "Allow MCP Browser Kit to interact with the browser.",
+	"permissions": [
+		"tabs",
+		"activeTab",
+		"scripting",
+		"storage",
+		"<all_urls>",
+		"*://localhost:*/*",
+		"*://127.0.0.1:*/*"
+	],
+	"icons": {
+		"48": "assets/images/border-48.png"
+	},
+
+	"content_scripts": [
+		{
+			"matches": [
+				"<all_urls>"
+			],
+			"js": [
+				"bootstrap-mbk-tab.js"
+			],
+			"run_at": "document_start"
+		}
+	],
+	"background": {
+		"scripts": [
+			"vendors/webextension-polyfill/browser-polyfill.min.js",
+			"bootstrap-mbk-bg.js"
+		],
+		"persistent": true
+	},
+	"browser_specific_settings": {
+		"gecko": {
+			"id": "{264f8236-2b24-4051-bb27-17f26fe2f260}"
+		}
+	}
+}

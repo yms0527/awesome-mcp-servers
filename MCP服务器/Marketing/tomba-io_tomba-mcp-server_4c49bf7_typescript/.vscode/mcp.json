@@ -1,0 +1,33 @@
+{
+    "inputs": [
+        {
+            "type": "promptString",
+            "id": "tomba-key",
+            "description": "Tomba api key",
+            "password": true,
+        },
+        {
+            "type": "promptString",
+            "id": "tomba-secret",
+            "description": "Tomba api secret",
+            "password": true,
+        },
+        {
+            "type": "promptString",
+            "id": "tomba-bearer",
+            "description": "Tomba bearer token",
+            "password": true,
+        }
+    ],
+    "servers": {
+        "tomba-mcp": {
+            "type": "http",
+            "url": "http://localhost:3000/mcp",
+            "headers": {
+                //"Authorization": "Bearer ${input:tomba-bearer}",
+                "X-Tomba-Key": "${input:tomba-key}",
+                "X-Tomba-Secret": "${input:tomba-secret}"
+            }
+        }
+    }
+}

@@ -1,0 +1,51 @@
+name: Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: "./"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    strategy:
+      matrix:
+        shard: [1/2, 2/2]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node
+        uses: ./.github/actions/setup_node
+
+      - name: lint
+        if: matrix.shard == '1/2'
+        run: pnpm lint
+
+      - name: typecheck
+        if: matrix.shard == '1/2'
+        run: pnpm typecheck
+
+      - name: build and check successfully execute with npx
+        if: matrix.shard == '2/2'
+        run: |
+          ./scripts/test-npx.sh
+
+      - name: test
+        env:
+          TEST_SHARD: ${{ matrix.shard }}
+        run: pnpm test

@@ -1,0 +1,606 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Sidebar } from './components/Sidebar';
+import { TaskList } from './components/TaskList';
+import type { TaskListHandle } from './components/TaskList';
+import { TaskDetail } from './components/TaskDetail';
+import { GoalDetail } from './components/GoalDetail';
+import { CalendarView } from './components/CalendarView';
+import { Settings } from './components/Settings';
+import { CommandPalette } from './components/CommandPalette';
+import { KeyboardShortcuts } from './components/KeyboardShortcuts';
+import { DailyPlanning } from './components/DailyPlanning';
+import { FocusTimerOverlay } from './components/FocusTimerOverlay';
+import { ProductivityDashboard } from './components/ProductivityDashboard';
+import { ConfettiCelebration } from './components/ConfettiCelebration';
+import { NewTaskDialog } from './components/NewTaskDialog';
+import { OnboardingWizard } from './components/OnboardingWizard';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { Toaster } from './components/ui/toaster';
+import { useFeatures, useOnboarding } from './hooks/useFeatures';
+import { undoableDelete } from './lib/undo-delete';
+import type { TaskWithGoals, GoalWithProgress, Task, List } from '@uptier/shared';
+
+// Default focus duration in minutes
+const DEFAULT_FOCUS_DURATION = 90;
+
+interface ActiveFocusSession {
+  sessionId: string;
+  task: Task;
+  durationMinutes: number;
+}
+
+type ThemeMode = 'dark' | 'light' | 'earth-dark' | 'earth-light' | 'cyberpunk' | 'system';
+
+const SIDEBAR_WIDTH_KEY = 'uptier-sidebar-width';
+const DEFAULT_SIDEBAR_WIDTH = 256;
+
+const DETAIL_WIDTH_KEY = 'uptier-detail-width';
+const DEFAULT_DETAIL_WIDTH = 384;
+
+// All theme CSS classes that may be applied to <html>
+const THEME_CLASSES = ['light', 'theme-earth-dark', 'theme-earth-light', 'theme-cyberpunk'] as const;
+
+// Apply theme to document
+function applyTheme(theme: ThemeMode) {
+  const effectiveTheme = theme === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : theme;
+
+  // Remove all theme classes first
+  document.documentElement.classList.remove(...THEME_CLASSES);
+
+  // Apply the appropriate class (dark = no class, uses :root defaults)
+  const themeClassMap: Record<string, string | null> = {
+    'dark': null,
+    'light': 'light',
+    'earth-dark': 'theme-earth-dark',
+    'earth-light': 'theme-earth-light',
+    'cyberpunk': 'theme-cyberpunk',
+  };
+
+  const cssClass = themeClassMap[effectiveTheme];
+  if (cssClass) {
+    document.documentElement.classList.add(cssClass);
+  }
+}
+
+export default function App() {
+  const [selectedListId, setSelectedListId] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<TaskWithGoals | null>(null);
+  const [selectedGoal, setSelectedGoal] = useState<GoalWithProgress | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    return saved ? parseInt(saved, 10) : DEFAULT_SIDEBAR_WIDTH;
+  });
+  const [detailPanelWidth, setDetailPanelWidth] = useState(() => {
+    const saved = localStorage.getItem(DETAIL_WIDTH_KEY);
+    return saved ? parseInt(saved, 10) : DEFAULT_DETAIL_WIDTH;
+  });
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [activeFocusSession, setActiveFocusSession] = useState<ActiveFocusSession | null>(null);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [dailyPlanningOpen, setDailyPlanningOpen] = useState(false);
+  const [celebrationMessage, setCelebrationMessage] = useState<string | null>(null);
+  const [newTaskDialogOpen, setNewTaskDialogOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const queryClient = useQueryClient();
+  const features = useFeatures();
+  const { completed: onboardingCompleted } = useOnboarding();
+  const taskListRef = useRef<TaskListHandle>(null);
+
+  // Fetch custom smart lists to detect filter views
+  const { data: customSmartLists = [] } = useQuery<List[]>({
+    queryKey: ['smartLists'],
+    queryFn: () => window.electronAPI.smartLists.getAll(),
+  });
+  const isCustomSmartList = customSmartLists.some((l) => l.id === selectedListId);
+
+  // Save sidebar width to localStorage when it changes
+  const handleSidebarWidthChange = useCallback((width: number) => {
+    setSidebarWidth(width);
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+  }, []);
+
+  // Save detail panel width to localStorage when it changes
+  const handleDetailWidthChange = useCallback((width: number) => {
+    setDetailPanelWidth(width);
+    localStorage.setItem(DETAIL_WIDTH_KEY, String(width));
+  }, []);
+
+  // Track window width for responsive behavior
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Auto-collapse sidebar at small widths
+  useEffect(() => {
+    if (windowWidth < 550 && !sidebarCollapsed) {
+      setSidebarCollapsed(true);
+    }
+  }, [windowWidth, sidebarCollapsed]);
+
+  // Show onboarding for new users
+  useEffect(() => {
+    if (showOnboarding === null) {
+      setShowOnboarding(!onboardingCompleted);
+    }
+  }, [onboardingCompleted, showOnboarding]);
+
+  // Navigate away from disabled feature views
+  useEffect(() => {
+    if (selectedListId === 'smart:calendar' && !features.calendarView) {
+      setSelectedListId('smart:my_day');
+    }
+    if (selectedListId === 'smart:dashboard' && !features.dashboard) {
+      setSelectedListId('smart:my_day');
+    }
+  }, [features, selectedListId]);
+
+  // Clear goal selection if goals feature disabled
+  useEffect(() => {
+    if (!features.goalsSystem && selectedGoal) {
+      setSelectedGoal(null);
+    }
+  }, [features.goalsSystem, selectedGoal]);
+
+  // Load and apply theme on mount
+  useEffect(() => {
+    window.electronAPI.settings.get().then((settings) => {
+      applyTheme(settings.theme);
+    });
+
+    // Listen for system theme changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => {
+      window.electronAPI.settings.get().then((settings) => {
+        if (settings.theme === 'system') {
+          applyTheme('system');
+        }
+      });
+    };
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  const handleThemeChange = (theme: ThemeMode) => {
+    applyTheme(theme);
+  };
+
+  // Auto-launch daily planning if not done today
+  useEffect(() => {
+    const checkPlanning = async () => {
+      try {
+        const settings = await window.electronAPI.settings.get();
+        const planningEnabled = (settings as { planning?: { enabled?: boolean } })?.planning?.enabled ?? true;
+        if (!planningEnabled || !features.dailyPlanning) return;
+
+        const lastDate = await window.electronAPI.planning.getLastPlanningDate();
+        const today = new Date().toISOString().split('T')[0];
+        if (lastDate !== today) {
+          // Delay slightly to let the UI load first
+          setTimeout(() => setDailyPlanningOpen(true), 1000);
+        }
+      } catch {
+        // Settings may not have planning yet, ignore
+      }
+    };
+    checkPlanning();
+  }, [features.dailyPlanning]);
+
+  // Listen for database changes from MCP server
+  useEffect(() => {
+    const unsubscribe = window.electronAPI.onDatabaseChanged(() => {
+      // Invalidate all queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['lists'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+      queryClient.invalidateQueries({ queryKey: ['tags'] });
+      queryClient.invalidateQueries({ queryKey: ['smartLists'] });
+      queryClient.invalidateQueries({ queryKey: ['smartListCounts'] });
+      queryClient.invalidateQueries({ queryKey: ['database-profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['database-active'] });
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    });
+
+    return unsubscribe;
+  }, [queryClient]);
+
+  // Get current task index for navigation
+  const getCurrentTaskIndex = useCallback(() => {
+    if (!selectedTask || !taskListRef.current) return -1;
+    const tasks = taskListRef.current.getAllTasks();
+    return tasks.findIndex((t) => t.id === selectedTask.id);
+  }, [selectedTask]);
+
+  // Handle task completion toggle
+  const handleToggleComplete = useCallback(async () => {
+    if (!selectedTask) return;
+    if (selectedTask.completed) {
+      await window.electronAPI.tasks.uncomplete(selectedTask.id);
+    } else {
+      await window.electronAPI.tasks.complete(selectedTask.id);
+      // Check for celebrations (only if streaks feature enabled)
+      if (features.streaksCelebrations) try {
+        const allComplete = await window.electronAPI.analytics.checkAllDailyComplete();
+        if (allComplete) {
+          setCelebrationMessage('All daily tasks complete!');
+        } else {
+          const dashboard = await window.electronAPI.analytics.getDashboard();
+          if (dashboard.streak.milestoneReached) {
+            setCelebrationMessage(`${dashboard.streak.milestoneReached}-day streak!`);
+          }
+        }
+      } catch { /* ignore analytics errors */ }
+    }
+    queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    queryClient.invalidateQueries({ queryKey: ['lists'] });
+    queryClient.invalidateQueries({ queryKey: ['smartListCounts'] });
+    queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    // Optimistically update selectedTask so detail panel reflects change immediately
+    setSelectedTask(prev => prev ? {
+      ...prev,
+      completed: !prev.completed,
+      completed_at: prev.completed ? null : new Date().toISOString(),
+    } : null);
+  }, [selectedTask, queryClient]);
+
+  // Handle task deletion
+  const handleDeleteTask = useCallback(() => {
+    if (!selectedTask) return;
+    const taskToDelete = selectedTask;
+    setSelectedTask(null);
+
+    // Optimistically remove the task from cache so it disappears immediately
+    queryClient.setQueriesData<TaskWithGoals[]>({ queryKey: ['tasks'] }, (old) =>
+      old?.filter((t) => t.id !== taskToDelete.id)
+    );
+    queryClient.invalidateQueries({ queryKey: ['smartListCounts'] });
+
+    undoableDelete({
+      label: taskToDelete.title,
+      onDelete: () => {
+        window.electronAPI.tasks.delete(taskToDelete.id);
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['smartListCounts'] });
+      },
+      onUndo: () => {
+        // Task still exists in DB — just refetch to restore it
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['lists'] });
+        queryClient.invalidateQueries({ queryKey: ['smartListCounts'] });
+      },
+    });
+  }, [selectedTask, queryClient]);
+
+  // Handle starting a focus session
+  const handleStartFocus = useCallback(async (task: TaskWithGoals, durationMinutes: number = DEFAULT_FOCUS_DURATION) => {
+    try {
+      const session = await window.electronAPI.focus.start({
+        task_id: task.id,
+        duration_minutes: durationMinutes,
+      });
+      setActiveFocusSession({
+        sessionId: session.id,
+        task,
+        durationMinutes,
+      });
+    } catch (error) {
+      console.error('Failed to start focus session:', error);
+    }
+  }, []);
+
+  // Handle ending a focus session
+  const handleEndFocus = useCallback(async (completed: boolean) => {
+    if (!activeFocusSession) return;
+    try {
+      await window.electronAPI.focus.end(activeFocusSession.sessionId, completed);
+    } catch (error) {
+      console.error('Failed to end focus session:', error);
+    }
+    setActiveFocusSession(null);
+  }, [activeFocusSession]);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip most shortcuts when a modal overlay is active
+      if (dailyPlanningOpen) return;
+
+      // Ctrl/Cmd + K: Toggle command palette (works from any context)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      // Ignore if typing in an input
+      const target = e.target as HTMLElement;
+      const isInputActive = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      // Ctrl/Cmd + N: New task
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        setNewTaskDialogOpen(true);
+        return;
+      }
+
+      // Ctrl/Cmd + F: Focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        taskListRef.current?.focusSearch();
+        return;
+      }
+
+      // Escape: Close task detail / clear selection
+      if (e.key === 'Escape' && !isInputActive) {
+        if (selectedTask) {
+          setSelectedTask(null);
+        }
+        return;
+      }
+
+      // Skip navigation shortcuts when typing
+      if (isInputActive) return;
+
+      // ?: Show keyboard shortcuts reference
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+        setShortcutsOpen(true);
+        return;
+      }
+
+      // Arrow up: Select previous task
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const currentIndex = getCurrentTaskIndex();
+        if (currentIndex > 0) {
+          taskListRef.current?.selectTaskByIndex(currentIndex - 1);
+        } else if (currentIndex === -1) {
+          // No task selected, select last task
+          const tasks = taskListRef.current?.getAllTasks() || [];
+          if (tasks.length > 0) {
+            taskListRef.current?.selectTaskByIndex(tasks.length - 1);
+          }
+        }
+        return;
+      }
+
+      // Arrow down: Select next task
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const currentIndex = getCurrentTaskIndex();
+        const tasks = taskListRef.current?.getAllTasks() || [];
+        if (currentIndex < tasks.length - 1) {
+          taskListRef.current?.selectTaskByIndex(currentIndex + 1);
+        } else if (currentIndex === -1 && tasks.length > 0) {
+          // No task selected, select first task
+          taskListRef.current?.selectTaskByIndex(0);
+        }
+        return;
+      }
+
+      // Space: Toggle completion
+      if (e.key === ' ' && selectedTask) {
+        e.preventDefault();
+        handleToggleComplete();
+        return;
+      }
+
+      // Delete: Delete task
+      if (e.key === 'Delete' && selectedTask) {
+        e.preventDefault();
+        handleDeleteTask();
+        return;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [selectedTask, getCurrentTaskIndex, handleToggleComplete, handleDeleteTask, dailyPlanningOpen]);
+
+  // Show onboarding wizard for new users
+  if (showOnboarding) {
+    return <OnboardingWizard onComplete={() => setShowOnboarding(false)} />;
+  }
+
+  return (
+    <div className="flex h-screen bg-background text-foreground">
+      {/* Sidebar */}
+      <ErrorBoundary name="Sidebar">
+        <Sidebar
+          selectedListId={selectedListId}
+          onSelectList={(id) => {
+            setSelectedListId(id);
+            setSelectedTask(null);
+            setSelectedGoal(null);
+          }}
+          selectedGoalId={selectedGoal?.id ?? null}
+          onSelectGoal={(goal) => {
+            setSelectedGoal(goal);
+            setSelectedTask(null);
+          }}
+          onSettingsClick={() => setSettingsOpen(true)}
+          onSearchClick={() => setCommandPaletteOpen(true)}
+          onPlanDay={() => setDailyPlanningOpen(true)}
+          onNewTask={() => setNewTaskDialogOpen(true)}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          width={sidebarWidth}
+          onWidthChange={handleSidebarWidthChange}
+        />
+      </ErrorBoundary>
+
+      {/* Main Content */}
+      <main className="flex-1 flex overflow-hidden">
+        {/* Task List */}
+        <ErrorBoundary name="MainContent">
+          <div className={`flex-1 overflow-hidden ${selectedTask || selectedGoal ? 'border-r border-border' : ''}`}>
+            {selectedListId === 'smart:calendar' && features.calendarView ? (
+              <CalendarView
+                onSelectTask={(task) => {
+                  setSelectedTask(task);
+                  setSelectedGoal(null);
+                }}
+                selectedTaskId={selectedTask?.id}
+              />
+            ) : selectedListId === 'smart:dashboard' && features.dashboard ? (
+              <ProductivityDashboard />
+            ) : selectedListId ? (
+              <TaskList
+                ref={taskListRef}
+                listId={selectedListId}
+                selectedTaskId={selectedTask?.id}
+                onSelectTask={(task) => {
+                  setSelectedTask(task);
+                  setSelectedGoal(null);
+                }}
+                onStartFocus={(task) => handleStartFocus(task, DEFAULT_FOCUS_DURATION)}
+                isFilterList={isCustomSmartList}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <div className="text-center">
+                  <h2 className="text-xl font-semibold mb-2">Welcome to UpTier</h2>
+                  <p>Select a list from the sidebar to get started</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </ErrorBoundary>
+
+        {/* Task Detail Panel */}
+        <ErrorBoundary name="DetailPanel">
+          {selectedTask && !selectedGoal && (
+            <TaskDetail
+              task={selectedTask}
+              onClose={() => setSelectedTask(null)}
+              onUpdate={(updated) => setSelectedTask(updated)}
+              onComplete={handleToggleComplete}
+              onStartFocus={handleStartFocus}
+              width={detailPanelWidth}
+              onWidthChange={handleDetailWidthChange}
+            />
+          )}
+
+          {/* Goal Detail Panel */}
+          {selectedGoal && (
+            <div className="w-96 overflow-hidden">
+              <GoalDetail
+                goal={selectedGoal}
+                onClose={() => setSelectedGoal(null)}
+                onUpdate={(updated) => setSelectedGoal(updated)}
+                onSelectTask={(task) => {
+                  setSelectedTask(task);
+                  setSelectedGoal(null);
+                }}
+              />
+            </div>
+          )}
+        </ErrorBoundary>
+      </main>
+
+      {/* Settings Modal */}
+      <Settings
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        onThemeChange={handleThemeChange}
+      />
+
+      {/* Command Palette */}
+      <CommandPalette
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+        onNavigateToList={(listId) => {
+          setSelectedListId(listId);
+          setSelectedTask(null);
+          setSelectedGoal(null);
+        }}
+        onNavigateToGoal={(goal) => {
+          setSelectedGoal(goal);
+          setSelectedTask(null);
+        }}
+        onSelectTask={(task) => {
+          setSelectedTask(task);
+          setSelectedGoal(null);
+          // Navigate to the task's list if it has one
+          if (task.list_id) {
+            setSelectedListId(task.list_id);
+          }
+        }}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onShowShortcuts={() => setShortcutsOpen(true)}
+        onChangeTheme={(theme) => handleThemeChange(theme as ThemeMode)}
+        onPlanDay={() => setDailyPlanningOpen(true)}
+      />
+
+      {/* Keyboard Shortcuts */}
+      <KeyboardShortcuts open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+
+      {/* New Task Dialog */}
+      <NewTaskDialog
+        open={newTaskDialogOpen}
+        onOpenChange={setNewTaskDialogOpen}
+        defaultListId={selectedListId}
+        onTaskCreated={(listId) => {
+          if (listId !== selectedListId) {
+            setSelectedListId(listId);
+            setSelectedTask(null);
+            setSelectedGoal(null);
+          }
+        }}
+      />
+
+      {/* Toast notifications */}
+      <Toaster />
+
+      {/* Focus Timer Overlay */}
+      {activeFocusSession && features.focusTimer && (
+        <FocusTimerOverlay
+          task={activeFocusSession.task}
+          durationMinutes={activeFocusSession.durationMinutes}
+          sessionId={activeFocusSession.sessionId}
+          onEnd={handleEndFocus}
+        />
+      )}
+
+      {/* Daily Planning Overlay */}
+      {dailyPlanningOpen && features.dailyPlanning && (
+        <DailyPlanning
+          onClose={() => {
+            setDailyPlanningOpen(false);
+            const today = new Date().toISOString().split('T')[0];
+            window.electronAPI.planning.setLastPlanningDate(today);
+          }}
+          onComplete={() => {
+            setDailyPlanningOpen(false);
+            const today = new Date().toISOString().split('T')[0];
+            window.electronAPI.planning.setLastPlanningDate(today);
+            setSelectedListId('smart:my_day');
+            setSelectedTask(null);
+            setSelectedGoal(null);
+          }}
+        />
+      )}
+
+      {/* Celebration Confetti */}
+      {features.streaksCelebrations && <ConfettiCelebration
+        active={celebrationMessage !== null}
+        message={celebrationMessage ?? undefined}
+        onComplete={() => setCelebrationMessage(null)}
+      />}
+    </div>
+  );
+}
+
+// Type declaration for window.electronAPI
+declare global {
+  interface Window {
+    electronAPI: import('./preload').ElectronAPI;
+  }
+}

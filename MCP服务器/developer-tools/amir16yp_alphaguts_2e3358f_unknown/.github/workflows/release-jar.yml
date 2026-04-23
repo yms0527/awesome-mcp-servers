@@ -1,0 +1,55 @@
+name: Java 8 Compilation for Release
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v2
+
+    - name: Install Git Bash
+      run: |
+        choco install git
+      shell: powershell
+
+    - name: Set up JDK 8
+      uses: actions/setup-java@v2
+      with:
+        java-version: '8'
+        distribution: 'adopt'
+
+    - name: Download original .jars
+      run: |
+        "C:\Program Files\Git\bin\bash.exe" download-mcp.sh
+      shell: cmd
+
+    - name: Decompile/Recompile jars
+      run: |
+        "C:\Program Files\Git\bin\bash.exe" compile.sh
+      shell: cmd
+
+    - name: Upload Release Asset
+      if: github.event_name == 'release'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: server.jar
+        asset_name: server.jar
+        asset_content_type: application/java-archive
+
+    - name: Upload Artifact for Each Commit
+      if: github.event_name == 'push'
+      uses: actions/upload-artifact@v3
+      with:
+        name: server-jar-${{ github.sha }}
+        path: server.jar

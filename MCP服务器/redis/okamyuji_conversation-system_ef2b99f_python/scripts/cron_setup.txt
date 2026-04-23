@@ -1,0 +1,39 @@
+# 知識活用システム cron設定例
+# crontab -e で以下を追加
+
+# 重要: PROJECT_ROOT を実際のプロジェクトパスに変更してください
+# 例: PROJECT_ROOT=/home/username/conversation-system
+PROJECT_ROOT="${HOME}/conversation-system"
+
+# 毎朝9時に朝のブリーフィング（平日のみ）
+0 9 * * 1-5 ${PROJECT_ROOT}/scripts/knowledge_manager.sh morning >> ${PROJECT_ROOT}/logs/morning_brief.log 2>&1
+
+# 毎週金曜日18時に週次分析
+0 18 * * 5 ${PROJECT_ROOT}/scripts/knowledge_manager.sh weekly >> ${PROJECT_ROOT}/logs/weekly_analysis.log 2>&1
+
+# 毎月最終金曜日に月次戦略レビュー
+0 18 22-28 * 5 ${PROJECT_ROOT}/scripts/knowledge_manager.sh monthly >> ${PROJECT_ROOT}/logs/monthly_strategy.log 2>&1
+
+# ================================================================
+# 設定手順:
+# ================================================================
+
+# 1. プロジェクトパスを確認
+echo "プロジェクトパス: $(cd $(dirname $0)/.. && pwd)"
+
+# 2. ログディレクトリ作成
+mkdir -p ${PROJECT_ROOT}/logs
+
+# 3. 上記の設定をcronに追加（実際のパスに変更して使用）
+# crontab -e
+
+# 4. cron設定確認
+# crontab -l
+
+# ================================================================
+# 実際の設定例（パスを実際の環境に合わせて変更）:
+# ================================================================
+
+# 0 9 * * 1-5 /home/username/conversation-system/scripts/knowledge_manager.sh morning >> /home/username/conversation-system/logs/morning_brief.log 2>&1
+# 0 18 * * 5 /home/username/conversation-system/scripts/knowledge_manager.sh weekly >> /home/username/conversation-system/logs/weekly_analysis.log 2>&1
+# 0 18 22-28 * 5 /home/username/conversation-system/scripts/knowledge_manager.sh monthly >> /home/username/conversation-system/logs/monthly_strategy.log 2>&1

@@ -1,0 +1,611 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/geropl/github-mcp-go-test/git/ref/heads/main
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: true
+        body: '{"ref":"refs/heads/main","node_id":"REF_kwDOOEmhcq9yZWZzL2hlYWRzL21haW4","url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/refs/heads/main","object":{"sha":"ca1eb5488abce927d5f23e769d2812d0950edcef","type":"commit","url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/commits/ca1eb5488abce927d5f23e769d2812d0950edcef"}}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=60, s-maxage=60
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Fri, 07 Mar 2025 10:51:57 GMT
+            Etag:
+                - W/"e32815558d4725bff165ed82116bc541fa0c78903f1ef96b0a35a339c4c5794e"
+            Github-Authentication-Token-Expiration:
+                - 2025-04-06 08:38:40 +0200
+            Last-Modified:
+                - Fri, 07 Mar 2025 10:51:54 GMT
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Github-Permissions:
+                - contents=read
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - 8138:356E9C:1902EF7:19CAB5C:67CACFCD
+            X-Poll-Interval:
+                - "300"
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "4820"
+            X-Ratelimit-Reset:
+                - "1741346230"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "180"
+            X-Xss-Protection:
+                - "0"
+        status: 200 OK
+        code: 200
+        duration: 209.078616ms
+    - id: 1
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/geropl/github-mcp-go-test/git/trees/ca1eb5488abce927d5f23e769d2812d0950edcef
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: true
+        body: '{"sha":"ca1eb5488abce927d5f23e769d2812d0950edcef","url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/trees/ca1eb5488abce927d5f23e769d2812d0950edcef","tree":[{"path":"README.md","mode":"100644","type":"blob","sha":"e337dd962793f45d58c42425477ce153e5c15350","size":180,"url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/blobs/e337dd962793f45d58c42425477ce153e5c15350"}],"truncated":false}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=86400, s-maxage=86400
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Fri, 07 Mar 2025 10:51:58 GMT
+            Etag:
+                - W/"9febc310bcc32e3570b43c6c98342d7a1f543c2c1a08cf362fae169a6a59a007"
+            Github-Authentication-Token-Expiration:
+                - 2025-04-06 08:38:40 +0200
+            Last-Modified:
+                - Fri, 07 Mar 2025 10:51:54 GMT
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Github-Permissions:
+                - contents=read
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - 8138:356E9C:19030A6:19CAD06:67CACFCD
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "4819"
+            X-Ratelimit-Reset:
+                - "1741346230"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "181"
+            X-Xss-Protection:
+                - "0"
+        status: 200 OK
+        code: 200
+        duration: 189.718206ms
+    - id: 2
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 228
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: |
+            {"base_tree":"ca1eb5488abce927d5f23e769d2812d0950edcef","tree":[{"path":"test-file1.md","mode":"100644","type":"blob","content":"# Test File 1"},{"path":"test-file2.md","mode":"100644","type":"blob","content":"# Test File 2"}]}
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            Content-Type:
+                - application/json
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/geropl/github-mcp-go-test/git/trees
+        method: POST
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 872
+        uncompressed: false
+        body: '{"sha":"956b44b507a803b6c23171848c532aecda53b115","url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/trees/956b44b507a803b6c23171848c532aecda53b115","tree":[{"path":"README.md","mode":"100644","type":"blob","sha":"e337dd962793f45d58c42425477ce153e5c15350","size":180,"url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/blobs/e337dd962793f45d58c42425477ce153e5c15350"},{"path":"test-file1.md","mode":"100644","type":"blob","sha":"15978406b4a2efaa20a8b71a3368a7f847c73303","size":13,"url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/blobs/15978406b4a2efaa20a8b71a3368a7f847c73303"},{"path":"test-file2.md","mode":"100644","type":"blob","sha":"18d570109d08fed54f97e609e0bafbc50aa4b956","size":13,"url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/blobs/18d570109d08fed54f97e609e0bafbc50aa4b956"}],"truncated":false}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=60, s-maxage=60
+            Content-Length:
+                - "872"
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Fri, 07 Mar 2025 10:51:58 GMT
+            Etag:
+                - '"841e88d6ab754737efe0481ea067b720a23815838e194d9aae8d4f38b135068d"'
+            Github-Authentication-Token-Expiration:
+                - 2025-04-06 08:38:40 +0200
+            Location:
+                - https://api.github.com/repos/geropl/github-mcp-go-test/git/trees/956b44b507a803b6c23171848c532aecda53b115
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Github-Permissions:
+                - contents=write
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - 8138:356E9C:19031F6:19CAE60:67CACFCE
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "4818"
+            X-Ratelimit-Reset:
+                - "1741346230"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "182"
+            X-Xss-Protection:
+                - "0"
+        status: 201 Created
+        code: 201
+        duration: 365.113345ms
+    - id: 3
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/geropl/github-mcp-go-test/commits/ca1eb5488abce927d5f23e769d2812d0950edcef
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: true
+        body: '{"sha":"ca1eb5488abce927d5f23e769d2812d0950edcef","node_id":"C_kwDOOEmhctoAKGNhMWViNTQ4OGFiY2U5MjdkNWYyM2U3NjlkMjgxMmQwOTUwZWRjZWY","commit":{"author":{"name":"Gero Posmyk-Leinemann","email":"gero@gitpod.io","date":"2025-03-07T10:51:52Z"},"committer":{"name":"Gero Posmyk-Leinemann","email":"gero@gitpod.io","date":"2025-03-07T10:51:52Z"},"message":"Delete test file","tree":{"sha":"e913e2c86ad3cb8950b3a25a2d112ab5609e8928","url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/trees/e913e2c86ad3cb8950b3a25a2d112ab5609e8928"},"url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/commits/ca1eb5488abce927d5f23e769d2812d0950edcef","comment_count":0,"verification":{"verified":false,"reason":"unsigned","signature":null,"payload":null,"verified_at":null}},"url":"https://api.github.com/repos/geropl/github-mcp-go-test/commits/ca1eb5488abce927d5f23e769d2812d0950edcef","html_url":"https://github.com/geropl/github-mcp-go-test/commit/ca1eb5488abce927d5f23e769d2812d0950edcef","comments_url":"https://api.github.com/repos/geropl/github-mcp-go-test/commits/ca1eb5488abce927d5f23e769d2812d0950edcef/comments","author":{"login":"geropl","id":32448529,"node_id":"MDQ6VXNlcjMyNDQ4NTI5","avatar_url":"https://avatars.githubusercontent.com/u/32448529?v=4","gravatar_id":"","url":"https://api.github.com/users/geropl","html_url":"https://github.com/geropl","followers_url":"https://api.github.com/users/geropl/followers","following_url":"https://api.github.com/users/geropl/following{/other_user}","gists_url":"https://api.github.com/users/geropl/gists{/gist_id}","starred_url":"https://api.github.com/users/geropl/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/geropl/subscriptions","organizations_url":"https://api.github.com/users/geropl/orgs","repos_url":"https://api.github.com/users/geropl/repos","events_url":"https://api.github.com/users/geropl/events{/privacy}","received_events_url":"https://api.github.com/users/geropl/received_events","type":"User","user_view_type":"public","site_admin":false},"committer":{"login":"geropl","id":32448529,"node_id":"MDQ6VXNlcjMyNDQ4NTI5","avatar_url":"https://avatars.githubusercontent.com/u/32448529?v=4","gravatar_id":"","url":"https://api.github.com/users/geropl","html_url":"https://github.com/geropl","followers_url":"https://api.github.com/users/geropl/followers","following_url":"https://api.github.com/users/geropl/following{/other_user}","gists_url":"https://api.github.com/users/geropl/gists{/gist_id}","starred_url":"https://api.github.com/users/geropl/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/geropl/subscriptions","organizations_url":"https://api.github.com/users/geropl/orgs","repos_url":"https://api.github.com/users/geropl/repos","events_url":"https://api.github.com/users/geropl/events{/privacy}","received_events_url":"https://api.github.com/users/geropl/received_events","type":"User","user_view_type":"public","site_admin":false},"parents":[{"sha":"578d0c9e212ba512050e6f99022d7e1a3b2a011f","url":"https://api.github.com/repos/geropl/github-mcp-go-test/commits/578d0c9e212ba512050e6f99022d7e1a3b2a011f","html_url":"https://github.com/geropl/github-mcp-go-test/commit/578d0c9e212ba512050e6f99022d7e1a3b2a011f"}],"stats":{"total":3,"additions":0,"deletions":3},"files":[{"sha":"1ec8c453fd388044ba356e0be275aacd14bbd608","filename":"test-update-file.md","status":"removed","additions":0,"deletions":3,"changes":3,"blob_url":"https://github.com/geropl/github-mcp-go-test/blob/578d0c9e212ba512050e6f99022d7e1a3b2a011f/test-update-file.md","raw_url":"https://github.com/geropl/github-mcp-go-test/raw/578d0c9e212ba512050e6f99022d7e1a3b2a011f/test-update-file.md","contents_url":"https://api.github.com/repos/geropl/github-mcp-go-test/contents/test-update-file.md?ref=578d0c9e212ba512050e6f99022d7e1a3b2a011f","patch":"@@ -1,3 +0,0 @@\n-# Test File\n-\n-This is a test file for updating.\n\\ No newline at end of file"}]}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=60, s-maxage=60
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Fri, 07 Mar 2025 10:51:59 GMT
+            Etag:
+                - W/"68f32d7f55a2c4231e21986d3767e533449e0ac3139b07c6ab8a3113cdebadc5"
+            Github-Authentication-Token-Expiration:
+                - 2025-04-06 08:38:40 +0200
+            Last-Modified:
+                - Fri, 07 Mar 2025 10:51:52 GMT
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Github-Permissions:
+                - contents=read
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - 8138:356E9C:19034DA:19CB16C:67CACFCE
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "4817"
+            X-Ratelimit-Reset:
+                - "1741346230"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "183"
+            X-Xss-Protection:
+                - "0"
+        status: 200 OK
+        code: 200
+        duration: 247.223151ms
+    - id: 4
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 144
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: |
+            {"message":"Push multiple test files","tree":"956b44b507a803b6c23171848c532aecda53b115","parents":["ca1eb5488abce927d5f23e769d2812d0950edcef"]}
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            Content-Type:
+                - application/json
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/geropl/github-mcp-go-test/git/commits
+        method: POST
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 1150
+        uncompressed: false
+        body: '{"sha":"71e42e52026085feda446ce30e6f0f0adbd426dd","node_id":"C_kwDOOEmhctoAKDcxZTQyZTUyMDI2MDg1ZmVkYTQ0NmNlMzBlNmYwZjBhZGJkNDI2ZGQ","url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/commits/71e42e52026085feda446ce30e6f0f0adbd426dd","html_url":"https://github.com/geropl/github-mcp-go-test/commit/71e42e52026085feda446ce30e6f0f0adbd426dd","author":{"name":"Gero Posmyk-Leinemann","email":"gero@gitpod.io","date":"2025-03-07T10:51:59Z"},"committer":{"name":"Gero Posmyk-Leinemann","email":"gero@gitpod.io","date":"2025-03-07T10:51:59Z"},"tree":{"sha":"956b44b507a803b6c23171848c532aecda53b115","url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/trees/956b44b507a803b6c23171848c532aecda53b115"},"message":"Push multiple test files","parents":[{"sha":"ca1eb5488abce927d5f23e769d2812d0950edcef","url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/commits/ca1eb5488abce927d5f23e769d2812d0950edcef","html_url":"https://github.com/geropl/github-mcp-go-test/commit/ca1eb5488abce927d5f23e769d2812d0950edcef"}],"verification":{"verified":false,"reason":"unsigned","signature":null,"payload":null,"verified_at":null}}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=60, s-maxage=60
+            Content-Length:
+                - "1150"
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Fri, 07 Mar 2025 10:52:00 GMT
+            Etag:
+                - '"4e35be02ae57c7ff18294db39c78b9712718bc11bc004d46a042864849215df2"'
+            Github-Authentication-Token-Expiration:
+                - 2025-04-06 08:38:40 +0200
+            Location:
+                - https://api.github.com/repos/geropl/github-mcp-go-test/git/commits/71e42e52026085feda446ce30e6f0f0adbd426dd
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Github-Permissions:
+                - contents=write
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - 8138:356E9C:1903712:19CB3C5:67CACFCF
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "4816"
+            X-Ratelimit-Reset:
+                - "1741346230"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "184"
+            X-Xss-Protection:
+                - "0"
+        status: 201 Created
+        code: 201
+        duration: 352.647182ms
+    - id: 5
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 65
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: |
+            {"sha":"71e42e52026085feda446ce30e6f0f0adbd426dd","force":false}
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            Content-Type:
+                - application/json
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/geropl/github-mcp-go-test/git/refs/heads/main
+        method: PATCH
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: true
+        body: '{"ref":"refs/heads/main","node_id":"REF_kwDOOEmhcq9yZWZzL2hlYWRzL21haW4","url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/refs/heads/main","object":{"sha":"71e42e52026085feda446ce30e6f0f0adbd426dd","type":"commit","url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/commits/71e42e52026085feda446ce30e6f0f0adbd426dd"}}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=60, s-maxage=60
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Fri, 07 Mar 2025 10:52:00 GMT
+            Etag:
+                - W/"b6267ad4e00f86ce5e579d861baaeacf7307377b08ed2f70f84da8c121db1554"
+            Github-Authentication-Token-Expiration:
+                - 2025-04-06 08:38:40 +0200
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Github-Permissions:
+                - contents=write; contents=write,workflows=write
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - 8138:356E9C:1903A1C:19CB6BF:67CACFD0
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "4815"
+            X-Ratelimit-Reset:
+                - "1741346230"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "185"
+            X-Xss-Protection:
+                - "0"
+        status: 200 OK
+        code: 200
+        duration: 506.484922ms
+    - id: 6
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/geropl/github-mcp-go-test/commits/71e42e52026085feda446ce30e6f0f0adbd426dd
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: true
+        body: '{"sha":"71e42e52026085feda446ce30e6f0f0adbd426dd","node_id":"C_kwDOOEmhctoAKDcxZTQyZTUyMDI2MDg1ZmVkYTQ0NmNlMzBlNmYwZjBhZGJkNDI2ZGQ","commit":{"author":{"name":"Gero Posmyk-Leinemann","email":"gero@gitpod.io","date":"2025-03-07T10:51:59Z"},"committer":{"name":"Gero Posmyk-Leinemann","email":"gero@gitpod.io","date":"2025-03-07T10:51:59Z"},"message":"Push multiple test files","tree":{"sha":"956b44b507a803b6c23171848c532aecda53b115","url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/trees/956b44b507a803b6c23171848c532aecda53b115"},"url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/commits/71e42e52026085feda446ce30e6f0f0adbd426dd","comment_count":0,"verification":{"verified":false,"reason":"unsigned","signature":null,"payload":null,"verified_at":null}},"url":"https://api.github.com/repos/geropl/github-mcp-go-test/commits/71e42e52026085feda446ce30e6f0f0adbd426dd","html_url":"https://github.com/geropl/github-mcp-go-test/commit/71e42e52026085feda446ce30e6f0f0adbd426dd","comments_url":"https://api.github.com/repos/geropl/github-mcp-go-test/commits/71e42e52026085feda446ce30e6f0f0adbd426dd/comments","author":{"login":"geropl","id":32448529,"node_id":"MDQ6VXNlcjMyNDQ4NTI5","avatar_url":"https://avatars.githubusercontent.com/u/32448529?v=4","gravatar_id":"","url":"https://api.github.com/users/geropl","html_url":"https://github.com/geropl","followers_url":"https://api.github.com/users/geropl/followers","following_url":"https://api.github.com/users/geropl/following{/other_user}","gists_url":"https://api.github.com/users/geropl/gists{/gist_id}","starred_url":"https://api.github.com/users/geropl/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/geropl/subscriptions","organizations_url":"https://api.github.com/users/geropl/orgs","repos_url":"https://api.github.com/users/geropl/repos","events_url":"https://api.github.com/users/geropl/events{/privacy}","received_events_url":"https://api.github.com/users/geropl/received_events","type":"User","user_view_type":"public","site_admin":false},"committer":{"login":"geropl","id":32448529,"node_id":"MDQ6VXNlcjMyNDQ4NTI5","avatar_url":"https://avatars.githubusercontent.com/u/32448529?v=4","gravatar_id":"","url":"https://api.github.com/users/geropl","html_url":"https://github.com/geropl","followers_url":"https://api.github.com/users/geropl/followers","following_url":"https://api.github.com/users/geropl/following{/other_user}","gists_url":"https://api.github.com/users/geropl/gists{/gist_id}","starred_url":"https://api.github.com/users/geropl/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/geropl/subscriptions","organizations_url":"https://api.github.com/users/geropl/orgs","repos_url":"https://api.github.com/users/geropl/repos","events_url":"https://api.github.com/users/geropl/events{/privacy}","received_events_url":"https://api.github.com/users/geropl/received_events","type":"User","user_view_type":"public","site_admin":false},"parents":[{"sha":"ca1eb5488abce927d5f23e769d2812d0950edcef","url":"https://api.github.com/repos/geropl/github-mcp-go-test/commits/ca1eb5488abce927d5f23e769d2812d0950edcef","html_url":"https://github.com/geropl/github-mcp-go-test/commit/ca1eb5488abce927d5f23e769d2812d0950edcef"}],"stats":{"total":2,"additions":2,"deletions":0},"files":[{"sha":"15978406b4a2efaa20a8b71a3368a7f847c73303","filename":"test-file1.md","status":"added","additions":1,"deletions":0,"changes":1,"blob_url":"https://github.com/geropl/github-mcp-go-test/blob/71e42e52026085feda446ce30e6f0f0adbd426dd/test-file1.md","raw_url":"https://github.com/geropl/github-mcp-go-test/raw/71e42e52026085feda446ce30e6f0f0adbd426dd/test-file1.md","contents_url":"https://api.github.com/repos/geropl/github-mcp-go-test/contents/test-file1.md?ref=71e42e52026085feda446ce30e6f0f0adbd426dd","patch":"@@ -0,0 +1 @@\n+# Test File 1\n\\ No newline at end of file"},{"sha":"18d570109d08fed54f97e609e0bafbc50aa4b956","filename":"test-file2.md","status":"added","additions":1,"deletions":0,"changes":1,"blob_url":"https://github.com/geropl/github-mcp-go-test/blob/71e42e52026085feda446ce30e6f0f0adbd426dd/test-file2.md","raw_url":"https://github.com/geropl/github-mcp-go-test/raw/71e42e52026085feda446ce30e6f0f0adbd426dd/test-file2.md","contents_url":"https://api.github.com/repos/geropl/github-mcp-go-test/contents/test-file2.md?ref=71e42e52026085feda446ce30e6f0f0adbd426dd","patch":"@@ -0,0 +1 @@\n+# Test File 2\n\\ No newline at end of file"}]}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=60, s-maxage=60
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Fri, 07 Mar 2025 10:52:01 GMT
+            Etag:
+                - W/"bd133c7a93a9aea9d0210b0156062268c6f5b1a35190df350c66f0d6dae6e0c4"
+            Github-Authentication-Token-Expiration:
+                - 2025-04-06 08:38:40 +0200
+            Last-Modified:
+                - Fri, 07 Mar 2025 10:51:59 GMT
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Github-Permissions:
+                - contents=read
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - 8138:356E9C:1903E59:19CBB14:67CACFD0
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "4814"
+            X-Ratelimit-Reset:
+                - "1741346230"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "186"
+            X-Xss-Protection:
+                - "0"
+        status: 200 OK
+        code: 200
+        duration: 306.672729ms

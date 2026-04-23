@@ -1,0 +1,38 @@
+permissions:
+  contents: read
+  actions: write
+name: Generate package
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-pack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '23'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run build
+        run: npm run build
+
+      - name: Generate npm pack file
+        run: npm pack
+
+      - name: Upload npm pack artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-pack-${{ github.sha }}
+          path: '*.tgz'
+          retention-days: 7

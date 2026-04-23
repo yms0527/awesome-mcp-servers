@@ -1,0 +1,35 @@
+{
+  "name": "musclesworked",
+  "display_name": "MusclesWorked",
+  "description": "Exercise-to-muscle mapping MCP server. 856 exercises, 65 muscles, 14 muscle groups with primary/secondary/stabilizer activation data. Analyze workouts, find alternatives, discover gaps.",
+  "repository": "https://github.com/csjoblom/musclesworked-mcp",
+  "homepage": "https://musclesworked.com",
+  "license": "MIT",
+  "categories": ["fitness", "health", "data"],
+  "tools": [
+    {
+      "name": "get_muscles_worked",
+      "description": "Get primary, secondary, and stabilizer muscles for an exercise"
+    },
+    {
+      "name": "find_exercises",
+      "description": "Find exercises targeting a specific muscle with optional filters"
+    },
+    {
+      "name": "analyze_workout",
+      "description": "Analyze a workout for muscle coverage, gaps, and push/pull imbalances"
+    },
+    {
+      "name": "get_alternatives",
+      "description": "Find alternative exercises ranked by muscle overlap score"
+    },
+    {
+      "name": "search_exercises",
+      "description": "Search exercises by name"
+    },
+    {
+      "name": "search_muscles",
+      "description": "Search muscles by name"
+    }
+  ]
+}

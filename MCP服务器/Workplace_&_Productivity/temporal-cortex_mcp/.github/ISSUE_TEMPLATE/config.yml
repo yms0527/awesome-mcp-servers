@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Production / Enterprise Support
+    url: https://app.temporal-cortex.com
+    about: Sign up for the Temporal Cortex Platform — managed hosting, multi-agent coordination, usage metering, and enterprise features.
+  - name: Core Library Issues (Truth Engine, TOON)
+    url: https://github.com/temporal-cortex/core/issues
+    about: For bugs or feature requests related to the open-source computation libraries.

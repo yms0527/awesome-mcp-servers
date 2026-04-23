@@ -1,0 +1,29 @@
+{
+  "name": "postman-api-server",
+  "version": "0.2.0",
+  "description": "an MCP server for Postman API",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "postman-api-server": "./build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "prepare": "pnpm run build",
+    "watch": "tsc --watch",
+    "inspector": "pnpx @modelcontextprotocol/inspector build/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "0.6.0",
+    "@types/axios": "^0.14.4",
+    "axios": "^1.7.9",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3"
+  }
+}

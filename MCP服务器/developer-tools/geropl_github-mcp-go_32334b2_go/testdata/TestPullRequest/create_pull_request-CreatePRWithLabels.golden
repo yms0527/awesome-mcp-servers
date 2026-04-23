@@ -1,0 +1,4 @@
+{
+  "output": "# Pull Request: PR with Labels\n\n**Number:** #8  \n**State:** open  \n**Created:** Fri, 07 Mar 2025 09:26:10 UTC  \n**URL:** https://github.com/geropl/github-mcp-go-test/pull/8  \n\n## Description\n\nThis PR has labels\n\n## Details\n\n- **Head:** test/labels-pr-branch  \n- **Base:** main  \n- **Draft:** false  \n- **Changes:** +3/-0 in 1 files  \n",
+  "err": ""
+}

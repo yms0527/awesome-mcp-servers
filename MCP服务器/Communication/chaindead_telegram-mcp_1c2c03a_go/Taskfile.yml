@@ -1,0 +1,55 @@
+# https://taskfile.dev
+
+version: '3'
+
+dotenv: [".env"]
+
+tasks:
+  mod:
+    desc: Sync go.mod
+    cmds:
+      - go mod download
+      - go mod tidy
+
+  run:test:
+    desc: Run test command
+    cmds:
+      - go run ./cmd/test/...
+
+  run:
+    desc: Run CLI app
+    cmds:
+      - go run ./. {{.CLI_ARGS}}
+
+  build:
+    env:
+      CGO_ENABLED: 0
+    cmds:
+      - mkdir -p ./bin
+      - go build -o ./bin/telegram-mcp ./.
+
+  install:
+    desc: Install MCP server to user's local bin
+    deps: [build]
+    cmds:
+      - rm -f ~/.local/bin/telegram-mcp
+      - cp ./bin/telegram-mcp ~/.local/bin/
+      - chmod +x ~/.local/bin/telegram-mcp
+  
+  run:sys:
+    desc: Run system test
+    deps: [install]
+    cmds:
+      - telegram-mcp {{.CLI_ARGS}}
+
+  lint:
+    desc: Run linter
+    cmd: golangci-lint run --fix ./...
+
+  tag:
+    desc: Create a new tag
+    cmds:
+      - git tag -a v0.1.8
+      - git push origin v0.1.8
+
+

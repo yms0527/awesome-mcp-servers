@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "Echo": {
+      "command": "C:\\Users\\lfana\\Documents\\Github\\MyProjects\\EnlighterProject\\mcp-browser-automation\\.venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\Users\\lfana\\Documents\\Github\\MyProjects\\EnlighterProject\\mcp-browser-automation\\echo_server.py"
+      ]
+    },
+    "Browser use": {
+      "command": "C:\\Users\\lfana\\Documents\\Github\\MyProjects\\EnlighterProject\\mcp-browser-automation\\.venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\Users\\lfana\\Documents\\Github\\MyProjects\\EnlighterProject\\mcp-browser-automation\\browser_use_mcp.py"
+      ]
+    }
+  }
+} 

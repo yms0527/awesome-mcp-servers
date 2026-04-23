@@ -1,0 +1,126 @@
+{
+  "manifest_version": "0.3",
+  "name": "bear-notes",
+  "display_name": "Bear Notes",
+  "version": "2.8.1",
+  "icon": "icon.png",
+  "screenshots": ["screenshots/search-demo.png"],
+  "description": "Bear Notes MCP server with TypeScript and native SQLite. Provides comprehensive Bear Notes integration for creating, searching, reading, and modifying notes.",
+  "long_description": "This extension provides comprehensive Bear Notes integration through a TypeScript MCP server using native Node.js SQLite. It enables creating, searching, reading, and modifying Bear notes directly from Claude Desktop with full type safety and modern JavaScript features.",
+  "author": {
+    "name": "Serhii Vasylenko",
+    "email": "serhii@vasylenko.info",
+    "url": "https://github.com/vasylenko"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vasylenko/claude-desktop-extension-bear-notes"
+  },  
+  "homepage": "https://github.com/vasylenko/claude-desktop-extension-bear-notes",
+  "documentation": "https://github.com/vasylenko/claude-desktop-extension-bear-notes/blob/main/README.md",
+  "support": "https://github.com/vasylenko/claude-desktop-extension-bear-notes/issues",
+  "server": {
+    "type": "node",
+    "entry_point": "main.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/main.js"
+      ],
+      "env": {
+        "UI_DEBUG_TOGGLE": "${user_config.debug}",
+        "UI_ENABLE_NEW_NOTE_CONVENTION": "${user_config.enable_new_note_convention}",
+        "UI_ENABLE_CONTENT_REPLACEMENT": "${user_config.enable_content_replacement}"
+      }
+    }
+  },
+  "user_config": {
+    "debug": {
+      "type": "boolean",
+      "title": "Debug Logging",
+      "description": "Enable debug logging for troubleshooting",
+      "default": false,
+      "required": false
+    },
+    "enable_new_note_convention": {
+      "type": "boolean",
+      "title": "New Note Convention",
+      "description": "Place tags right after the note title instead of at the end (default Bear behavior) when creating new notes",
+      "default": false,
+      "required": false
+    },
+    "enable_content_replacement": {
+      "type": "boolean",
+      "title": "Content Replacement",
+      "description": "Allow replacing note content or specific sections using the bear-replace-text tool",
+      "default": false,
+      "required": false
+    }
+  },
+  "tools": [
+    {
+      "name": "bear-open-note",
+      "description": "Read the full text content of a Bear note including OCR'd text from attached images and PDFs"
+    },
+    {
+      "name": "bear-create-note",
+      "description": "Create a new note in your Bear library with optional title, content, and tags"
+    },
+    {
+      "name": "bear-search-notes",
+      "description": "Find notes by searching text content, filtering by tags, or date ranges. Includes OCR search in attachments"
+    },
+    {
+      "name": "bear-add-text",
+      "description": "Insert text at the beginning or end of a Bear note, or within a specific section identified by its header"
+    },
+    {
+      "name": "bear-replace-text",
+      "description": "Replace content in an existing Bear note — either the full body or a specific section. Requires content replacement to be enabled in settings."
+    },
+    {
+      "name": "bear-add-file",
+      "description": "Attach a file (image, PDF, Excel, etc.) to an existing Bear note using base64-encoded content"
+    },
+    {
+      "name": "bear-list-tags",
+      "description": "List all tags in your Bear library as a hierarchical tree with note counts"
+    },
+    {
+      "name": "bear-find-untagged-notes",
+      "description": "Find notes in your Bear library that have no tags assigned"
+    },
+    {
+      "name": "bear-add-tag",
+      "description": "Add one or more tags to an existing Bear note"
+    },
+    {
+      "name": "bear-archive-note",
+      "description": "Archive a Bear note to remove it from active lists without deleting it"
+    },
+    {
+      "name": "bear-rename-tag",
+      "description": "Rename a tag across all notes in your Bear library"
+    },
+    {
+      "name": "bear-delete-tag",
+      "description": "Delete a tag from all notes in your Bear library without affecting the notes"
+    }
+  ],
+  "keywords": [
+    "bear app",
+    "bear notes",
+    "markdown notes",
+    "notes management",
+    "productivity",
+    "typescript",
+    "mcp"
+  ],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": ["darwin"],
+    "runtimes": {
+      "node": ">=24.13.0"
+    }
+  }
+}

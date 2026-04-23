@@ -1,0 +1,5 @@
+# Minimal Gitpod config for now
+tasks:
+  - init: go build ./... && go test ./...
+
+

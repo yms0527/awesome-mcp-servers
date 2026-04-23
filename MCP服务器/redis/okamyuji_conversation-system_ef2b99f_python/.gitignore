@@ -1,0 +1,363 @@
+# ==============================================
+# 会話システムプロジェクト - 包括的 .gitignore
+# ==============================================
+
+# ===============================
+# Python 関連
+# ===============================
+# バイトコンパイルファイル / 最適化ファイル / DLLファイル
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C拡張
+*.so
+
+# ディストリビューション / パッケージング
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# インストーラーログ
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ユニットテスト / カバレッジレポート
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+#Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# 仮想環境
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ===============================
+# 環境変数・設定ファイル
+# ===============================
+# 本番環境設定（サンプルは含める）
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 設定ファイル（機密情報含む）
+config.local.py
+config.secret.py
+secrets.yaml
+secrets.json
+
+# ===============================
+# データベース・永続化データ
+# ===============================
+# Redis データファイル
+data/redis/
+*.rdb
+*.aof
+dump.rdb
+appendonly.aof
+
+# SQLite データベース
+*.db
+*.sqlite3
+*.sqlite
+
+# PostgreSQL
+*.sql.backup
+
+# ===============================
+# ログファイル
+# ===============================
+logs/
+*.log
+*.log.*
+log/
+log-*
+
+# ===============================
+# バックアップファイル
+# ===============================
+backups/
+backup/
+*.backup
+*.bak
+*.tmp
+*.temp
+
+# ===============================
+# Docker 関連
+# ===============================
+# Docker Compose オーバーライド
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# Docker ボリュームデータ
+.docker/
+docker-data/
+
+# ===============================
+# IDE・エディター設定
+# ===============================
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+
+# ===============================
+# OS 固有ファイル
+# ===============================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ===============================
+# アプリケーション固有
+# ===============================
+# 会話データ（機密性がある場合）
+conversations/private/
+conversations/sensitive/
+
+# MCP サーバーの一時ファイル
+mcp-server/temp/
+mcp-server/*.tmp
+
+# API キー・トークン
+*.key
+*.pem
+*.crt
+*.p12
+api_keys.txt
+tokens.json
+
+# セッションファイル
+sessions/
+.session
+
+# ===============================
+# 開発・テスト関連
+# ===============================
+# テスト出力
+test-results/
+test-reports/
+.nyc_output/
+
+# プロファイリング出力
+*.prof
+*.cprof
+
+# デバッグファイル
+debug.log
+*.debug
+
+# ===============================
+# 依存関係・パッケージ管理
+# ===============================
+# npm/yarn（Node.js がある場合）
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# ===============================
+# 静的ファイル・メディア
+# ===============================
+# 生成された静的ファイル
+static/generated/
+media/uploads/
+media/temp/
+
+# ===============================
+# セキュリティ・認証
+# ===============================
+# 証明書
+*.pem
+*.key
+*.crt
+*.cer
+*.p7b
+*.p7r
+*.srl
+
+# 秘密鍵
+private_key*
+secret_key*
+
+# ===============================
+# 監視・メトリクス
+# ===============================
+# Prometheus データ
+prometheus_data/
+grafana_data/
+
+# ===============================
+# 一時ファイル・キャッシュ
+# ===============================
+# 一般的な一時ファイル
+*.tmp
+*.temp
+*.cache
+cache/
+.cache/
+
+# 圧縮ファイル
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# ===============================
+# 特殊なファイル
+# ===============================
+# Dockerファイルのスワップファイル
+.dockerignore.swp
+
+# Git関連
+*.orig
+*.rej
+
+# エディターバックアップ
+*~
+*.bak
+*.old
+
+# ===============================
+# プロジェクト固有の除外
+# ===============================
+# 大きなデータファイル
+*.large
+large_data/
+
+# 実験的なコード
+experimental/
+sandbox/
+playground/
+
+# 個人的なメモ・TODOファイル
+personal_notes.txt
+todo_private.md
+my_notes/
+
+# 設定のローカルコピー
+*.local.yml
+*.local.yaml
+*.local.json
+
+# ==============================================
+# 注意: 以下は意図的に追跡対象に含める
+# ==============================================
+# !.env.sample      # 環境変数のサンプル
+# !.gitkeep         # 空ディレクトリ維持用
+# !requirements.txt # Python依存関係
+# !compose.yml      # Docker Compose設定

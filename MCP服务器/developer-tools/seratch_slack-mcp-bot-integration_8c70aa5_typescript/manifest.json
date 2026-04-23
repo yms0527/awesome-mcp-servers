@@ -1,0 +1,29 @@
+{
+  "display_information": {
+    "name": "Slack MCP Bot Integration",
+    "description": "This app connects Slack with generative AI through Model Content Protocol (MCP)",
+    "background_color": "#4361ba",
+    "long_description": ""
+  },
+  "features": {
+    "app_home": {
+      "home_tab_enabled": false,
+      "messages_tab_enabled": false,
+      "messages_tab_read_only_enabled": false
+    },
+    "bot_user": {
+      "display_name": "Claude MCP Bot",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": ["commands", "channels:read", "channels:history", "chat:write", "reactions:write", "users:read"]
+    }
+  },
+  "settings": {
+    "interactivity": { "is_enabled": true },
+    "socket_mode_enabled": true,
+    "token_rotation_enabled": false
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "name": "@johnneerdael/ns-private-access-mcp",
+  "version": "6.3.0",
+  "description": "MCP server for Netskope's Zero Trust Network Access Platform management through LLM's",
+  "type": "module",
+  "bin": {
+    "netskope-mcp": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node --env-file .env dist/cli.js",
+    "dev": "tsc -w & node --env-file .env --watch dist/cli.js",
+    "test": "vitest",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "bugs": {
+    "url": "https://github.com/johnneerdael/ns-private-access-mcp/issues",
+    "email": "jneerdael@netskope.com"
+  },
+  "keywords": [
+    "netskope",
+    "mcp",
+    "api",
+    "ztna",
+    "modelcontextprotocol"
+  ],
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/johnneerdael/ns-private-access-mcp.git"
+  },
+  "homepage": "https://community.netskope.com",
+  "author": "John Neerdael",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest",
+    "dotenv": "^17.2.1",
+    "rimraf": "^6.0.1",
+    "zod": "latest",
+    "dotenv": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "node": "^22.0.0",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

@@ -1,0 +1,101 @@
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
+import {
+  createFloorPlanTask,
+  waitForTaskCompletion,
+  parseResultUrls,
+  categorizeKieError,
+} from '../lib/kie-client.js';
+import { uploadBase64Image } from '../lib/image-upload.js';
+import { FLOOR_PLAN_PROMPT } from '../lib/prompts.js';
+import { fetchImageAsBase64 } from '../lib/image-to-base64.js';
+
+export function registerFloorPlan(server: McpServer) {
+  server.tool(
+    'beautify_floor_plan',
+    'Transform 2D floor plans into stunning 3D isometric architectural renders. Provide either a public image URL or a base64-encoded image.',
+    {
+      image_url: z.string().url().optional().describe('Public URL of the floor plan image'),
+      image_base64: z.string().optional().describe('Base64-encoded image data (with or without data URI prefix). Use this when the user pastes/uploads an image directly.'),
+      quality: z
+        .enum(['medium', 'high'])
+        .default('medium')
+        .describe('Output quality. medium=faster/cheaper, high=better detail'),
+    },
+    {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    async ({ image_url, image_base64, quality }) => {
+      const startTime = Date.now();
+      try {
+        let resolvedUrl: string;
+        if (image_url) {
+          resolvedUrl = image_url;
+        } else if (image_base64) {
+          resolvedUrl = await uploadBase64Image(image_base64);
+        } else {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Provide either image_url or image_base64' }) }],
+            isError: true,
+          };
+        }
+
+        const taskId = await createFloorPlanTask(FLOOR_PLAN_PROMPT, resolvedUrl, quality);
+        const status = await waitForTaskCompletion(taskId, 120000, 3000);
+
+        if (status.data.state === 'fail') {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({
+                error: 'Floor plan rendering failed',
+                taskId,
+                failCode: status.data.failCode,
+                failMsg: status.data.failMsg,
+              }),
+            }],
+            isError: true,
+          };
+        }
+
+        const resultUrls = parseResultUrls(status);
+        const textContent = {
+          type: 'text' as const,
+          text: JSON.stringify({
+            taskId,
+            resultUrls,
+            quality,
+            processingTimeMs: Date.now() - startTime,
+          }),
+        };
+
+        // Try to fetch the first result image and return it inline as base64
+        const contentBlocks: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> = [textContent];
+        if (resultUrls.length > 0) {
+          const inlineImage = await fetchImageAsBase64(resultUrls[0]);
+          if (inlineImage) {
+            contentBlocks.push({
+              type: 'image' as const,
+              data: inlineImage.data,
+              mimeType: inlineImage.mimeType,
+            });
+          }
+        }
+
+        return { content: contentBlocks };
+      } catch (error) {
+        const errorType = categorizeKieError(error as Error);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ error: (error as Error).message, errorType }),
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+}

@@ -1,0 +1,19 @@
+# Ignore build artifacts and config files
+node_modules/
+tsconfig.json
+.eslintrc.js
+.env
+*.log
+coverage/
+__tests__/
+
+# Ignore test and debug files
+src/__tests__/
+test/
+
+# Ignore editor and OS files
+.vscode/
+.DS_Store
+*.swp
+*.swo
+*.pem

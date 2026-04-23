@@ -1,0 +1,25 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+language: typescript
+toolchain:
+  default: node
+
+tags:
+  - playwright
+
+dependsOn:
+  - core-utils
+  - core-server
+tasks:
+  test:
+    options:
+      runDepsInParallel: false
+    deps:
+      - ~:playwright-test
+
+  playwright-test:
+    options:
+      runDepsInParallel: false
+    deps:
+      - m2:build
+      - m3:build
+      - ext-e2e-test-app:react-router-build

@@ -1,0 +1,10 @@
+dist
+node_modules
+coverage
+.env
+.DS_Store
+*.dxt
+dxt-build/
+*.mcpb
+mcpb-certs/
+*.sh

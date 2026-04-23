@@ -1,0 +1,396 @@
+package authz
+
+import (
+	"bytes"
+	"crypto/tls"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"math/rand"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/wso2/open-mcp-auth-proxy/internal/config"
+	logger "github.com/wso2/open-mcp-auth-proxy/internal/logging"
+)
+
+type asgardeoProvider struct {
+	cfg *config.Config
+}
+
+// NewAsgardeoProvider initializes a Provider for Asgardeo.
+func NewAsgardeoProvider(cfg *config.Config) Provider {
+	return &asgardeoProvider{cfg: cfg}
+}
+
+func (p *asgardeoProvider) WellKnownHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("X-Accel-Buffering", "no")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		issuer := strings.TrimSuffix(p.cfg.AuthServerBaseURL, "/") + "/token"
+
+		response := map[string]interface{}{
+			"issuer":                                issuer,
+			"authorization_endpoint":                p.cfg.BaseURL + "/authorize",
+			"token_endpoint":                        p.cfg.BaseURL + "/token",
+			"jwks_uri":                              p.cfg.JWKSURL,
+			"response_types_supported":              []string{"code"},
+			"grant_types_supported":                 []string{"authorization_code", "refresh_token"},
+			"token_endpoint_auth_methods_supported": []string{"client_secret_basic"},
+			"registration_endpoint":                 p.cfg.BaseURL + "/register",
+			"code_challenge_methods_supported":      []string{"plain", "S256"},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Accel-Buffering", "no")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			logger.Error("Error encoding well-known: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+	}
+}
+
+func (p *asgardeoProvider) RegisterHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("X-Accel-Buffering", "no")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var regReq RegisterRequest
+		if err := json.NewDecoder(r.Body).Decode(&regReq); err != nil {
+			logger.Error("Reading register request: %v", err)
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		if len(regReq.RedirectURIs) == 0 {
+			http.Error(w, "redirect_uris is required", http.StatusBadRequest)
+			return
+		}
+
+		// Generate credentials
+		regReq.ClientID = "client-" + randomString(8)
+		regReq.ClientSecret = randomString(16)
+
+		if err := p.createAsgardeoApplication(regReq); err != nil {
+			logger.Warn("Asgardeo application creation failed: %v", err)
+			http.Error(w, "Failed to create application in Asgardeo", http.StatusInternalServerError)
+			// Optionally http.Error(...) if you want to fail
+			// or continue to return partial data.
+		}
+
+		resp := RegisterResponse{
+			ClientID:      regReq.ClientID,
+			ClientSecret:  regReq.ClientSecret,
+			ClientName:    regReq.ClientName,
+			RedirectURIs:  regReq.RedirectURIs,
+			GrantTypes:    regReq.GrantTypes,
+			ResponseTypes: regReq.ResponseTypes,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Accel-Buffering", "no")
+		w.WriteHeader(http.StatusCreated)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			logger.Error("Encoding /register response: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+	}
+}
+
+// ----------------------------------------------------------------
+// Asgardeo-specific helpers
+// ----------------------------------------------------------------
+
+type RegisterRequest struct {
+	ClientID      string   `json:"client_id,omitempty"`
+	ClientSecret  string   `json:"client_secret,omitempty"`
+	ClientName    string   `json:"client_name"`
+	RedirectURIs  []string `json:"redirect_uris"`
+	GrantTypes    []string `json:"grant_types,omitempty"`
+	ResponseTypes []string `json:"response_types,omitempty"`
+}
+
+type RegisterResponse struct {
+	ClientID      string   `json:"client_id"`
+	ClientSecret  string   `json:"client_secret"`
+	ClientName    string   `json:"client_name"`
+	RedirectURIs  []string `json:"redirect_uris"`
+	GrantTypes    []string `json:"grant_types"`
+	ResponseTypes []string `json:"response_types"`
+}
+
+func (p *asgardeoProvider) createAsgardeoApplication(regReq RegisterRequest) error {
+
+	orgName := p.cfg.Demo.OrgName
+	if p.cfg.Mode == "asgardeo" {
+		orgName = p.cfg.Asgardeo.OrgName
+	}
+
+	body := buildAsgardeoPayload(regReq)
+	reqBytes, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("failed to marshal Asgardeo request: %w", err)
+	}
+
+	asgardeoAppURL := "https://api.asgardeo.io/t/" + orgName + "/api/server/v1/applications"
+	req, err := http.NewRequest("POST", asgardeoAppURL, bytes.NewBuffer(reqBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create Asgardeo API request: %w", err)
+	}
+
+	token, err := p.getAsgardeoAdminToken()
+	if err != nil {
+		return fmt.Errorf("failed to get Asgardeo admin token: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("asgardeo API call failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("asgardeo creation error (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	logger.Info("Created Asgardeo application for clientID=%s", regReq.ClientID)
+	return nil
+}
+
+func (p *asgardeoProvider) getAsgardeoAdminToken() (string, error) {
+
+	clientId := p.cfg.Demo.ClientID
+	clientSecret := p.cfg.Demo.ClientSecret
+	if p.cfg.Mode == "asgardeo" {
+		clientId = p.cfg.Asgardeo.ClientID
+		clientSecret = p.cfg.Asgardeo.ClientSecret
+	}
+
+	tokenURL := p.cfg.AuthServerBaseURL + "/token"
+
+	formData := "grant_type=client_credentials&scope=internal_application_mgt_create internal_application_mgt_delete " +
+		"internal_application_mgt_update internal_application_mgt_view"
+
+	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(formData))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	// Sensitive data - should not be logged at INFO level
+	auth := clientId + ":" + clientSecret
+	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
+
+	logger.Debug("Requesting admin token for Asgardeo with client ID: %s", clientId)
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{
+		Timeout:   time.Duration(p.cfg.TimeoutSeconds) * time.Second,
+		Transport: tr,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("token request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("token request failed (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResp struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
+		Scope       string `json:"scope"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return "", fmt.Errorf("failed to parse token JSON: %w", err)
+	}
+
+	// Don't log the actual token at info level, only at debug level
+	logger.Debug("Received access token: %s", tokenResp.AccessToken)
+	logger.Info("Successfully obtained admin token from Asgardeo")
+
+	return tokenResp.AccessToken, nil
+}
+
+func buildAsgardeoPayload(regReq RegisterRequest) map[string]interface{} {
+	appName := regReq.ClientName
+	if appName == "" {
+		appName = "demo-app"
+	}
+	appName += "-" + randomString(5)
+
+	// Build redirect URIs regex from list of redirect URIs : regexp=(https://app.example.com/callback1|https://app.example.com/callback2)
+	redirectURI := "regexp=(" + strings.Join(regReq.RedirectURIs, "|") + ")"
+	redirectURIs := []string{redirectURI}
+
+	// Filter unsupported grant types
+	var grantTypes []string
+	for _, gt := range regReq.GrantTypes {
+		if gt == "authorization_code" || gt == "refresh_token" {
+			grantTypes = append(grantTypes, gt)
+		}
+	}
+
+	return map[string]interface{}{
+		"name":       appName,
+		"templateId": "custom-application-oidc",
+		"inboundProtocolConfiguration": map[string]interface{}{
+			"oidc": map[string]interface{}{
+				"clientId":       regReq.ClientID,
+				"clientSecret":   regReq.ClientSecret,
+				"grantTypes":     grantTypes,
+				"callbackURLs":   redirectURIs,
+				"allowedOrigins": []string{},
+				"publicClient":   true,
+				"pkce": map[string]bool{
+					"mandatory":                      true,
+					"supportPlainTransformAlgorithm": true,
+				},
+				"accessToken": map[string]interface{}{
+					"type":                                  "JWT",
+					"userAccessTokenExpiryInSeconds":        3600,
+					"applicationAccessTokenExpiryInSeconds": 3600,
+					"bindingType":                           "cookie",
+					"revokeTokensWhenIDPSessionTerminated":  true,
+					"validateTokenBinding":                  true,
+				},
+				"refreshToken": map[string]interface{}{
+					"expiryInSeconds":   86400,
+					"renewRefreshToken": true,
+				},
+				"idToken": map[string]interface{}{
+					"expiryInSeconds": 3600,
+					"audience":        []string{},
+					"encryption": map[string]interface{}{
+						"enabled":   false,
+						"algorithm": "RSA-OAEP",
+						"method":    "A128CBC+HS256",
+					},
+				},
+				"logout":                         map[string]interface{}{},
+				"validateRequestObjectSignature": false,
+			},
+		},
+		"authenticationSequence": map[string]interface{}{
+			"type": "USER_DEFINED",
+			"steps": []map[string]interface{}{
+				{
+					"id": 1,
+					"options": []map[string]string{
+						{
+							"idp":           "Google",
+							"authenticator": "GoogleOIDCAuthenticator",
+						},
+						{
+							"idp":           "GitHub",
+							"authenticator": "GithubAuthenticator",
+						},
+						{
+							"idp":           "Microsoft",
+							"authenticator": "OpenIDConnectAuthenticator",
+						},
+					},
+				},
+			},
+			"script":          "var onLoginRequest = function(context) {\n    executeStep(1);\n};\n",
+			"subjectStepId":   1,
+			"attributeStepId": 1,
+		},
+		"advancedConfigurations": map[string]interface{}{
+			"skipLoginConsent":  false,
+			"skipLogoutConsent": false,
+		},
+	}
+}
+
+const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+func randomString(n int) string {
+	b := make([]byte, n)
+	for i := 0; i < n; i++ {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
+}
+
+func (p *asgardeoProvider) ProtectedResourceMetadataHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Extract only the values into a []string
+		var supportedScopes []string
+		var extractStrings func(interface{})
+		extractStrings = func(val interface{}) {
+			switch v := val.(type) {
+			case string:
+				supportedScopes = append(supportedScopes, v)
+			case []any:
+				for _, item := range v {
+					extractStrings(item)
+				}
+			case map[string]any:
+				for _, item := range v {
+					extractStrings(item)
+				}
+			}
+		}
+		for _, m := range p.cfg.ProtectedResourceMetadata.ScopesSupported {
+			for _, v := range m {
+				extractStrings(v)
+			}
+		}
+
+		meta := map[string]interface{}{
+			"resource":              p.cfg.ProtectedResourceMetadata.ResourceIdentifier,
+			"scopes_supported":      supportedScopes,
+			"authorization_servers": p.cfg.ProtectedResourceMetadata.AuthorizationServers,
+		}
+
+		if p.cfg.ProtectedResourceMetadata.JwksURI != "" {
+			meta["jwks_uri"] = p.cfg.ProtectedResourceMetadata.JwksURI
+		}
+		if len(p.cfg.ProtectedResourceMetadata.BearerMethodsSupported) > 0 {
+			meta["bearer_methods_supported"] = p.cfg.ProtectedResourceMetadata.BearerMethodsSupported
+		}
+		if err := json.NewEncoder(w).Encode(meta); err != nil {
+			http.Error(w, "failed to encode metadata", http.StatusInternalServerError)
+		}
+	}
+}

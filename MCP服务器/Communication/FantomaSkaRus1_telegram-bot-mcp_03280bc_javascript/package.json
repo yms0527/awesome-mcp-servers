@@ -1,0 +1,20 @@
+{
+  "name": "telegram-bot-mcp",
+  "version": "3.0.3",
+  "type": "module",
+  "description": "Full-featured Telegram Bot API MCP server for Claude Code / AI agents",
+  "main": "index.js",
+  "keywords": [
+    "mcp",
+    "telegram",
+    "bot",
+    "claude",
+    "ai",
+    "model-context-protocol"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.8"
+  }
+}

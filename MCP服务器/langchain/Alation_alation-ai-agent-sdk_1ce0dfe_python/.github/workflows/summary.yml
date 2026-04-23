@@ -1,0 +1,125 @@
+name: Post PR Summary
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  post-summary:
+    name: Post Combined Test Summary
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download SDK Summary
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: sdk-test-summary
+          path: summaries/sdk
+
+      - name: Download MCP Summary
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: mcp-test-summary
+          path: summaries/mcp
+
+      - name: Download Langchain Summary
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: langchain-test-summary
+          path: summaries/langchain
+
+      - name: Combine summaries into one table
+        run: |
+          echo "### ✅ Combined Test Summary" > test-summary.md
+          echo "" >> test-summary.md
+          echo "| Suite | Total | Passed | Failed | Errors | Skipped |" >> test-summary.md
+          echo "|-------|-------|--------|--------|--------|---------|" >> test-summary.md
+
+          # Extract table rows from each summary
+          grep '^| SDK' summaries/sdk/sdk-test-summary.md >> test-summary.md 2>/dev/null || echo "| SDK | N/A | N/A | N/A | N/A | N/A |" >> test-summary.md
+          grep '^| MCP' summaries/mcp/mcp-test-summary.md >> test-summary.md 2>/dev/null || echo "| MCP | N/A | N/A | N/A | N/A | N/A |" >> test-summary.md
+          grep '^| LANGCHAIN' summaries/langchain/langchain-test-summary.md >> test-summary.md 2>/dev/null || echo "| LANGCHAIN | N/A | N/A | N/A | N/A | N/A |" >> test-summary.md
+
+          # Check for any failures and add detailed failure information
+          TOTAL_FAILURES=0
+          
+          # Process SDK failures
+          if [ -f summaries/sdk/sdk-test-summary.md ] && grep -q '\*\*❌ Failed Tests Details:' summaries/sdk/sdk-test-summary.md; then
+            echo "" >> test-summary.md
+            echo "## 🚨 SDK Test Failures" >> test-summary.md
+            awk '/Failed Tests Details:/{flag=1; print} flag && !/Failed Tests Details:/ && !/^\*\*/{print; if(/^```$/) count++; if(count==2) {flag=0; count=0}}' summaries/sdk/sdk-test-summary.md >> test-summary.md
+            
+            # Add test summary if available
+            if grep -q '\*\*📋 Test Summary:' summaries/sdk/sdk-test-summary.md; then
+              echo "" >> test-summary.md
+              awk '/Test Summary:/{flag=1; print} flag && !/Test Summary:/ && !/^\*\*/{print; if(/^```$/) count++; if(count==2) {flag=0; count=0}}' summaries/sdk/sdk-test-summary.md >> test-summary.md
+            fi
+            TOTAL_FAILURES=$((TOTAL_FAILURES + 1))
+          fi
+
+          # Process MCP failures
+          if [ -f summaries/mcp/mcp-test-summary.md ] && grep -q '\*\*❌ Failed Tests Details:' summaries/mcp/mcp-test-summary.md; then
+            echo "" >> test-summary.md
+            echo "## 🚨 MCP Test Failures" >> test-summary.md
+            awk '/Failed Tests Details:/{flag=1; print} flag && !/Failed Tests Details:/ && !/^\*\*/{print; if(/^```$/) count++; if(count==2) {flag=0; count=0}}' summaries/mcp/mcp-test-summary.md >> test-summary.md
+            
+            # Add test summary if available
+            if grep -q '\*\*📋 Test Summary:' summaries/mcp/mcp-test-summary.md; then
+              echo "" >> test-summary.md
+              awk '/Test Summary:/{flag=1; print} flag && !/Test Summary:/ && !/^\*\*/{print; if(/^```$/) count++; if(count==2) {flag=0; count=0}}' summaries/mcp/mcp-test-summary.md >> test-summary.md
+            fi
+            TOTAL_FAILURES=$((TOTAL_FAILURES + 1))
+          fi
+
+          # Process LangChain failures
+          if [ -f summaries/langchain/langchain-test-summary.md ] && grep -q '\*\*❌ Failed Tests Details:' summaries/langchain/langchain-test-summary.md; then
+            echo "" >> test-summary.md
+            echo "## 🚨 LangChain Test Failures" >> test-summary.md
+            awk '/Failed Tests Details:/{flag=1; print} flag && !/Failed Tests Details:/ && !/^\*\*/{print; if(/^```$/) count++; if(count==2) {flag=0; count=0}}' summaries/langchain/langchain-test-summary.md >> test-summary.md
+            
+            # Add test summary if available
+            if grep -q '\*\*📋 Test Summary:' summaries/langchain/langchain-test-summary.md; then
+              echo "" >> test-summary.md
+              awk '/Test Summary:/{flag=1; print} flag && !/Test Summary:/ && !/^\*\*/{print; if(/^```$/) count++; if(count==2) {flag=0; count=0}}' summaries/langchain/langchain-test-summary.md >> test-summary.md
+            fi
+            TOTAL_FAILURES=$((TOTAL_FAILURES + 1))
+          fi
+          
+          # Add footer with instructions
+          if [ "$TOTAL_FAILURES" -gt 0 ]; then
+            echo "" >> test-summary.md
+            echo "---" >> test-summary.md
+            echo "💡 **Tip**: Check the individual job logs in the Actions tab for complete error details and stack traces." >> test-summary.md
+          else
+            echo "" >> test-summary.md
+            echo "---" >> test-summary.md
+            echo "🎉 **All tests passed!** Great job!" >> test-summary.md
+          fi
+
+      - name: Find existing summary comment
+        id: find-comment
+        uses: peter-evans/find-comment@v3
+        continue-on-error: true
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: github-actions[bot]
+          body-includes: "Combined Test Summary"
+
+      - name: Post or update test summary in PR
+        uses: peter-evans/create-or-update-comment@v4
+        continue-on-error: true
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-file: test-summary.md
+          token: ${{ secrets.GITHUB_TOKEN }}
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          edit-mode: replace

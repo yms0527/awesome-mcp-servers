@@ -1,0 +1,15 @@
+{
+  "name": "onenote-mcp",
+  "version": "1.0.0",
+  "description": "OneNote MCP server with browser automation",
+  "type": "module",
+  "scripts": {
+    "postinstall": "playwright install chromium",
+    "start": "node onenote-mcp-impl.js",
+    "test": "node test-browser.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.7.0",
+    "playwright": "^1.42.1"
+  }
+}

@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: hello-world-
+  labels:
+    workflows.argoproj.io/archive-strategy: "false"
+  annotations:
+    workflows.argoproj.io/description: |
+      This is a simple hello world example.
+spec:
+  entrypoint: hello-world-template
+  
+  templates:
+  - name: hello-world-template
+    metadata:
+      displayName: "Hello World Display name"
+      annotations:
+        description: "This summarises the input text using an LLM"
+    container:
+      image: busybox
+      command: [echo]
+      args: ["hello world"]
+    outputs:
+      parameters:
+      - name: sampleOutput
+        value: "Sample output: hello world"

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "maintainers": ["billylui"],
+  "description": "AI scheduling that lets agents schedule with anyone — contact resolution, cross-provider availability, and atomic booking across Google Calendar, Outlook, and CalDAV. 18 tools across 5 layers: discovery, temporal context, calendar operations, availability, and Two-Phase Commit booking.",
+  "features": {
+    "tools": true,
+    "resources": true,
+    "prompts": true
+  }
+}

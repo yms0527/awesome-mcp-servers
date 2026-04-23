@@ -1,0 +1,3756 @@
+paths:
+  /accounts:
+    get:
+      summary: Get accounts
+      description: Gets Postman billing account details for the given team.
+      operationId: getAccounts
+      tags:
+        - Billing
+      responses:
+        '200':
+          $ref: '#/components/responses/getAccounts'
+        '400':
+          $ref: '#/components/responses/invoicesNoTeam400Error'
+        '401':
+          $ref: '#/components/responses/unauthorizedError'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+  /accounts/{accountId}/invoices:
+    get:
+      summary: List account invoices
+      description: Gets all invoices for a Postman billing account filtered by the status of the invoice.
+      operationId: getAccountInvoices
+      tags:
+        - Billing
+      responses:
+        '200':
+          $ref: '#/components/responses/getAccountInvoices'
+        '400':
+          $ref: '#/components/responses/invoiceMissingStatus400Error'
+        '401':
+          $ref: '#/components/responses/unauthorizedError'
+        '403':
+          $ref: '#/components/responses/invoicesForbidden403Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/billingAccountId'
+        - $ref: '#/components/parameters/billingAccountStatus'
+  /apis:
+    get:
+      summary: Get all APIs
+      description: Gets information about all APIs in a workspace.
+      operationId: getApis
+      tags:
+        - API
+      responses:
+        '200':
+          $ref: '#/components/responses/getApis'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/api404ErrorNotFound'
+        '422':
+          $ref: '#/components/responses/v9Unsupported'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/workspaceIdQueryTrue'
+        - $ref: '#/components/parameters/createdBy'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/apiDescription'
+        - $ref: '#/components/parameters/limit'
+    post:
+      summary: Create an API
+      description: Creates an API.
+      operationId: createApi
+      tags:
+        - API
+      requestBody:
+        $ref: '#/components/requestBodies/createApi'
+      responses:
+        '200':
+          $ref: '#/components/responses/createApi'
+        '400':
+          $ref: '#/components/responses/workspace400ErrorParamMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/api403ErrorForbidden'
+                  - $ref: '#/components/schemas/api403ErrorLimitReached'
+                  - $ref: '#/components/schemas/featureUnavailable403Error'
+              examples:
+                Forbidden:
+                  $ref: '#/components/examples/api403ErrorForbidden'
+                API Limit Reached:
+                  $ref: '#/components/examples/api403ErrorLimitReached'
+                Feature Unavailable:
+                  $ref: '#/components/examples/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/workspace404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/workspaceIdQueryTrue'
+      - $ref: '#/components/parameters/v10Accept'
+  /apis/{apiId}:
+    get:
+      summary: Get an API
+      description: |
+        Gets information about an API.
+
+        **Note:**
+
+        - Git-connected APIs will only return the `versions` and `gitInfo` query responses. This is because schema and collection information is stored in the connected Git repository. The `gitInfo` object only lists the repository and folder locations of the files.
+        - API viewers can only use the `versions` option in the `include` query parameter.
+      operationId: getApi
+      tags:
+        - API
+      responses:
+        '200':
+          $ref: '#/components/responses/getApi'
+        '400':
+          $ref: '#/components/responses/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          $ref: '#/components/responses/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/api404ErrorNotFound'
+        '422':
+          $ref: '#/components/responses/v9Unsupported'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/apiInclude'
+    put:
+      summary: Update an API
+      description: Updates an API.
+      operationId: updateApi
+      tags:
+        - API
+      requestBody:
+        $ref: '#/components/requestBodies/updateApi'
+      responses:
+        '200':
+          $ref: '#/components/responses/updateApi'
+        '400':
+          $ref: '#/components/responses/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          $ref: '#/components/responses/api403ErrorAndFeatureUnavailable'
+        '404':
+          $ref: '#/components/responses/api404ErrorNotFound'
+        '422':
+          $ref: '#/components/responses/v9Unsupported'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    delete:
+      summary: Delete an API
+      description: Deletes an API. On success, this returns an HTTP `204 No Content` response.
+      operationId: deleteApi
+      tags:
+        - API
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          $ref: '#/components/responses/api403ErrorAndFeatureUnavailable'
+        '404':
+          $ref: '#/components/responses/api404ErrorNotFound'
+        '422':
+          $ref: '#/components/responses/v9Unsupported'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/v10Accept'
+  /apis/{apiId}/collections:
+    post:
+      summary: Add a collection
+      description: |
+        Adds a collection to an API. To do this, use the following `operationType` values:
+
+        - `COPY_COLLECTION` — Copies a collection from the workspace and adds it to an API.
+        - `CREATE_NEW` — Creates a new collection by providing the new collection's content.
+        - `GENERATE_FROM_SCHEMA` — Generates the collection from an API schema.
+            - `options` — An object that contains advanced creation options and their values. You can find a complete list of properties and their values in Postman's [OpenAPI to Postman Collection Converter OPTIONS documentation](https://github.com/postmanlabs/openapi-to-postman/blob/develop/OPTIONS.md). These properties are case-sensitive.
+      operationId: addApiCollection
+      tags:
+        - API
+        - Collections
+      requestBody:
+        $ref: '#/components/requestBodies/addApiCollection'
+      responses:
+        '200':
+          $ref: '#/components/responses/addApiCollection'
+        '400':
+          $ref: '#/components/responses/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiSchema403ErrorForbidden'
+                  - $ref: '#/components/schemas/featureUnavailable403Error'
+              examples:
+                Forbidden:
+                  $ref: '#/components/examples/apiSchema403ErrorForbidden'
+                Feature Unavailable:
+                  $ref: '#/components/examples/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/api404ErrorNotFound'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/v10Accept'
+  /apis/{apiId}/collections/{collectionId}:
+    get:
+      summary: Get a collection
+      description: |
+        Gets a collection attached to an API. You can use the `versionId` query parameter to get a collection published in a version.
+
+        **Note:**
+
+        - You cannot use this endpoint to get a Git-linked API collection. Collections in a Git-linked API are stored in the linked Git repository, not in the Postman cloud. This endpoint only has access to Postman servers.
+        - You can get a collection published in an API version with the `versionId` query parameter.
+        - The `versionId` query parameter is a required parameter for API viewers.
+      operationId: getApiCollection
+      tags:
+        - API
+        - Collections
+      responses:
+        '200':
+          $ref: '#/components/responses/getApiCollection'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/api400ErrorVersionIdMissing'
+                  - $ref: '#/components/schemas/v10HeaderMissing'
+              examples:
+                Version ID Missing:
+                  $ref: '#/components/examples/api400ErrorVersionIdMissing'
+                Missing v10 Accept Header:
+                  $ref: '#/components/examples/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          $ref: '#/components/responses/api403ErrorAndFeatureUnavailable'
+        '404':
+          $ref: '#/components/responses/apiCollection404ErrorNotFound'
+        '422':
+          $ref: '#/components/responses/gitLinkedApi422Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/apiVersionQuery'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/collectionIdApi'
+      - $ref: '#/components/parameters/v10Accept'
+  /apis/{apiId}/collections/{collectionId}/comments:
+    get:
+      summary: Get a collection's comments
+      description: Gets all comments left by users in an API's collection.
+      operationId: getApiCollectionComments
+      tags:
+        - API
+        - Collections
+        - Comments
+      responses:
+        '200':
+          $ref: '#/components/responses/commentGet'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    post:
+      summary: Create a collection comment
+      description: |
+        Creates a comment on an API's collection. To create a reply on an existing comment, include the `threadId` property in the request body.
+
+        **Note:**
+
+        This endpoint accepts a max of 10,000 characters.
+      tags:
+        - API
+        - Collections
+        - Comments
+      operationId: createApiCollectionComment
+      requestBody:
+        $ref: '#/components/requestBodies/commentCreate'
+      responses:
+        '201':
+          $ref: '#/components/responses/commentCreated'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/collectionIdApi'
+  /apis/{apiId}/collections/{collectionId}/comments/{commentId}:
+    put:
+      summary: Update a collection's comment
+      description: |
+        Updates a comment on an API's collection.
+
+        **Note:**
+
+        This endpoint accepts a max of 10,000 characters.
+      operationId: updateApiCollectionComment
+      tags:
+        - API
+        - Collections
+        - Comments
+      requestBody:
+        $ref: '#/components/requestBodies/commentUpdate'
+      responses:
+        '200':
+          $ref: '#/components/responses/commentUpdated'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    delete:
+      summary: Delete a collection's comment
+      description: |
+        Deletes a comment from an API's collection. On success, this returns an HTTP `204 No Content` response.
+
+        **Note:**
+
+        Deleting the first comment of a thread deletes all the comments in the thread.
+      operationId: deleteApiCollectionComment
+      tags:
+        - API
+        - Collections
+        - Comments
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/collectionIdApi'
+      - $ref: '#/components/parameters/commentId'
+  /apis/{apiId}/collections/{collectionId}/sync-with-schema-tasks:
+    put:
+      summary: Sync collection with schema
+      description: |
+        Syncs a collection attached to an API with the API schema.
+
+        This is an asynchronous endpoint that returns an HTTP `202 Accepted` response. The response contains a polling link to the `/apis/{apiId}/tasks/{taskId}` endpoint in the `Location` header.
+
+        **Note:**
+
+        This endpoint only supports the OpenAPI 3 schema type.
+      operationId: syncCollectionWithSchema
+      tags:
+        - API
+        - Collections
+      responses:
+        '202':
+          $ref: '#/components/responses/syncCollectionWithSchema'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiCollection400InvalidParam'
+                  - $ref: '#/components/schemas/v10HeaderMissing'
+              examples:
+                Invalid Parameter:
+                  $ref: '#/components/examples/apiCollection400InvalidParam'
+                Missing v10 Accept Header:
+                  $ref: '#/components/examples/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiSchema403ErrorForbidden'
+                  - $ref: '#/components/schemas/featureUnavailable403Error'
+              examples:
+                Forbidden:
+                  $ref: '#/components/examples/apiSchema403ErrorForbidden'
+                Feature Unavailable:
+                  $ref: '#/components/examples/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/apiSchema404ErrorNotFound'
+        '422':
+          $ref: '#/components/responses/apiSchema422ErrorActionNotAllowed'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/collectionIdApi'
+      - $ref: '#/components/parameters/v10Accept'
+  /apis/{apiId}/comments:
+    get:
+      summary: Get an API's comments
+      description: Gets all comments left by users in an API.
+      operationId: getApiComments
+      tags:
+        - API
+        - Comments
+      responses:
+        '200':
+          $ref: '#/components/responses/commentGet'
+        '400':
+          $ref: '#/components/responses/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403ErrorAndFeatureUnavailable'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    post:
+      summary: Create an API comment
+      description: |
+        Creates a comment on an API. To create a reply on an existing comment, include the `threadId` property in the request body.
+
+        **Note:**
+
+        This endpoint accepts a max of 10,000 characters.
+      tags:
+        - API
+        - Comments
+      operationId: createApiComment
+      requestBody:
+        $ref: '#/components/requestBodies/commentCreate'
+      responses:
+        '201':
+          $ref: '#/components/responses/commentCreated'
+        '400':
+          $ref: '#/components/responses/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403ErrorAndFeatureUnavailable'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+  /apis/{apiId}/comments/{commentId}:
+    put:
+      summary: Update an API's comment
+      description: |
+        Updates a comment on an API.
+
+        **Note:**
+
+        This endpoint accepts a max of 10,000 characters.
+      operationId: updateApiComment
+      tags:
+        - API
+        - Comments
+      requestBody:
+        $ref: '#/components/requestBodies/commentUpdate'
+      responses:
+        '200':
+          $ref: '#/components/responses/commentUpdated'
+        '400':
+          $ref: '#/components/responses/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403ErrorAndFeatureUnavailable'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    delete:
+      summary: Delete an API's comment
+      description: |
+        Deletes a comment from an API. On success, this returns an HTTP `204 No Content` response.
+
+        **Note:**
+
+        Deleting the first comment of a thread deletes all the comments in the thread.
+      operationId: deleteApiComment
+      tags:
+        - API
+        - Comments
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403ErrorAndFeatureUnavailable'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/commentId'
+  /apis/{apiId}/schemas:
+    post:
+      summary: Create a schema
+      description: Creates a schema for an API.
+      operationId: createApiSchema
+      tags:
+        - API
+        - Schema
+      requestBody:
+        $ref: '#/components/requestBodies/createApiSchema'
+      responses:
+        '200':
+          $ref: '#/components/responses/createApiSchema'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiSchema400ErrorInvalidParams'
+                  - $ref: '#/components/schemas/v10HeaderMissing'
+              examples:
+                Schema Already Exists:
+                  $ref: '#/components/examples/apiSchema400ErrorInvalidParams'
+                Missing v10 Accept Header:
+                  $ref: '#/components/examples/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiSchema403ErrorForbidden'
+                  - $ref: '#/components/schemas/featureUnavailable403Error'
+              examples:
+                Forbidden:
+                  $ref: '#/components/examples/apiSchema403ErrorForbidden'
+                Feature Unavailable:
+                  $ref: '#/components/examples/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/api404ErrorInstanceNotFound'
+        '422':
+          $ref: '#/components/responses/gitLinkedApi422Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/v10Accept'
+  /apis/{apiId}/schemas/{schemaId}:
+    get:
+      summary: Get a schema
+      description: |
+        Gets information about API schema. You can use the `versionId` query parameter to get a schema published in an API version.
+
+        You can use this API to do the following:
+
+        - Get a schema's metadata.
+        - Get all the files in a schema. This only returns the first file in the schema. The endpoint response contains a link to the next set of response results.
+        - Get a schema's contents in multi-file or bundled format.
+
+        **Note:**
+
+        The `versionId` query parameter is a required parameter for API viewers.
+      operationId: getApiSchema
+      tags:
+        - API
+        - Schema
+      responses:
+        '200':
+          $ref: '#/components/responses/getApiSchema'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiSchema400ErrorNotLinked'
+                  - $ref: '#/components/schemas/v10HeaderMissing'
+              examples:
+                Schema Not Linked to API:
+                  $ref: '#/components/examples/apiSchema400ErrorNotLinked'
+                Missing v10 Accept Header:
+                  $ref: '#/components/examples/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          $ref: '#/components/responses/api403ErrorAndFeatureUnavailable'
+        '404':
+          $ref: '#/components/responses/api404ErrorInstanceNotFound'
+        '422':
+          $ref: '#/components/responses/gitLinkedApi422Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/apiVersionQuery'
+        - $ref: '#/components/parameters/apiSchemaOutput'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/apiSchemaId'
+      - $ref: '#/components/parameters/v10Accept'
+  /apis/{apiId}/schemas/{schemaId}/files:
+    get:
+      summary: Get schema files
+      description: |
+        Gets the files in an API schema. You can use the `versionId` query parameter to get schema files published in an API version.
+
+        **Note:**
+
+        The `versionId` query parameter is a required parameter for API viewers.
+      operationId: getApiSchemaFiles
+      tags:
+        - API
+        - Schema
+      responses:
+        '200':
+          $ref: '#/components/responses/getApiSchemaFiles'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiSchema400ErrorNotLinked'
+                  - $ref: '#/components/schemas/v10HeaderMissing'
+              examples:
+                Schema Not Linked to API:
+                  $ref: '#/components/examples/apiSchema400ErrorNotLinked'
+                Missing v10 Accept Header:
+                  $ref: '#/components/examples/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          $ref: '#/components/responses/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/api404ErrorInstanceNotFound'
+        '422':
+          $ref: '#/components/responses/gitLinkedApi422Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/apiVersionQuery'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/apiSchemaId'
+      - $ref: '#/components/parameters/v10Accept'
+  /apis/{apiId}/schemas/{schemaId}/files/{file-path}:
+    get:
+      summary: Get schema file contents
+      description: |
+        Gets an API schema file contents at the defined path. You can use the `versionId` query parameter to get schema file contents published in an API version.
+
+        **Note:**
+
+        The `versionId` query parameter is a required parameter for API viewers.
+      operationId: getApiSchemaFileContents
+      tags:
+        - API
+        - Schema
+      responses:
+        '200':
+          $ref: '#/components/responses/getApiSchemaFileContents'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiSchema400ErrorNotLinked'
+                  - $ref: '#/components/schemas/v10HeaderMissing'
+              examples:
+                Schema Not Linked to API:
+                  $ref: '#/components/examples/apiSchema400ErrorNotLinked'
+                Missing v10 Accept Header:
+                  $ref: '#/components/examples/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          $ref: '#/components/responses/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/api404ErrorInstanceNotFound'
+        '422':
+          $ref: '#/components/responses/gitLinkedApi422Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/apiVersionQuery'
+    put:
+      summary: Create or update a schema file
+      description: |
+        Creates or updates an API schema file.
+
+        **Note:**
+
+        - If the provided file path exists, the file is updated with the new contents.
+        - If the provided file path does not exist, then a new schema file is created.
+        - If the file path contains a `/` (forward slash) character, then a folder is created. For example, if the file path is the `dir/schema.json` value, then a `dir` folder is created with the `schema.json` file inside.
+        - You can only update the `root` tag for protobuf specifications.
+      operationId: createUpdateApiSchemaFile
+      tags:
+        - API
+        - Schema
+      requestBody:
+        $ref: '#/components/requestBodies/createUpdateApiSchemaFile'
+      responses:
+        '200':
+          $ref: '#/components/responses/createUpdateApiSchemaFile'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiSchema400ErrorNotLinked'
+                  - $ref: '#/components/schemas/v10HeaderMissing'
+              examples:
+                Schema Not Linked to API:
+                  $ref: '#/components/examples/apiSchema400ErrorNotLinked'
+                Missing v10 Accept Header:
+                  $ref: '#/components/examples/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiSchema403ErrorForbidden'
+                  - $ref: '#/components/schemas/featureUnavailable403Error'
+              examples:
+                Forbidden:
+                  $ref: '#/components/examples/apiSchema403ErrorForbidden'
+                Feature Unavailable:
+                  $ref: '#/components/examples/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/apiSchema404ErrorNotFound'
+        '422':
+          $ref: '#/components/responses/gitLinkedApi422Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    delete:
+      summary: Delete a schema file
+      description: Deletes a file in an API schema. On success, this returns an HTTP `204 No Content` response.
+      operationId: deleteApiSchemaFile
+      tags:
+        - API
+        - Schema
+      responses:
+        '204':
+          description: Deleted
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiSchema400ErrorNotLinked'
+                  - $ref: '#/components/schemas/v10HeaderMissing'
+              examples:
+                Schema Not Linked to API:
+                  $ref: '#/components/examples/apiSchema400ErrorNotLinked'
+                Missing v10 Accept Header:
+                  $ref: '#/components/examples/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiSchema403ErrorForbidden'
+                  - $ref: '#/components/schemas/featureUnavailable403Error'
+              examples:
+                Forbidden:
+                  $ref: '#/components/examples/apiSchema403ErrorForbidden'
+                Feature Unavailable:
+                  $ref: '#/components/examples/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/api404ErrorInstanceNotFound'
+        '422':
+          $ref: '#/components/responses/gitLinkedApi422Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/apiSchemaId'
+      - $ref: '#/components/parameters/file-path'
+      - $ref: '#/components/parameters/v10Accept'
+  /apis/{apiId}/tags:
+    get:
+      summary: Get an API's tags
+      description: Gets all the tags associated with an API.
+      operationId: getApiTags
+      tags:
+        - Tags
+        - API Tags
+      responses:
+        '200':
+          $ref: '#/components/responses/tagGetPut'
+        '400':
+          $ref: '#/components/responses/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/tag401Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/tag403Error'
+                  - $ref: '#/components/schemas/featureUnavailable403Error'
+              examples:
+                Forbidden:
+                  $ref: '#/components/examples/tag403Error'
+                Feature Unavailable:
+                  $ref: '#/components/examples/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/tag404Error'
+        '500':
+          $ref: '#/components/responses/tag500Error'
+    put:
+      summary: Update an API's tags
+      description: Updates an API's associated tags. This endpoint replaces all existing tags with those you pass in the request body.
+      operationId: updateApiTags
+      tags:
+        - Tags
+        - API Tags
+      requestBody:
+        $ref: '#/components/requestBodies/tagUpdateTags'
+      responses:
+        '200':
+          $ref: '#/components/responses/tagGetPut'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/tag400Error'
+                  - $ref: '#/components/schemas/v10HeaderMissing'
+              examples:
+                Bad Request:
+                  $ref: '#/components/examples/tag400Error'
+                Missing v10 Accept Header:
+                  $ref: '#/components/examples/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/tag401Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/tag403Error'
+                  - $ref: '#/components/schemas/featureUnavailable403Error'
+              examples:
+                Forbidden:
+                  $ref: '#/components/examples/tag403Error'
+                Feature Unavailable:
+                  $ref: '#/components/examples/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/tag404Error'
+        '500':
+          $ref: '#/components/responses/tag500Error'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/v10Accept'
+  /apis/{apiId}/tasks/{taskId}:
+    get:
+      summary: Get status of an asynchronous task
+      description: Gets the status of an asynchronous task.
+      operationId: getStatusOfAnAsyncTask
+      tags:
+        - API
+      responses:
+        '200':
+          $ref: '#/components/responses/getStatusOfAnAsyncTask'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiVersion400ErrorInvalidParam'
+                  - $ref: '#/components/schemas/v10HeaderMissing'
+              examples:
+                Invalid Parameter:
+                  $ref: '#/components/examples/apiVersion400ErrorInvalidParam'
+                Missing v10 Accept Header:
+                  $ref: '#/components/examples/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          $ref: '#/components/responses/api403ErrorAndFeatureUnavailable'
+        '404':
+          $ref: '#/components/responses/taskNotFound'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/apiTaskId'
+      - $ref: '#/components/parameters/v10Accept'
+  /apis/{apiId}/versions:
+    get:
+      summary: Get all versions
+      description: Gets all the published versions of an API.
+      operationId: getApiVersions
+      tags:
+        - API
+        - API Versions
+      responses:
+        '200':
+          $ref: '#/components/responses/getApiVersions'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          $ref: '#/components/responses/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/apiVersions404Response'
+        '422':
+          $ref: '#/components/responses/v9Unsupported'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+    post:
+      summary: Create a version
+      description: |
+        Creates a new API version asynchronously and immediately returns an HTTP `202 Accepted` response. The response contains a polling link to the task status API in the `Location` header.
+
+        This endpoint is equivalent to publishing a version in Postman app, which is the snapshot of API collections and schema at a given point in time.
+      operationId: createApiVersion
+      tags:
+        - API
+        - API Versions
+      requestBody:
+        $ref: '#/components/requestBodies/createApiVersion'
+      responses:
+        '202':
+          $ref: '#/components/responses/createApiVersion'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiSchema403ErrorForbidden'
+                  - $ref: '#/components/schemas/featureUnavailable403Error'
+              examples:
+                Forbidden:
+                  $ref: '#/components/examples/apiSchema403ErrorForbidden'
+                Feature Unavailable:
+                  $ref: '#/components/examples/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/apiVersions404Response'
+        '422':
+          $ref: '#/components/responses/apiVersion422ErrorStateInconsistent'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/v10Accept'
+  /apis/{apiId}/versions/{versionId}:
+    get:
+      summary: Get a version
+      description: |
+        Gets information about an API version.
+
+        **Note:**
+
+        - For API editors, this endpoint returns an HTTP `302 Found` status code when the version status is pending. It also returns the `/apis/{apiId}/tasks/{taskId}` task status response header.
+        - For API viewers, this endpoint returns an HTTP `404 Not Found` when the version status is pending.
+      operationId: getApiVersion
+      tags:
+        - API
+      responses:
+        '200':
+          $ref: '#/components/responses/getApiVersion'
+        '302':
+          description: Found
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+        '400':
+          $ref: '#/components/responses/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          $ref: '#/components/responses/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/apiVersion404ErrorNotFound'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    put:
+      summary: Update a version
+      description: |
+        Updates an API version.
+
+        **Note:**
+
+        This endpoint returns an HTTP `404 Not Found` response when an API version is pending publication.
+      operationId: updateApiVersion
+      tags:
+        - API
+        - API Versions
+      requestBody:
+        $ref: '#/components/requestBodies/updateApiVersion'
+      responses:
+        '200':
+          $ref: '#/components/responses/updateApiVersion'
+        '400':
+          $ref: '#/components/responses/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          $ref: '#/components/responses/api403ErrorAndFeatureUnavailable'
+        '404':
+          $ref: '#/components/responses/apiVersion404ErrorNotFound'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    delete:
+      summary: Delete a version
+      description: |
+        Deletes an API version. On success, this returns an HTTP `204 No Content` response.
+
+        **Note:**
+
+        This endpoint returns an HTTP `404 Not Found` response when an API version is pending publication.
+      operationId: deleteApiVersion
+      tags:
+        - API
+        - API Versions
+      responses:
+        '204':
+          description: No Content
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/apiVersion400ErrorInstanceNotFound'
+                  - $ref: '#/components/schemas/v10HeaderMissing'
+              examples:
+                API Version Not Found:
+                  $ref: '#/components/examples/apiVersion400ErrorInstanceNotFound'
+                Missing v10 Accept Header:
+                  $ref: '#/components/examples/v10HeaderMissing'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          $ref: '#/components/responses/api403ErrorAndFeatureUnavailable'
+        '404':
+          $ref: '#/components/responses/apiVersion404ErrorNotFound'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/apiId'
+      - $ref: '#/components/parameters/apiVersionId'
+      - $ref: '#/components/parameters/v10Accept'
+  /audit/logs:
+    get:
+      summary: Get team audit logs
+      description: Gets a list of your team's generated audit events. For a complete list of all audit events, see [Audit logs](https://learning.postman.com/docs/administration/audit-logs/).
+      operationId: getAuditLogs
+      x-postman-plan: Enterprise
+      tags:
+        - Audit Logs
+      responses:
+        '200':
+          $ref: '#/components/responses/getAuditLogs'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/auditLogsSinceQuery'
+        - $ref: '#/components/parameters/auditLogsUntilQuery'
+        - $ref: '#/components/parameters/auditLogsLimitQuery'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/auditLogsOrderBy'
+  /collection-access-keys:
+    get:
+      summary: Get collection access keys
+      description: |
+        Gets the authenticated user's personal and team [collection access keys](https://learning.postman.com/docs/developer/postman-api/authentication/#generate-a-collection-access-key).
+
+        **Note:**
+
+        - The `expiresAfter` property in the response represents the date and time at which the access key expires. Collection access keys are valid for 60 days. If unused, the access key expires after 60 days. If someone uses the access key, then its expiration date increases by another 60 days.
+        - If the collection key is unused, the `lastUsedAt` property in the response returns an empty string.
+      operationId: getCollectionAccessKeys
+      tags:
+        - Collection Access Keys
+        - Collections
+      responses:
+        '200':
+          $ref: '#/components/responses/getCollectionAccessKeys'
+        '400':
+          $ref: '#/components/responses/common400ErrorInvalidCursor'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/common403ErrorForbidden'
+        '500':
+          $ref: '#/components/responses/common500ErrorSomethingWrong'
+      parameters:
+        - $ref: '#/components/parameters/collectionUidQuery'
+        - $ref: '#/components/parameters/cursor'
+  /collection-access-keys/{keyId}:
+    delete:
+      summary: Delete a collection access key
+      description: |
+        Deletes a collection access key. To get a collection access key's ID, use the GET `/collection-access-key` endpoint.
+
+        On success, this returns an HTTP `204 No Content` response.
+      operationId: deleteCollectionAccessKey
+      tags:
+        - Collection Access Keys
+        - Collections
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/common403ErrorForbidden'
+        '404':
+          $ref: '#/components/responses/cakNotFound404Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorSomethingWrong'
+      parameters:
+        - $ref: '#/components/parameters/collectionAccessKeyId'
+  /collection-merges:
+    put:
+      summary: Merge or pull changes into a collection fork
+      description: |
+        [Merges](https://learning.postman.com/docs/collaborating-in-postman/using-version-control/forking-elements/#merge-changes-from-a-fork) a forked (source) collection and its parent (destination) collection asynchronously. To pull changes into a fork, pass the forked collection's ID as the `destination` value and the parent collection ID as the `source` value.
+
+        The response returns a task `id` value, which you can use to track the merge's status with the GET `/collection-merges-tasks/{taskId}` endpoint.
+      operationId: asyncMergePullCollectionFork
+      tags:
+        - Collections
+        - Forks
+      requestBody:
+        $ref: '#/components/requestBodies/asyncCollectionForkMerge'
+      responses:
+        '200':
+          $ref: '#/components/responses/asyncMergeCollectionFork'
+        '400':
+          $ref: '#/components/responses/collectionForks400ErrorMalformedRequest'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/collectionForks403ErrorForbidden'
+        '500':
+          $ref: '#/components/responses/common500Error'
+  /collections-merges-tasks/{taskId}:
+    get:
+      summary: Get merge or pull task status
+      description: |
+        Gets the status of a collection's merge or a pull changes task.
+
+        **Note:**
+
+        After a merge's success or failure, the task's status is only available for a period of 24 hours. Afterwards, this endpoint returns an HTTP `404 Not Found` response.
+      operationId: asyncMergePullCollectionTaskStatus
+      tags:
+        - Collections
+        - Forks
+      responses:
+        '200':
+          $ref: '#/components/responses/asyncMergePullCollectionTaskStatus'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/collectionForks403ErrorForbidden'
+        '404':
+          $ref: '#/components/responses/collectionForks404ErrorTaskNotFound'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/collectionForkTaskId'
+  /collections:
+    get:
+      summary: Get all collections
+      description: |
+        Gets all of your [collections](https://www.getpostman.com/docs/collections). The response includes all of your subscribed collections.
+
+        **Note:**
+
+        - Filtering with the `name` parameter when you also pass the `limit` and `offset` parameters is not supported.
+        - If you pass an invalid workspace ID for the `workspace` query parameter, this endpoint returns an HTTP `200 OK` response with an empty array.
+      operationId: getCollections
+      tags:
+        - Collections
+      responses:
+        '200':
+          $ref: '#/components/responses/getCollections'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/workspaceQuery'
+        - $ref: '#/components/parameters/collectionNameQuery'
+        - $ref: '#/components/parameters/limitNoDefault'
+        - $ref: '#/components/parameters/offsetNoDefault'
+    post:
+      summary: Create a collection
+      description: |
+        Creates a collection using the [Postman Collection v2.1.0 schema format](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+
+        **Note:**
+
+        - If you do not include the `workspace` query parameter, the system creates the collection in your "My Workspace" workspace.
+        - For a complete list of available property values for this endpoint, use the following references available in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html):
+            - `info` object — Refer to the **Information** entry.
+            - `item` object — Refer to the **Items** entry.
+        - For all other possible values, refer to the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+      operationId: createCollection
+      tags:
+        - Collections
+      requestBody:
+        $ref: '#/components/requestBodies/createCollection'
+      responses:
+        '200':
+          $ref: '#/components/responses/createCollection'
+        '400':
+          $ref: '#/components/responses/collection400ErrorInstanceFound'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/workspaceQuery'
+  /collections/collection-forks:
+    get:
+      summary: Get all forked collections
+      description: Gets a list of all the authenticated user's forked collections.
+      operationId: getCollectionsForkedByUser
+      tags:
+        - Collections
+        - Forks
+      responses:
+        '200':
+          $ref: '#/components/responses/getCollectionsForkedByUser'
+        '400':
+          $ref: '#/components/responses/fork400ErrorNoUserFound'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/createdAtSort'
+  /collections/fork/{collectionId}:
+    post:
+      summary: Create a fork
+      description: Creates a [fork](https://learning.postman.com/docs/collaborating-in-postman/version-control/#creating-a-fork) from an existing collection into a workspace.
+      operationId: createCollectionFork
+      tags:
+        - Collections
+        - Forks
+      requestBody:
+        $ref: '#/components/requestBodies/createCollectionFork'
+      responses:
+        '200':
+          $ref: '#/components/responses/createCollectionFork'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundCollection'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/forkWorkspaceQuery'
+    parameters:
+      - $ref: '#/components/parameters/collectionId'
+  /collections/merge:
+    post:
+      summary: Merge a fork
+      description: |
+        **This endpoint is deprecated.**
+
+        Merges a forked collection back into its parent collection. You must have the [Editor role](https://learning.postman.com/docs/collaborating-in-postman/roles-and-permissions/#collection-roles) for the collection to merge a fork.
+      operationId: mergeCollectionFork
+      deprecated: true
+      tags:
+        - Collections
+        - Forks
+      requestBody:
+        $ref: '#/components/requestBodies/mergeCollectionFork'
+      responses:
+        '200':
+          $ref: '#/components/responses/mergeCollectionFork'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/common403ErrorForbiddenError'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundCollection'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+  /collections/{collectionId}:
+    get:
+      summary: Get a collection
+      description: Gets information about a collection. For a complete list of this endpoint's possible values, refer to the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+      operationId: getCollection
+      tags:
+        - Collections
+      responses:
+        '200':
+          $ref: '#/components/responses/getCollection'
+        '400':
+          $ref: '#/components/responses/collection400ErrorCollectionNotFound'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/collectionAccessKeyQuery'
+        - $ref: '#/components/parameters/collectionModelQuery'
+    put:
+      summary: Replace a collection's data
+      description: |
+        Replaces the contents of a collection using the [Postman Collection v2.1.0 schema format](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html). Include the collection's ID values in the request body. If you do not, the endpoint removes the existing items and creates new items.
+
+        > The maximum collection size this endpoint accepts cannot exceed 20 MB.
+
+        For a complete list of available property values for this endpoint, use the following references available in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html):
+        - `info` object — Refer to the **Information** entry.
+        - `item` object — Refer to the **Items** entry.
+        - For all other possible values, refer to the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+        - For protocol profile behavior, refer to Postman's [Protocol Profile Behavior documentation](https://github.com/postmanlabs/postman-runtime/blob/develop/docs/protocol-profile-behavior.md).
+
+        For more examples, see the [Postman API collection](https://www.postman.com/postman/postman-public-workspace/request/1rfef3w/replace-a-collection-s-data).
+
+        **Note:**
+
+        - If you don't include the collection items' ID values from the request body, the endpoint **removes** the existing items and recreates the items with new ID values.
+        - To copy another collection's contents to the given collection, remove all ID values before you pass it in this endpoint. If you do not, this endpoint returns an error. These values include the `id`, `uid`, and `postman_id` values.
+      operationId: putCollection
+      tags:
+        - Collections
+      requestBody:
+        $ref: '#/components/requestBodies/putCollection'
+      responses:
+        '200':
+          $ref: '#/components/responses/putCollection'
+        '400':
+          $ref: '#/components/responses/collection400ErrorMalformedRequest'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/common403Error'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundCollection'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    patch:
+      summary: Update part of a collection
+      description: |
+        Updates specific collection information, such as its name, events, or its variables. For more information about the `auth`, `variables`, and `events` properties, refer to the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html):
+        - For `variables`, refer to the **Variable List** entry.
+        - For `auth`, refer to the **Auth** entry.
+        - For `events`, refer to the **Event List** entry.
+      operationId: patchCollection
+      tags:
+        - Collections
+      requestBody:
+        $ref: '#/components/requestBodies/patchCollection'
+      responses:
+        '200':
+          $ref: '#/components/responses/patchCollection'
+        '400':
+          $ref: '#/components/responses/collection400ErrorInvalidKeyParam'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/common403Error'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundCollection'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    delete:
+      summary: Delete a collection
+      description: Deletes a collection.
+      operationId: deleteCollection
+      tags:
+        - Collections
+      responses:
+        '200':
+          $ref: '#/components/responses/deleteCollection'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundCollection'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/collectionId'
+  /collections/{collectionId}/comments:
+    get:
+      summary: Get a collection's comments
+      description: Gets all comments left by users in a collection.
+      operationId: getCollectionComments
+      tags:
+        - Collections
+        - Comments
+      responses:
+        '200':
+          $ref: '#/components/responses/commentGet'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    post:
+      summary: Create a collection comment
+      description: |
+        Creates a comment on a collection. To create a reply on an existing comment, include the `threadId` property in the request body.
+
+        **Note:**
+
+        This endpoint accepts a max of 10,000 characters.
+      tags:
+        - Collections
+        - Comments
+      operationId: createCollectionComment
+      requestBody:
+        $ref: '#/components/requestBodies/commentCreate'
+      responses:
+        '201':
+          $ref: '#/components/responses/commentCreated'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionUid'
+  /collections/{collectionId}/comments/{commentId}:
+    put:
+      summary: Update a collection's comment
+      description: |
+        Updates a comment on a collection.
+
+        **Note:**
+
+        This endpoint accepts a max of 10,000 characters.
+      operationId: updateCollectionComment
+      tags:
+        - Collections
+        - Comments
+      requestBody:
+        $ref: '#/components/requestBodies/commentUpdate'
+      responses:
+        '200':
+          $ref: '#/components/responses/commentUpdated'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    delete:
+      summary: Delete a collection's comment
+      description: |
+        Deletes a comment from a collection. On success, this returns an HTTP `204 No Content` response.
+
+        **Note:**
+
+        Deleting the first comment of a thread deletes all the comments in the thread.
+      operationId: deleteCollectionComment
+      tags:
+        - Collections
+        - Comments
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionUid'
+      - $ref: '#/components/parameters/commentId'
+  /collections/{collectionId}/folders:
+    post:
+      summary: Create a folder
+      description: |
+        Creates a folder in a collection. For a complete list of properties, refer to the **Folder** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+
+        You can use this endpoint to to import requests and responses into a newly-created folder. To do this, include the `requests` field and the list of request objects in the request body. For more information, see the provided example.
+
+        **Note:**
+
+        It is recommended that you pass the `name` property in the request body. If you do not, the system uses a null value. As a result, this creates a folder with a blank name.
+      operationId: createCollectionFolder
+      tags:
+        - Collection Items
+        - Collection Folders
+      requestBody:
+        $ref: '#/components/requestBodies/createCollectionFolder'
+      responses:
+        '200':
+          $ref: '#/components/responses/createCollectionFolder'
+        '400':
+          $ref: '#/components/responses/collectionFolder400Error'
+        '401':
+          $ref: '#/components/responses/collectionFolder401Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionId'
+  /collections/{collectionId}/folders/{folderId}/comments:
+    get:
+      summary: Get a folder's comments
+      description: Gets all comments left by users in a folder.
+      operationId: getFolderComments
+      tags:
+        - Collection Folders
+        - Comments
+      responses:
+        '200':
+          $ref: '#/components/responses/commentGet'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    post:
+      summary: Create a folder comment
+      description: |
+        Creates a comment on a folder. To create a reply on an existing comment, include the `threadId` property in the request body.
+
+        **Note:**
+
+        This endpoint accepts a max of 10,000 characters.
+      tags:
+        - Collection Folders
+        - Comments
+      operationId: createFolderComment
+      requestBody:
+        $ref: '#/components/requestBodies/commentCreate'
+      responses:
+        '201':
+          $ref: '#/components/responses/commentCreated'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionUid'
+      - $ref: '#/components/parameters/collectionFolderUid'
+  /collections/{collectionId}/folders/{folderId}/comments/{commentId}:
+    put:
+      summary: Update a folder's comment
+      description: |
+        Updates a comment on a folder.
+
+        **Note:**
+
+        This endpoint accepts a max of 10,000 characters.
+      operationId: updateFolderComment
+      tags:
+        - Collection Folders
+        - Comments
+      requestBody:
+        $ref: '#/components/requestBodies/commentUpdate'
+      responses:
+        '200':
+          $ref: '#/components/responses/commentUpdated'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    delete:
+      summary: Delete a folder's comment
+      description: |
+        Deletes a comment from a folder. On success, this returns an HTTP `204 No Content` response.
+
+        **Note:**
+
+        Deleting the first comment of a thread deletes all the comments in the thread.
+      operationId: deleteFolderComment
+      tags:
+        - Collection Folders
+        - Comments
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionUid'
+      - $ref: '#/components/parameters/collectionFolderUid'
+      - $ref: '#/components/parameters/commentId'
+  /collections/{collectionId}/forks:
+    get:
+      summary: Get a collection's forks
+      description: Gets a collection's forked collections. The response returns data for each fork, such as the fork's ID, the user who forked it, and the fork's creation date.
+      operationId: getCollectionForks
+      tags:
+        - Collections
+        - Forks
+      responses:
+        '200':
+          $ref: '#/components/responses/getCollectionForks'
+        '400':
+          $ref: '#/components/responses/forkCollection400ErrorNoForks'
+        '404':
+          $ref: '#/components/responses/fork404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/createdAtSort'
+    parameters:
+      - $ref: '#/components/parameters/collectionId'
+  /collections/{collectionId}/pulls:
+    put:
+      summary: Pull source changes
+      description: |
+        Pulls the changes from a parent (source) collection into the forked collection. In the endpoint's response:
+
+        - The `destinationId` is the ID of the forked collection.
+        - The `sourceId` is the ID of the source collection.
+      operationId: pullCollectionChanges
+      tags:
+        - Collections
+        - Forks
+      responses:
+        '200':
+          $ref: '#/components/responses/pullCollectionChanges'
+        '400':
+          $ref: '#/components/responses/forkCollection400ErrorBadId'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundCollection'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionId'
+  /collections/{collectionId}/pull-requests:
+    get:
+      summary: Get a collection's pull requests
+      description: Gets information about a collection's pull requests, such as the source and destination IDs, status of the pull requests, and a URL link to the pull requests.
+      operationId: getCollectionPullRequests
+      tags:
+        - Collections
+        - Pull Requests
+      responses:
+        '200':
+          $ref: '#/components/responses/getCollectionPullRequests'
+        '403':
+          $ref: '#/components/responses/pullRequest403ErrorRolePermissionsCollection'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    post:
+      summary: Create a pull request
+      description: Creates a pull request for a forked collection into its parent collection.
+      operationId: createCollectionPullRequest
+      tags:
+        - Collections
+        - Pull Requests
+      requestBody:
+        $ref: '#/components/requestBodies/pullRequestCreate'
+      responses:
+        '200':
+          $ref: '#/components/responses/pullRequestCreated'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/forkCollection400ErrorBadForkRelation'
+                  - $ref: '#/components/schemas/pullRequest400ErrorDuplicate'
+              examples:
+                Invalid Fork Source:
+                  $ref: '#/components/examples/forkCollection400ErrorBadForkRelation'
+                Pull Request Already Exists:
+                  $ref: '#/components/examples/pullRequest400ErrorDuplicate'
+        '403':
+          $ref: '#/components/responses/pullRequest403ErrorNoViewerAccessCollections'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/collectionUid'
+  /collections/{collectionId}/requests:
+    post:
+      summary: Create a request
+      description: |
+        Creates a request in a collection. For a complete list of properties, refer to the **Request** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+
+        **Note:**
+
+        It is recommended that you pass the `name` property in the request body. If you do not, the system uses a null value. As a result, this creates a request with a blank name.
+      operationId: createCollectionRequest
+      tags:
+        - Collection Items
+        - Collection Requests
+      requestBody:
+        $ref: '#/components/requestBodies/createCollectionRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/createCollectionRequest'
+        '400':
+          $ref: '#/components/responses/collectionRequest400Error'
+        '401':
+          $ref: '#/components/responses/collectionRequest401Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/collectionRequestFolderIdQuery'
+    parameters:
+      - $ref: '#/components/parameters/collectionId'
+  /collections/{collectionId}/requests/{requestId}/comments:
+    get:
+      summary: Get a request's comments
+      description: Gets all comments left by users in a request.
+      operationId: getRequestComments
+      tags:
+        - Collection Requests
+        - Comments
+      responses:
+        '200':
+          $ref: '#/components/responses/commentGet'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    post:
+      summary: Create a request comment
+      description: |
+        Creates a comment on a request. To create a reply on an existing comment, include the `threadId` property in the request body.
+
+        **Note:**
+
+        This endpoint accepts a max of 10,000 characters.
+      tags:
+        - Collection Requests
+        - Comments
+      operationId: createRequestComment
+      requestBody:
+        $ref: '#/components/requestBodies/commentCreate'
+      responses:
+        '201':
+          $ref: '#/components/responses/commentCreated'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionUid'
+      - $ref: '#/components/parameters/collectionRequestUid'
+  /collections/{collectionId}/requests/{requestId}/comments/{commentId}:
+    put:
+      summary: Update a request's comment
+      description: |
+        Updates a comment on a request.
+
+        **Note:**
+
+        This endpoint accepts a max of 10,000 characters.
+      operationId: updateRequestComment
+      tags:
+        - Collection Requests
+        - Comments
+      requestBody:
+        $ref: '#/components/requestBodies/commentUpdate'
+      responses:
+        '200':
+          $ref: '#/components/responses/commentUpdated'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    delete:
+      summary: Delete a request's comment
+      description: |
+        Deletes a comment from a request. On success, this returns an HTTP `204 No Content` response.
+
+        **Note:**
+
+        Deleting the first comment of a thread deletes all the comments in the thread.
+      operationId: deleteRequestComment
+      tags:
+        - Collection Requests
+        - Comments
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionUid'
+      - $ref: '#/components/parameters/collectionRequestUid'
+      - $ref: '#/components/parameters/commentId'
+  /collections/{collectionId}/responses:
+    post:
+      summary: Create a response
+      description: |
+        Creates a request response in a collection. For a complete list of request body properties, refer to the **Response** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+
+        **Note:**
+
+        It is recommended that you pass the `name` property in the request body. If you do not, the system uses a null value. As a result, this creates a response with a blank name.
+      operationId: createCollectionResponse
+      tags:
+        - Collection Items
+        - Collection Responses
+      requestBody:
+        $ref: '#/components/requestBodies/createCollectionResponse'
+      responses:
+        '200':
+          $ref: '#/components/responses/createCollectionResponse'
+        '400':
+          $ref: '#/components/responses/collectionResponse400Error'
+        '401':
+          $ref: '#/components/responses/collectionResponse401Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/collectionResponseParentRequestId'
+    parameters:
+      - $ref: '#/components/parameters/collectionId'
+  /collections/{collectionId}/responses/{responseId}/comments:
+    get:
+      summary: Get a response's comments
+      description: Gets all comments left by users in a response.
+      operationId: getResponseComments
+      tags:
+        - Collection Responses
+        - Comments
+      responses:
+        '200':
+          $ref: '#/components/responses/commentGet'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    post:
+      summary: Create a response comment
+      description: |
+        Creates a comment on a response. To create a reply on an existing comment, include the `threadId` property in the request body.
+
+        **Note:**
+
+        This endpoint accepts a max of 10,000 characters.
+      tags:
+        - Collection Responses
+        - Comments
+      operationId: createResponseComment
+      requestBody:
+        $ref: '#/components/requestBodies/commentCreate'
+      responses:
+        '201':
+          $ref: '#/components/responses/commentCreated'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionUid'
+      - $ref: '#/components/parameters/collectionResponseUid'
+  /collections/{collectionId}/responses/{responseId}/comments/{commentId}:
+    put:
+      summary: Update a response's comment
+      description: |
+        Updates a comment on a response.
+
+        **Note:**
+
+        This endpoint accepts a max of 10,000 characters.
+      operationId: updateResponseComment
+      tags:
+        - Collection Responses
+        - Comments
+      requestBody:
+        $ref: '#/components/requestBodies/commentUpdate'
+      responses:
+        '200':
+          $ref: '#/components/responses/commentUpdated'
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    delete:
+      summary: Delete a response's comment
+      description: |
+        Deletes a comment from a response. On success, this returns an HTTP `204 No Content` response.
+
+        **Note:**
+
+        Deleting the first comment of a thread deletes all the comments in the thread.
+      operationId: deleteResponseComment
+      tags:
+        - Collection Responses
+        - Comments
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '403':
+          $ref: '#/components/responses/comment403Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionUid'
+      - $ref: '#/components/parameters/collectionResponseUid'
+      - $ref: '#/components/parameters/commentId'
+  /collections/{collectionId}/roles:
+    get:
+      summary: Get a collection's roles
+      description: Gets information about all roles in a collection. The response returns the IDs of all users, teams, and groups with access to view or edit the collection.
+      operationId: getCollectionRoles
+      tags:
+        - Collections
+        - Roles
+      responses:
+        '200':
+          $ref: '#/components/responses/getCollectionRoles'
+        '401':
+          $ref: '#/components/responses/unauthorizedError'
+        '403':
+          $ref: '#/components/responses/common403ErrorPermissions'
+        '404':
+          $ref: '#/components/responses/collection404ErrorInstanceNotFound'
+        '500':
+          $ref: '#/components/responses/common500ErrorInternalServer'
+    patch:
+      summary: Update a collection's roles
+      description: |
+        Updates the roles of users, groups, or teams in a collection. On success, this returns an HTTP `204 No Content` response.
+
+        **Note:**
+
+        - Only users assigned the EDITOR [role](https://learning.postman.com/docs/collaborating-in-postman/roles-and-permissions/#collection-roles) in the collection can use this endpoint.
+        - This endpoint does not support the external [Partner or Guest roles](https://learning.postman.com/docs/collaborating-in-postman/roles-and-permissions/#team-roles).
+      operationId: updateCollectionRoles
+      tags:
+        - Collections
+        - Roles
+      requestBody:
+        $ref: '#/components/requestBodies/updateCollectionRoles'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/collectionRoles400ErrorMissingProperty'
+        '401':
+          $ref: '#/components/responses/unauthorizedError'
+        '403':
+          $ref: '#/components/responses/common403ErrorPermissions'
+        '404':
+          $ref: '#/components/responses/collection404ErrorInstanceNotFound'
+        '500':
+          $ref: '#/components/responses/common500ErrorInternalServer'
+    parameters:
+      - $ref: '#/components/parameters/collectionId'
+  /collections/{collectionId}/source-status:
+    get:
+      summary: Get source collection's status
+      description: |
+        Checks whether there is a change between the forked collection and its parent (source) collection.
+
+        If the value of the `isSourceAhead` property is `true` in the response, then there is a difference between the forked collection and its source collection.
+
+        **Note:**
+
+        This endpoint may take a few minutes to return an updated `isSourceAhead` status.
+      operationId: getSourceCollectionStatus
+      tags:
+        - Collections
+        - Forks
+      responses:
+        '200':
+          $ref: '#/components/responses/getSourceCollectionStatus'
+        '400':
+          $ref: '#/components/responses/forkCollection400ErrorNotForked'
+        '403':
+          $ref: '#/components/responses/pullRequest403ErrorForbidden'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionId'
+  /collections/{collectionId}/folders/{folderId}:
+    get:
+      summary: Get a folder
+      description: Gets information about a folder in a collection.
+      operationId: getCollectionFolder
+      tags:
+        - Collection Items
+        - Collection Folders
+      responses:
+        '200':
+          $ref: '#/components/responses/getCollectionFolder'
+        '401':
+          $ref: '#/components/responses/collectionFolder401Error'
+        '404':
+          $ref: '#/components/responses/collectionFolder404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/collectionItemsIdQuery'
+        - $ref: '#/components/parameters/collectionItemsUidFormatQuery'
+        - $ref: '#/components/parameters/collectionItemsPopulateQuery'
+    put:
+      summary: Update a folder
+      description: |
+        Updates a folder in a collection. For a complete list of properties, refer to the **Folder** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+
+        **Note:**
+
+        This endpoint acts like a PATCH method. It only updates the values that you pass in the request body (for example, the `name` property). The endpoint does not update the entire resource.
+      operationId: updateCollectionFolder
+      tags:
+        - Collection Items
+        - Collection Folders
+      requestBody:
+        $ref: '#/components/requestBodies/updateCollectionFolder'
+      responses:
+        '200':
+          $ref: '#/components/responses/updateCollectionFolder'
+        '400':
+          $ref: '#/components/responses/collectionFolder400Error'
+        '401':
+          $ref: '#/components/responses/collectionFolder401Error'
+        '404':
+          $ref: '#/components/responses/collectionFolder404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    delete:
+      summary: Delete a folder
+      description: Deletes a folder in a collection.
+      operationId: deleteCollectionFolder
+      tags:
+        - Collection Items
+        - Collection Folders
+      responses:
+        '200':
+          $ref: '#/components/responses/deleteCollectionFolder'
+        '401':
+          $ref: '#/components/responses/collectionFolder401Error'
+        '404':
+          $ref: '#/components/responses/collectionFolder404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionFolderId'
+      - $ref: '#/components/parameters/collectionId'
+  /collections/{collectionId}/requests/{requestId}:
+    get:
+      summary: Get a request
+      description: Gets information about a request in a collection.
+      operationId: getCollectionRequest
+      tags:
+        - Collection Items
+        - Collection Requests
+      responses:
+        '200':
+          $ref: '#/components/responses/getCollectionRequest'
+        '401':
+          $ref: '#/components/responses/collectionRequest401Error'
+        '404':
+          $ref: '#/components/responses/collectionRequest404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/collectionItemsIdQuery'
+        - $ref: '#/components/parameters/collectionItemsUidFormatQuery'
+        - $ref: '#/components/parameters/collectionItemsPopulateQuery'
+    put:
+      summary: Update a request
+      description: |
+        Updates a request in a collection. For a complete list of properties, refer to the **Request** entry in the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+
+        **Note:**
+
+        - You must pass a collection ID (`12ece9e1-2abf-4edc-8e34-de66e74114d2`), not a collection(`12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2`), in this endpoint.
+        - This endpoint does not support changing the folder of a request.
+      operationId: updateCollectionRequest
+      tags:
+        - Collection Items
+        - Collection Requests
+      requestBody:
+        $ref: '#/components/requestBodies/updateCollectionRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/updateCollectionRequest'
+        '400':
+          $ref: '#/components/responses/collectionRequest400Error'
+        '401':
+          $ref: '#/components/responses/collectionRequest401Error'
+        '404':
+          $ref: '#/components/responses/collectionRequest404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    delete:
+      summary: Delete a request
+      description: Deletes a request in a collection.
+      operationId: deleteCollectionRequest
+      tags:
+        - Collection Items
+        - Collection Requests
+      responses:
+        '200':
+          $ref: '#/components/responses/deleteCollectionRequest'
+        '401':
+          $ref: '#/components/responses/collectionRequest401Error'
+        '404':
+          $ref: '#/components/responses/collectionRequest404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionRequestId'
+      - $ref: '#/components/parameters/collectionId'
+  /collections/{collectionId}/responses/{responseId}:
+    get:
+      summary: Get a response
+      description: Gets information about a response in a collection.
+      operationId: getCollectionResponse
+      tags:
+        - Collection Items
+        - Collection Responses
+      responses:
+        '200':
+          $ref: '#/components/responses/getCollectionResponse'
+        '401':
+          $ref: '#/components/responses/collectionResponse401Error'
+        '404':
+          $ref: '#/components/responses/collectionResponse404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/collectionItemsIdQuery'
+        - $ref: '#/components/parameters/collectionItemsUidFormatQuery'
+        - $ref: '#/components/parameters/collectionItemsPopulateQuery'
+    put:
+      summary: Update a response
+      description: |
+        Updates a response in a collection. For a complete list of properties, see the [Postman Collection Format documentation](https://schema.postman.com/collection/json/v2.1.0/draft-07/docs/index.html).
+
+        **Note:**
+
+        - You must pass a collection ID (`12ece9e1-2abf-4edc-8e34-de66e74114d2`), not a collection UID (`12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2`), in this endpoint.
+        - This endpoint acts like a PATCH method. It only updates the values that you pass in the request body (for example, the `name` property). The endpoint does not update the entire resource.
+      operationId: updateCollectionResponse
+      tags:
+        - Collection Items
+        - Collection Responses
+      requestBody:
+        $ref: '#/components/requestBodies/updateCollectionResponse'
+      responses:
+        '200':
+          $ref: '#/components/responses/updateCollectionResponse'
+        '400':
+          $ref: '#/components/responses/collectionResponse400Error'
+        '401':
+          $ref: '#/components/responses/collectionResponse401Error'
+        '404':
+          $ref: '#/components/responses/collectionResponse404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    delete:
+      summary: Delete a response
+      description: Deletes a response in a collection.
+      operationId: deleteCollectionResponse
+      tags:
+        - Collection Items
+        - Collection Responses
+      responses:
+        '200':
+          $ref: '#/components/responses/deleteCollectionResponse'
+        '401':
+          $ref: '#/components/responses/collectionResponse401Error'
+        '404':
+          $ref: '#/components/responses/collectionResponse404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionResponseId'
+      - $ref: '#/components/parameters/collectionId'
+  /collections/{collectionId}/tags:
+    get:
+      summary: Get a collection's tags
+      description: Gets all the tags associated with a collection.
+      operationId: getCollectionTags
+      tags:
+        - Tags
+        - Collection Tags
+      responses:
+        '200':
+          $ref: '#/components/responses/tagGetPut'
+        '401':
+          $ref: '#/components/responses/tag401Error'
+        '403':
+          $ref: '#/components/responses/tag403Error'
+        '500':
+          $ref: '#/components/responses/tag500Error'
+    put:
+      summary: Update a collection's tags
+      description: Updates a collection's associated tags. This endpoint replaces all existing tags with those you pass in the request body.
+      operationId: updateCollectionTags
+      tags:
+        - Tags
+        - Collection Tags
+      requestBody:
+        $ref: '#/components/requestBodies/tagUpdateTags'
+      responses:
+        '200':
+          $ref: '#/components/responses/tagGetPut'
+        '400':
+          $ref: '#/components/responses/tag400Error'
+        '401':
+          $ref: '#/components/responses/tag401Error'
+        '403':
+          $ref: '#/components/responses/tag403Error'
+        '404':
+          $ref: '#/components/responses/tag404Error'
+        '500':
+          $ref: '#/components/responses/tag500Error'
+    parameters:
+      - $ref: '#/components/parameters/collectionUid'
+  /collections/{collectionId}/transformations:
+    get:
+      summary: Transform collection to OpenAPI
+      description: |
+        Transforms an existing Postman Collection into a stringified OpenAPI definition.
+
+        **Note:**
+
+        This does not create an API.
+      operationId: transformCollectionToOpenAPI
+      tags:
+        - Collections
+        - Collection to API
+      responses:
+        '200':
+          $ref: '#/components/responses/transformCollectionToOpenAPI'
+        '401':
+          $ref: '#/components/responses/collectionToApi401Error'
+        '404':
+          $ref: '#/components/responses/collectionToApi404Error'
+        '500':
+          $ref: '#/components/responses/collectionToApi500Error'
+      parameters:
+        - $ref: '#/components/parameters/collectionTransformFormat'
+    parameters:
+      - $ref: '#/components/parameters/collectionId'
+  /collection-folders-transfers:
+    post:
+      summary: Transfer folders
+      description: Copies or moves folders into a collection or folder.
+      operationId: transferCollectionFolders
+      tags:
+        - Collections
+        - Transfer Collection Items
+      requestBody:
+        $ref: '#/components/requestBodies/transferCollectionItems'
+      responses:
+        '200':
+          $ref: '#/components/responses/transferCollectionItems200Error'
+        '400':
+          $ref: '#/components/responses/transferCollectionItems400Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+  /collection-requests-transfers:
+    post:
+      summary: Transfer requests
+      description: Copies or moves requests into a collection or folder.
+      operationId: transferCollectionRequests
+      tags:
+        - Collections
+        - Transfer Collection Items
+      requestBody:
+        $ref: '#/components/requestBodies/transferCollectionItems'
+      responses:
+        '200':
+          $ref: '#/components/responses/transferCollectionItems200Error'
+        '400':
+          $ref: '#/components/responses/transferCollectionItems400Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+  /collection-responses-transfers:
+    post:
+      summary: Transfer responses
+      description: Copies or moves responses into a request.
+      operationId: transferCollectionResponses
+      tags:
+        - Collections
+        - Transfer Collection Items
+      requestBody:
+        $ref: '#/components/requestBodies/transferCollectionItems'
+      responses:
+        '200':
+          $ref: '#/components/responses/transferCollectionItems200Error'
+        '400':
+          $ref: '#/components/responses/transferCollectionItems400Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+  /comments-resolutions/{threadId}:
+    post:
+      summary: Resolve a comment thread
+      description: |
+        Resolves a comment and any associated replies. On success, this returns an HTTP `204 No Content` response.
+
+        Comment thread IDs return in the GET comments response for [APIs](https://www.postman.com/postman/workspace/postman-public-workspace/request/12959542-2103ea20-f7de-4628-90e6-b823b3084a52), [collections](https://www.postman.com/postman/workspace/postman-public-workspace/request/12959542-a6582e0a-9382-4760-8b91-53a8aa6cb8d7), and [collection items](https://www.postman.com/postman/workspace/postman-public-workspace/folder/12959542-efeda219-66e1-474c-a83b-253d15723bf7).
+      operationId: resolveCommentThread
+      tags:
+        - Comments
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          $ref: '#/components/responses/comment401Error'
+        '404':
+          $ref: '#/components/responses/comment404Error'
+        '500':
+          $ref: '#/components/responses/comment500Error'
+      parameters:
+        - $ref: '#/components/parameters/threadId'
+  /detected-secrets-queries:
+    post:
+      summary: Search detected secrets
+      description: Returns all secrets detected by Postman's [Secret Scanner](https://learning.postman.com/docs/administration/secret-scanner/), grouped by workspace or resource. If you pass an empty request body, this endpoint returns all results.
+      operationId: detectedSecretsQueries
+      x-postman-plan: Enterprise
+      tags:
+        - Secret Scanner
+        - Detected Secrets
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/include'
+        - $ref: '#/components/parameters/since'
+        - $ref: '#/components/parameters/until'
+      requestBody:
+        $ref: '#/components/requestBodies/detectedSecretsQueries'
+      responses:
+        '200':
+          $ref: '#/components/responses/detectedSecretsQueries'
+        '400':
+          $ref: '#/components/responses/detectedSecretsQuery400Errors'
+        '401':
+          $ref: '#/components/responses/secretScanner401Error'
+        '403':
+          $ref: '#/components/responses/secretScanner403ErrorAndFeatureUnavailable'
+        '500':
+          $ref: '#/components/responses/secretScanner500Error'
+  /detected-secrets/{secretId}:
+    put:
+      summary: Update detected secret resolution status
+      description: Updates the resolution status of a secret detected in a workspace.
+      operationId: updateDetectedSecretResolutions
+      x-postman-plan: Enterprise
+      tags:
+        - Secret Scanner
+        - Detected Secrets
+      requestBody:
+        $ref: '#/components/requestBodies/updateSecretResolutions'
+      responses:
+        '200':
+          $ref: '#/components/responses/updateSecretResolutions'
+        '400':
+          $ref: '#/components/responses/secretScanner400InvalidResolutionError'
+        '401':
+          $ref: '#/components/responses/secretScanner401Error'
+        '403':
+          $ref: '#/components/responses/secretScanner403ErrorAndFeatureUnavailable'
+        '500':
+          $ref: '#/components/responses/secretScanner500Error'
+    parameters:
+      - $ref: '#/components/parameters/secretId'
+  /detected-secrets/{secretId}/locations:
+    get:
+      summary: Get detected secrets locations
+      description: Gets the locations of secrets detected by Postman's [Secret Scanner](https://learning.postman.com/docs/administration/secret-scanner/).
+      operationId: getDetectedSecretsLocations
+      x-postman-plan: Enterprise
+      tags:
+        - Secret Scanner
+        - Detected Secrets
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/workspaceIdQueryTrue'
+        - $ref: '#/components/parameters/since'
+        - $ref: '#/components/parameters/until'
+        - $ref: '#/components/parameters/resourceType'
+      responses:
+        '200':
+          $ref: '#/components/responses/getSecretsLocations'
+        '400':
+          $ref: '#/components/responses/secretScanner400Error'
+        '401':
+          $ref: '#/components/responses/secretScanner401Error'
+        '403':
+          $ref: '#/components/responses/secretScanner403ErrorAndFeatureUnavailable'
+        '500':
+          $ref: '#/components/responses/secretScanner500Error'
+    parameters:
+      - $ref: '#/components/parameters/secretId'
+  /environments:
+    get:
+      summary: Get all environments
+      description: Gets information about all of your [environments](https://learning.postman.com/docs/sending-requests/managing-environments/).
+      operationId: getEnvironments
+      tags:
+        - Environments
+      responses:
+        '200':
+          $ref: '#/components/responses/getEnvironments'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundEnvironment'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/workspaceQuery'
+    post:
+      summary: Create an environment
+      description: |
+        Creates an environment.
+
+        **Note:**
+
+        If you do not include the `workspace` query parameter, the system creates the collection in your "My Workspace" workspace.
+      operationId: createEnvironment
+      tags:
+        - Environments
+      requestBody:
+        $ref: '#/components/requestBodies/createEnvironment'
+      responses:
+        '200':
+          $ref: '#/components/responses/createEnvironment'
+        '400':
+          $ref: '#/components/responses/environments400ErrorMalformedRequest'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/common403Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/workspaceQuery'
+  /environments/{environmentId}:
+    get:
+      summary: Get an environment
+      description: Gets information about an environment.
+      operationId: getEnvironment
+      tags:
+        - Environments
+      responses:
+        '200':
+          $ref: '#/components/responses/getEnvironment'
+        '400':
+          $ref: '#/components/responses/instanceNotFoundEnvironment'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    put:
+      summary: Update an environment
+      description: Updates an environment.
+      operationId: updateEnvironment
+      tags:
+        - Environments
+      requestBody:
+        $ref: '#/components/requestBodies/updateEnvironment'
+      responses:
+        '200':
+          $ref: '#/components/responses/updateEnvironment'
+        '400':
+          $ref: '#/components/responses/environments400ErrorMalformedRequest'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    delete:
+      summary: Delete an environment
+      description: Deletes an environment.
+      operationId: deleteEnvironment
+      tags:
+        - Environments
+      responses:
+        '200':
+          $ref: '#/components/responses/deleteEnvironment'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundEnvironment'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/environmentId'
+  /environments/{environmentId}/forks:
+    post:
+      summary: Create a fork
+      description: Creates a [fork](https://learning.postman.com/docs/collaborating-in-postman/using-version-control/forking-elements/) of an existing environment.
+      operationId: forkEnvironment
+      tags:
+        - Environments
+        - Forks
+      requestBody:
+        $ref: '#/components/requestBodies/forkEnvironment'
+      responses:
+        '200':
+          $ref: '#/components/responses/forkEnvironment'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/environmentForks404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/workspaceIdQueryTrue'
+    get:
+      summary: Get an environment's forks
+      description: Gets all of an environment's forked environments.
+      operationId: getEnvironmentForks
+      tags:
+        - Environments
+        - Forks
+      responses:
+        '200':
+          $ref: '#/components/responses/getEnvironmentForks'
+        '400':
+          $ref: '#/components/responses/environmentForks400Error'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/environmentForks404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/directionQuery'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/sortByCreatedAt'
+    parameters:
+      - $ref: '#/components/parameters/environmentUid'
+  /environments/{environmentId}/merges:
+    post:
+      summary: Merge a fork
+      description: |
+        [Merges](https://learning.postman.com/docs/collaborating-in-postman/using-version-control/forking-elements/#merge-changes-from-a-fork) a forked environment back into its parent environment.
+      operationId: mergeEnvironmentFork
+      tags:
+        - Environments
+        - Forks
+      requestBody:
+        $ref: '#/components/requestBodies/mergeEnvironmentFork'
+      responses:
+        '200':
+          $ref: '#/components/responses/mergeEnvironmentFork'
+        '400':
+          $ref: '#/components/responses/environmentForks400Error'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/environmentForks404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/environmentUid'
+  /environments/{environmentId}/pulls:
+    post:
+      summary: Pull source changes
+      description: |
+        [Pulls](https://learning.postman.com/docs/collaborating-in-postman/using-version-control/forking-elements/#pull-updates-from-a-parent-element) the changes from a parent (source) environment into the forked environment.
+      operationId: pullEnvironment
+      tags:
+        - Environments
+        - Forks
+      requestBody:
+        $ref: '#/components/requestBodies/pullEnvironment'
+      responses:
+        '200':
+          $ref: '#/components/responses/pullEnvironment'
+        '400':
+          $ref: '#/components/responses/environmentForks400Error'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/environmentForks404Error'
+        '500':
+          $ref: '#/components/responses/common500Error'
+    parameters:
+      - $ref: '#/components/parameters/environmentUid'
+  /me:
+    get:
+      summary: Get authenticated user
+      description: |
+        Gets information about the authenticated user.
+
+        **Note:**
+
+        - This API returns a different response for users with the [Guest and Partner roles](https://learning.postman.com/docs/collaborating-in-postman/roles-and-permissions/#team-roles).
+        - The `flow_count` response only returns for users on [Free plans](https://www.postman.com/pricing/).
+      operationId: getAuthenticatedUser
+      tags:
+        - Users
+      responses:
+        '200':
+          $ref: '#/components/responses/getAuthenticatedUser'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+  /mocks:
+    get:
+      summary: Get all mock servers
+      description: |
+        Gets all active mock servers. By default, this endpoint returns only mock servers you created across all workspaces.
+
+        **Note:**
+
+        If you pass both the `teamId` and `workspace` query parameters, this endpoint only accepts the `workspace` query.
+      operationId: getMocks
+      tags:
+        - Mocks
+      responses:
+        '200':
+          $ref: '#/components/responses/getMocks'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/teamIdResultsQuery'
+        - $ref: '#/components/parameters/workspaceResultsQuery'
+    post:
+      summary: Create a mock server
+      description: |
+        Creates a mock server in a collection.
+
+        **Note:**
+
+        - If you do not include the `workspaceId` query parameter, the system creates the mock server in your [Personal
+        workspace](https://learning.postman.com/docs/collaborating-in-postman/using-workspaces/creating-workspaces/).
+        - You cannot create mocks for collections added to an API definition.
+      operationId: createMock
+      tags:
+        - Mocks
+      requestBody:
+        $ref: '#/components/requestBodies/createMock'
+      responses:
+        '200':
+          $ref: '#/components/responses/mockCreateUpdate'
+        '400':
+          $ref: '#/components/responses/paramMissing400Error'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/workspaceIdQuery'
+  /mocks/{mockId}:
+    get:
+      summary: Get a mock server
+      description: Gets information about a mock server.
+      operationId: getMock
+      tags:
+        - Mocks
+      responses:
+        '200':
+          $ref: '#/components/responses/getMock'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/mock400ErrorInstanceNotFound'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    put:
+      summary: Update a mock server
+      description: Updates a mock server.
+      operationId: updateMock
+      tags:
+        - Mocks
+      requestBody:
+        $ref: '#/components/requestBodies/updateMock'
+      responses:
+        '200':
+          $ref: '#/components/responses/mockCreateUpdate'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/mock400ErrorInstanceNotFound'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    delete:
+      summary: Delete a mock server
+      description: Deletes a mock server.
+      operationId: deleteMock
+      tags:
+        - Mocks
+      responses:
+        '200':
+          $ref: '#/components/responses/deleteMock'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/mock400ErrorInstanceNotFound'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/mockId'
+  /mocks/{mockId}/call-logs:
+    get:
+      summary: Get a mock server's call logs
+      description: |
+        Gets a mock server's call logs. You can get a maximum of 6.5MB of call logs or a total of 100 call logs, whichever limit is met first in one API call.
+
+        Call logs contain exchanged request and response data made to mock servers. The logs provide visibility into how the mock servers are being used. You can log data to debug, test, analyze, and more, depending upon the use case.
+
+        **Note:**
+
+        Call logs have a retention period based on your [Postman plan](https://www.postman.com/pricing/#mock-calls). For more information, see [this article](https://support.postman.com/hc/en-us/articles/21219973964951-I-can-t-see-my-mock-server-logs-history) in the [Postman Support Center](https://support.postman.com/).
+      operationId: getMockCallLogs
+      tags:
+        - Mocks
+      responses:
+        '200':
+          $ref: '#/components/responses/getMockCallLogs'
+        '400':
+          $ref: '#/components/responses/mock400ErrorLogRetentionPeriodExceeded'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/mock400ErrorInstanceNotFound'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/limitDefault100'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/until'
+        - $ref: '#/components/parameters/since'
+        - $ref: '#/components/parameters/mockResponseStatusCode'
+        - $ref: '#/components/parameters/mockResponseType'
+        - $ref: '#/components/parameters/mockRequestMethod'
+        - $ref: '#/components/parameters/mockRequestPath'
+        - $ref: '#/components/parameters/mockSortServedAt'
+        - $ref: '#/components/parameters/direction'
+        - $ref: '#/components/parameters/mockInclude'
+    parameters:
+      - $ref: '#/components/parameters/mockId'
+  /mocks/{mockId}/publish:
+    post:
+      summary: Publish a mock server
+      description: Publishes a mock server. Publishing a mock server sets its **Access Control** configuration setting to public.
+      operationId: publishMock
+      tags:
+        - Mocks
+      responses:
+        '200':
+          $ref: '#/components/responses/publishMock'
+        '400':
+          $ref: '#/components/responses/mock400ErrorAlreadyPublished'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/mock400ErrorInstanceNotFound'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/mockId'
+  /mocks/{mockId}/unpublish:
+    delete:
+      summary: Unpublish a mock server
+      description: Unpublishes a mock server. Unpublishing a mock server sets its **Access Control** configuration setting to private.
+      operationId: unpublishMock
+      tags:
+        - Mocks
+      responses:
+        '200':
+          $ref: '#/components/responses/unpublishMock'
+        '400':
+          $ref: '#/components/responses/mock400ErrorAlreadyUnpublished'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/mock400ErrorInstanceNotFound'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/mockId'
+  /mocks/{mockId}/server-responses:
+    get:
+      summary: Get all server responses
+      description: Gets all of a mock server's server responses.
+      operationId: getMockServerResponses
+      tags:
+        - Mocks
+      responses:
+        '200':
+          $ref: '#/components/responses/getMockServerResponses'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/mock400ErrorInstanceNotFound'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    post:
+      summary: Create a server response
+      description: |
+        Creates a server response. Server responses let you simulate 5xx server-level responses, such as 500 or 503.
+
+        Server-level responses are agnostic to application-level logic. Server responses let you simulate this behavior on a mock server. You do not need to define each error for all exposed paths on the mock server.
+
+        If you set a server response as active, then all the calls to the mock server return with that active server response.
+
+        **Note:**
+
+        You can create multiple server responses for a mock server, but only one mock server can be set as active.
+      operationId: createMockServerResponse
+      tags:
+        - Mocks
+      requestBody:
+        $ref: '#/components/requestBodies/createMockServerResponse'
+      responses:
+        '200':
+          $ref: '#/components/responses/mockServerResponse'
+        '400':
+          $ref: '#/components/responses/paramMissing400Error'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/mockId'
+  /mocks/{mockId}/server-responses/{serverResponseId}:
+    get:
+      summary: Get a server response
+      description: Gets information about a server response.
+      operationId: getMockServerResponse
+      tags:
+        - Mocks
+      responses:
+        '200':
+          $ref: '#/components/responses/mockServerResponse'
+        '400':
+          $ref: '#/components/responses/serverResponseNotFound400Error'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/mock400ErrorInstanceNotFound'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/mockId'
+        - $ref: '#/components/parameters/serverResponseId'
+    put:
+      summary: Update a server response
+      description: Updates a server response.
+      operationId: updateMockServerResponse
+      tags:
+        - Mocks
+      requestBody:
+        $ref: '#/components/requestBodies/updateMockServerResponse'
+      responses:
+        '200':
+          $ref: '#/components/responses/mockServerResponse'
+        '400':
+          $ref: '#/components/responses/paramMissing400Error'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    delete:
+      summary: Delete a server response
+      description: Deletes a mock server's server response.
+      operationId: deleteMockServerResponse
+      tags:
+        - Mocks
+      responses:
+        '200':
+          $ref: '#/components/responses/deleteMockServerResponse'
+        '400':
+          $ref: '#/components/responses/serverResponseNotFound400Error'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/mock400ErrorInstanceNotFound'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/mockId'
+      - $ref: '#/components/parameters/serverResponseId'
+  /monitors:
+    get:
+      summary: Get all monitors
+      description: Gets all monitors.
+      operationId: getMonitors
+      tags:
+        - Monitors
+      responses:
+        '200':
+          $ref: '#/components/responses/getMonitors'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/featureUnavailable403Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/workspaceResultsQuery'
+    post:
+      summary: Create a monitor
+      description: |
+        Creates a monitor.
+
+        **Note:**
+
+        You cannot create monitors for collections added to an API definition.
+      operationId: createMonitor
+      tags:
+        - Monitors
+      requestBody:
+        $ref: '#/components/requestBodies/createMonitor'
+      responses:
+        '200':
+          $ref: '#/components/responses/createMonitor'
+        '400':
+          $ref: '#/components/responses/monitors400CreateErrors'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/common403ErrorAndFeatureUnavailable'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/workspaceQuery'
+  /monitors/{monitorId}:
+    get:
+      summary: Get a monitor
+      description: Gets information about a monitor.
+      operationId: getMonitor
+      tags:
+        - Monitors
+      responses:
+        '200':
+          $ref: '#/components/responses/getMonitor'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundMonitor'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    put:
+      summary: Update a monitor
+      description: Updates a monitor.
+      operationId: updateMonitor
+      tags:
+        - Monitors
+      requestBody:
+        $ref: '#/components/requestBodies/updateMonitor'
+      responses:
+        '200':
+          $ref: '#/components/responses/updateMonitor'
+        '400':
+          $ref: '#/components/responses/monitors400ErrorInvalidCronPattern'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/featureUnavailable403Error'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundMonitor'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    delete:
+      summary: Delete a monitor
+      description: Deletes a monitor.
+      operationId: deleteMonitor
+      tags:
+        - Monitors
+      responses:
+        '200':
+          $ref: '#/components/responses/deleteMonitor'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/featureUnavailable403Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/monitorId'
+  /monitors/{monitorId}/run:
+    post:
+      summary: Run a monitor
+      description: |
+        Runs a monitor and returns its run results.
+
+        **Note:**
+
+        If you pass the `async=true` query parameter, the response does not return the `stats`, `executions`, and `failures` responses. To get this information for an asynchronous run, call the GET `/monitors/{id}` endpoint.
+      operationId: runMonitor
+      tags:
+        - Monitors
+      responses:
+        '200':
+          $ref: '#/components/responses/runMonitor'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/featureUnavailable403Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/monitorId'
+      - $ref: '#/components/parameters/async'
+  /network/private:
+    get:
+      summary: Get all elements and folders
+      description: |
+        Gets information about the folders and their elements added to your team's [Private API Network](https://learning.postman.com/docs/collaborating-in-postman/adding-private-network/).
+
+        **Note:**
+
+        The `limit` and `offset` parameters are separately applied to elements and folders. For example, if you query a `limit` value of `10` and an `offset` value `0`, the endpoint returns 10 elements and 10 folders for a total of 20 items. The `totalCount` property in the `meta` response is the total count of both elements and folders.
+      operationId: getAllElementsAndFolders
+      x-postman-plan: Enterprise
+      tags:
+        - Private API Network
+      responses:
+        '200':
+          $ref: '#/components/responses/getPanElementsAndFolders'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/common403Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/since'
+        - $ref: '#/components/parameters/until'
+        - $ref: '#/components/parameters/panAddedBy'
+        - $ref: '#/components/parameters/panElementName'
+        - $ref: '#/components/parameters/panSummary'
+        - $ref: '#/components/parameters/panElementDescription'
+        - $ref: '#/components/parameters/sortCreatedUpdatedAt'
+        - $ref: '#/components/parameters/direction'
+        - $ref: '#/components/parameters/createdBy'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/limitDefault1000'
+        - $ref: '#/components/parameters/panParentFolderId'
+        - $ref: '#/components/parameters/elementTypeQuery'
+    post:
+      summary: Add an element or folder
+      description: |
+        Publishes a element or creates a folder in your team's [Private API Network](https://learning.postman.com/docs/collaborating-in-postman/adding-private-network/). An element is a Postman API, collection, or workspace.
+
+        **Note:**
+
+        You can only pass one element object type per call. For example, you cannot pass both `api` and `collection` in a single request.
+      tags:
+        - Private API Network
+      operationId: postPanElementOrFolder
+      x-postman-plan: Enterprise
+      requestBody:
+        $ref: '#/components/requestBodies/postPanElementOrFolder'
+      responses:
+        '201':
+          $ref: '#/components/responses/postPanElementOrFolder'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/common403Error'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundElementFolder'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+  /network/private/{elementType}/{elementId}:
+    put:
+      summary: Update an element or folder
+      description: |
+        Updates an element or folder in your team's [Private API Network](https://learning.postman.com/docs/collaborating-in-postman/adding-private-network/).
+
+        **Note:**
+
+        You can only pass one element object type per call. For example, you cannot pass both `api` and `collection` in a single request.
+      operationId: updatePanElementOrFolder
+      x-postman-plan: Enterprise
+      tags:
+        - Private API Network
+      requestBody:
+        $ref: '#/components/requestBodies/updatePanElementOrFolder'
+      responses:
+        '200':
+          $ref: '#/components/responses/updatePanElementOrFolder'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/common403Error'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundElementFolder'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    delete:
+      summary: Remove an element or folder
+      description: |
+        Removes an element or delete a folder from your team's [Private API Network](https://learning.postman.com/docs/collaborating-in-postman/adding-private-network/).
+
+        **Note:**
+
+        Removing an API, collection, or workspace element does not delete it. It only removes it from the Private API Network folder.
+      tags:
+        - Private API Network
+      operationId: deletePanElementOrFolder
+      x-postman-plan: Enterprise
+      responses:
+        '200':
+          $ref: '#/components/responses/deletePanElementOrFolder'
+        '400':
+          $ref: '#/components/responses/panFolder400ErrorNotEmpty'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/common403Error'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundElementFolder'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/elementId'
+      - $ref: '#/components/parameters/elementType'
+  /network/private/network-entity/request/all:
+    get:
+      summary: Get all element add requests
+      description: Gets a list requests to add elements to your team's [Private API Network](https://learning.postman.com/docs/collaborating-in-postman/adding-private-network/).
+      tags:
+        - Private API Network
+      operationId: getAllPanAddElementRequests
+      x-postman-plan: Enterprise
+      responses:
+        '200':
+          $ref: '#/components/responses/getAllPanAddElementRequests'
+        '400':
+          $ref: '#/components/responses/pan400ErrorInvalidQueryParams'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/common403Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/since'
+        - $ref: '#/components/parameters/until'
+        - $ref: '#/components/parameters/panRequestedBy'
+        - $ref: '#/components/parameters/elementTypeQuery'
+        - $ref: '#/components/parameters/panRequestStatus'
+        - $ref: '#/components/parameters/panElementName'
+        - $ref: '#/components/parameters/sortCreatedUpdatedAt'
+        - $ref: '#/components/parameters/direction'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/limitDefault1000'
+  /network/private/network-entity/request/{requestId}:
+    put:
+      summary: Respond to an element add request
+      description: Responds to a request to add an element to your team's [Private API Network](https://learning.postman.com/docs/collaborating-in-postman/adding-private-network/). Only managers can approve or deny a request. Once approved, the element will appear in the team's Private API Network.
+      tags:
+        - Private API Network
+      operationId: respondPanElementAddRequest
+      x-postman-plan: Enterprise
+      requestBody:
+        $ref: '#/components/requestBodies/respondPanElementAddRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/respondPanElementAddRequest'
+        '400':
+          $ref: '#/components/responses/pan400ErrorInvalidParams'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/common403Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/panRequestId'
+  /pull-requests/{pullRequestId}:
+    get:
+      summary: Get a pull request
+      description: Gets information about a pull request, such as the source and destination details, who reviewed the pull request, the merge's current status, and whether the element is accessible.
+      operationId: getPullRequest
+      tags:
+        - Pull Requests
+      responses:
+        '200':
+          $ref: '#/components/responses/getPullRequest'
+        '403':
+          $ref: '#/components/responses/pullRequest403ErrorForbidden'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    put:
+      summary: Update a pull request
+      description: Updates an open pull request.
+      operationId: updatePullRequest
+      tags:
+        - Pull Requests
+      requestBody:
+        $ref: '#/components/requestBodies/pullRequestUpdate'
+      responses:
+        '200':
+          $ref: '#/components/responses/pullRequestUpdate'
+        '403':
+          $ref: '#/components/responses/pullRequest403ErrorForbidden'
+        '409':
+          $ref: '#/components/responses/pullRequest409ErrorConflict'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/pullRequestId'
+  /pull-requests/{pullRequestId}/tasks:
+    post:
+      summary: Review a pull request
+      description: Updates the [review](https://learning.postman.com/docs/collaborating-in-postman/using-version-control/reviewing-pull-requests/) status of a pull request.
+      operationId: reviewPullRequest
+      tags:
+        - Pull Requests
+      requestBody:
+        $ref: '#/components/requestBodies/pullRequestReview'
+      responses:
+        '200':
+          $ref: '#/components/responses/pullRequestReview200OK'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/pullRequestReview400ErrorActionNotAllowed'
+                  - $ref: '#/components/schemas/pullRequestReview400ErrorInvalidAction'
+              examples:
+                Action Not Allowed:
+                  $ref: '#/components/examples/pullRequestReview400ErrorActionNotAllowed'
+                Invalid Action:
+                  $ref: '#/components/examples/pullRequestReview400ErrorInvalidAction'
+        '403':
+          $ref: '#/components/responses/pullRequest403ErrorForbidden'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/pullRequestId'
+  /secret-types:
+    get:
+      summary: Get secret types
+      description: Gets the metadata of the secret types supported by Postman's [Secret Scanner](https://learning.postman.com/docs/administration/secret-scanner/). You can use a secret type's ID in the response to query data with the POST `/detected-secrets/{secretId}` endpoint.
+      operationId: getSecretTypes
+      x-postman-plan: Enterprise
+      tags:
+        - Secret Scanner
+      responses:
+        '200':
+          $ref: '#/components/responses/getSecretTypes'
+        '401':
+          $ref: '#/components/responses/secretScanner401Error'
+        '403':
+          $ref: '#/components/responses/secretScanner403ErrorAndFeatureUnavailable'
+        '500':
+          $ref: '#/components/responses/secretScanner500Error'
+  /security/api-validation:
+    post:
+      summary: API definition security validation
+      description: |
+        Performs an analysis on the given definition and returns any issues based on your [predefined rulesets](https://learning.postman.com/docs/api-governance/configurable-rules/configurable-rules-overview/). This endpoint can help you understand the violations' impact and offers solutions to help you resolve any errors. You can include this endpoint to your CI/CD process to automate schema validation.
+
+        For more information, see [Track governance and security rule violations in the API definition](https://learning.postman.com/docs/api-governance/api-definition/api-definition-warnings/).
+
+        **Note:**
+
+        - The maximum allowed size of the definition is 10 MB.
+        - You must [import and enable](https://learning.postman.com/docs/api-governance/configurable-rules/configuring-api-security-rules/) Postman's [OWASP security rules](https://postman.postman.co/api-governance/libraries/postman_owasp/view) for this endpoint to return any security rule violations.
+      operationId: schemaSecurityValidation
+      tags:
+        - API Security
+      requestBody:
+        $ref: '#/components/requestBodies/schemaSecurityValidation'
+      responses:
+        '200':
+          $ref: '#/components/responses/schemaSecurityValidation'
+        '400':
+          $ref: '#/components/responses/schemaSecurityValidation400Error'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/featureUnavailable403Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+  /tags/{slug}/entities:
+    get:
+      summary: Get elements by tag
+      description: |
+        Gets Postman elements (entities) by a given tag. Tags enable you to organize and search [workspaces](https://learning.postman.com/docs/collaborating-in-postman/using-workspaces/managing-workspaces/#tagging-a-workspace), [APIs](https://learning.postman.com/docs/designing-and-developing-your-api/managing-apis/#tagging-apis), and [collections](https://learning.postman.com/docs/collections/using-collections/#tagging-a-collection) that contain shared tags.
+
+        **Note:**
+
+        Tagging is available on Postman [**Enterprise** plans](https://www.postman.com/pricing/).
+      operationId: getTaggedEntities
+      x-postman-plan: Enterprise
+      tags:
+        - Tags
+      responses:
+        '200':
+          $ref: '#/components/responses/getTaggedEntities'
+        '400':
+          $ref: '#/components/responses/tagElement400Error'
+        '401':
+          $ref: '#/components/responses/tag401Error'
+        '403':
+          $ref: '#/components/responses/tag403Error'
+        '404':
+          $ref: '#/components/responses/tag404Error'
+        '500':
+          $ref: '#/components/responses/tag500Error'
+      parameters:
+        - $ref: '#/components/parameters/tagsSlug'
+        - $ref: '#/components/parameters/tagsEntitiesLimit'
+        - $ref: '#/components/parameters/tagsEntitiesDirection'
+        - $ref: '#/components/parameters/tagsCursor'
+        - $ref: '#/components/parameters/tagsEntityType'
+  /webhooks:
+    post:
+      summary: Create a webhook
+      description: Creates a webhook that triggers a collection with a custom payload. You can get the webhook's URL from the `webhookUrl` property in the endpoint's response.
+      operationId: createWebhook
+      tags:
+        - Webhooks
+      requestBody:
+        $ref: '#/components/requestBodies/createWebhook'
+      responses:
+        '200':
+          $ref: '#/components/responses/createWebhook'
+        '400':
+          $ref: '#/components/responses/createWebhookParamMissing400Error'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/featureUnavailable403Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/workspaceQuery'
+  /workspaces:
+    get:
+      summary: Get all workspaces
+      description: |
+        Gets all [workspaces](https://learning.postman.com/docs/collaborating-in-postman/using-workspaces/creating-workspaces/). The response includes your workspaces and any workspaces that you have access to.
+
+        **Note:**
+
+        This endpoint's response contains the visibility field. Visibility determines who can access the workspace:
+        - `personal` — Only you can access the workspace.
+        - `team` — All team members can access the workspace.
+        - `private` — Only invited team members can access the workspace ([**Professional** and **Enterprise** plans only](https://www.postman.com/pricing)).
+        - `public` — Everyone can access the workspace.
+        - `partner` — Only invited team members and [partners](https://learning.postman.com/docs/collaborating-in-postman/using-workspaces/partner-workspaces/) can access the workspace ([**Professional** and **Enterprise** plans only](https://www.postman.com/pricing)).
+      operationId: getWorkspaces
+      tags:
+        - Workspaces
+      responses:
+        '200':
+          $ref: '#/components/responses/getWorkspaces'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/workspaceTypeQuery'
+        - $ref: '#/components/parameters/workspaceCreatedBy'
+        - $ref: '#/components/parameters/workspaceIncludeQuery'
+    post:
+      summary: Create a workspace
+      description: |
+        Creates a new [workspace](https://learning.postman.com/docs/collaborating-in-postman/using-workspaces/creating-workspaces/).
+
+        **Note:**
+
+        This endpoint returns a 403 `Forbidden` response if the user does not have permission to create workspaces. [Admins and Super Admins](https://learning.postman.com/docs/collaborating-in-postman/roles-and-permissions/#team-roles) can configure workspace permissions to restrict users and/or user groups from creating workspaces or require approvals for the creation of team workspaces.
+
+        ### Important
+
+        We deprecated linking collections or environments between workspaces. We do not recommend that you do this.
+
+        If you have a linked collection or environment, note the following:
+        - The endpoint does not create a clone of a collection or environment.
+        - Any changes you make to a linked collection or environment changes them in all workspaces.
+        - If you delete a collection or environment linked between workspaces, the system deletes it in all the workspaces.
+      operationId: createWorkspace
+      tags:
+        - Workspaces
+      requestBody:
+        $ref: '#/components/requestBodies/createWorkspace'
+      responses:
+        '200':
+          $ref: '#/components/responses/createWorkspace'
+        '400':
+          $ref: '#/components/responses/workspace400ErrorMalformedRequest'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '403':
+          $ref: '#/components/responses/workspace403ErrorUnauthorized'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+  /workspaces-roles:
+    get:
+      summary: Get all roles
+      description: |
+        Gets information about all roles in a workspace, based on the team's [plan](https://www.postman.com/pricing/).
+      operationId: getAllWorkspaceRoles
+      tags:
+        - Workspaces
+        - Roles
+      responses:
+        '200':
+          $ref: '#/components/responses/getAllWorkspaceRoles'
+        '401':
+          $ref: '#/components/responses/api401ErrorUnauthorized'
+        '403':
+          $ref: '#/components/responses/common403ErrorPermissions'
+        '500':
+          $ref: '#/components/responses/common500ErrorInternalServer'
+  /workspaces/{workspaceId}:
+    get:
+      summary: Get a workspace
+      description: |
+        Gets information about a workspace.
+
+        **Note:**
+
+        This endpoint's response contains the `visibility` field. [Visibility](https://learning.postman.com/docs/collaborating-in-postman/using-workspaces/managing-workspaces/#changing-workspace-visibility) determines who can access the workspace:
+        - `personal` — Only you can access the workspace.
+        - `team` — All team members can access the workspace.
+        - `private` — Only invited team members can access the workspace ([**Professional** and **Enterprise** plans only](https://www.postman.com/pricing)).
+        - `public` — Everyone can access the workspace.
+        - `partner` — Only invited team members and [partners](https://learning.postman.com/docs/collaborating-in-postman/using-workspaces/partner-workspaces/) can access the workspace ([**Professional** and **Enterprise** plans only](https://www.postman.com/pricing)).
+
+        ### Important
+
+        We have deprecated the `name` and `uid` responses in the following array of objects:
+        - `collections`
+        - `environments`
+        - `mocks`
+        - `monitors`
+        - `apis`
+      operationId: getWorkspace
+      tags:
+        - Workspaces
+      responses:
+        '200':
+          $ref: '#/components/responses/getWorkspace'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '404':
+          $ref: '#/components/responses/workspace404ErrorNotFound'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+      parameters:
+        - $ref: '#/components/parameters/workspaceIncludeQuery'
+    put:
+      summary: Update a workspace
+      description: |
+        Updates a workspace.
+
+        ### Important
+
+        We deprecated linking collections or environments between workspaces. We do not recommend that you do this.
+
+        If you have a linked collection or environment, note the following:
+        - The endpoint does not create a clone of a collection or environment.
+        - Any changes you make to a linked collection or environment changes them in all workspaces.
+        - If you delete a collection or environment linked between workspaces, the system deletes it in all the workspaces.
+      operationId: updateWorkspace
+      tags:
+        - Workspaces
+      requestBody:
+        $ref: '#/components/requestBodies/updateWorkspace'
+      responses:
+        '200':
+          $ref: '#/components/responses/updateWorkspace'
+        '400':
+          $ref: '#/components/responses/workspace400ErrorMalformedRequest'
+        '403':
+          $ref: '#/components/responses/workspace403Error'
+        '404':
+          $ref: '#/components/responses/instanceNotFoundWorkspace'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    delete:
+      summary: Delete a workspace
+      description: |
+        Deletes an existing workspace.
+
+        ### Important
+
+        If you delete a workspace that has a linked collection or environment with another workspace, this will delete the collection and environment in all workspaces.
+      operationId: deleteWorkspace
+      tags:
+        - Workspaces
+      responses:
+        '200':
+          $ref: '#/components/responses/deleteWorkspace'
+        '400':
+          $ref: '#/components/responses/workspace400Error'
+        '401':
+          $ref: '#/components/responses/common401Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorServerError'
+    parameters:
+      - $ref: '#/components/parameters/workspaceId'
+  /workspaces/{workspaceId}/global-variables:
+    get:
+      summary: Get global variables
+      description: Gets a workspace's global [variables](https://learning.postman.com/docs/sending-requests/variables/#variable-scopes). Global variables enable you to access data between collections, requests, scripts, and environments and are available throughout a workspace.
+      operationId: getWorkspaceGlobalVariables
+      tags:
+        - Workspaces
+        - Global Variables
+      responses:
+        '200':
+          $ref: '#/components/responses/getWorkspaceGlobalVariables'
+        '500':
+          $ref: '#/components/responses/globalVariables500Error'
+    put:
+      summary: Update global variables
+      description: Updates and replaces a workspace's global [variables](https://learning.postman.com/docs/sending-requests/variables/#variable-scopes). This endpoint replaces all existing global variables with the variables you pass in the request body.
+      operationId: updateWorkspaceGlobalVariables
+      tags:
+        - Workspaces
+        - Global Variables
+      requestBody:
+        $ref: '#/components/requestBodies/updateWorkspaceGlobalVariables'
+      responses:
+        '200':
+          $ref: '#/components/responses/updateWorkspaceGlobalVariables'
+        '500':
+          $ref: '#/components/responses/globalVariables500Error'
+    parameters:
+      - $ref: '#/components/parameters/workspaceId'
+  /workspaces/{workspaceId}/roles:
+    patch:
+      summary: Update user or user group roles
+      description: |
+        Updates the roles of [users](https://learning.postman.com/docs/collaborating-in-postman/roles-and-permissions/#team-roles) or [user groups](https://learning.postman.com/docs/collaborating-in-postman/user-groups/) in a workspace. To get a list of roles, use the GET `/workspace-roles` endpoint. To get a group ID, use the GET `/groups` endpoint.
+
+        **Note:**
+
+        - Groups are available on Postman [Enterprise plans](https://www.postman.com/pricing).
+        - To use SCIM IDs, include the `identifierType=scim` header when you call this endpoint. To get SCIM user IDs, include the `include=scim` query parameter when calling the GET `/workspaces/{workspaceId}` or GET `/workspaces` endpoints.
+        - You cannot set roles for users in personal and partner workspaces.
+        - This endpoint does not support the external [Partner or Guest roles](https://learning.postman.com/docs/collaborating-in-postman/roles-and-permissions/#team-roles).
+        - This endpoint is restricted to 50 operations per call.
+        - The request body must contain one unique action per user or user group. For example, you cannot add and remove multiple roles for a user in the same request body.
+      operationId: updateWorkspaceRoles
+      tags:
+        - Workspaces
+        - Roles
+      requestBody:
+        $ref: '#/components/requestBodies/updateWorkspaceRoles'
+      responses:
+        '200':
+          $ref: '#/components/responses/updateWorkspaceRoles'
+        '400':
+          $ref: '#/components/responses/workspaceRoles400Error'
+        '401':
+          $ref: '#/components/responses/unauthorizedError'
+        '403':
+          $ref: '#/components/responses/common403ErrorPermissions'
+        '404':
+          $ref: '#/components/responses/resourceNotFound404Error'
+        '422':
+          $ref: '#/components/responses/workspaceRoles422UnsupportRoleError'
+        '500':
+          $ref: '#/components/responses/common500ErrorInternalServer'
+      parameters:
+        - $ref: '#/components/parameters/identifierType'
+    get:
+      summary: Get a workspace's roles
+      description: |
+        Gets the roles of users and user groups in a workspace:
+        - `Viewer` — Can view, fork, and export workspace resources.
+        - `Editor` — Can create and edit workspace resources.
+        - `Admin` — Can manage workspace details and members.
+      operationId: getWorkspaceRoles
+      tags:
+        - Workspaces
+        - Roles
+      responses:
+        '200':
+          $ref: '#/components/responses/getWorkspaceRoles'
+        '401':
+          $ref: '#/components/responses/unauthorizedError'
+        '403':
+          $ref: '#/components/responses/common403ErrorPermissions'
+        '404':
+          $ref: '#/components/responses/resourceNotFound404Error'
+        '500':
+          $ref: '#/components/responses/common500ErrorInternalServer'
+      parameters:
+        - $ref: '#/components/parameters/workspaceIncludeScimQuery'
+    parameters:
+      - $ref: '#/components/parameters/workspaceId'
+  /workspaces/{workspaceId}/tags:
+    get:
+      summary: Get a workspace's tags
+      description: Gets all the tags associated with a workspace.
+      operationId: getWorkspaceTags
+      tags:
+        - Tags
+        - Workspace Tags
+      responses:
+        '200':
+          $ref: '#/components/responses/tagGetPut'
+        '401':
+          $ref: '#/components/responses/tag401Error'
+        '403':
+          $ref: '#/components/responses/tag403Error'
+        '404':
+          $ref: '#/components/responses/tag404Error'
+        '500':
+          $ref: '#/components/responses/tag500Error'
+    put:
+      summary: Update a workspace's tags
+      description: Updates a workspace's associated tags. This endpoint replaces all existing tags with those you pass in the request body.
+      operationId: updateWorkspaceTags
+      tags:
+        - Tags
+        - Workspace Tags
+      requestBody:
+        $ref: '#/components/requestBodies/tagUpdateTags'
+      responses:
+        '200':
+          $ref: '#/components/responses/tagGetPut'
+        '400':
+          $ref: '#/components/responses/tag400Error'
+        '401':
+          $ref: '#/components/responses/tag401Error'
+        '403':
+          $ref: '#/components/responses/tag403Error'
+        '404':
+          $ref: '#/components/responses/tag404Error'
+        '500':
+          $ref: '#/components/responses/tag500Error'
+    parameters:
+      - $ref: '#/components/parameters/workspaceId'

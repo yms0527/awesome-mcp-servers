@@ -1,0 +1,56 @@
+version: 2
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: .
+    binary: telegram-mcp
+    ldflags:
+      - -s -w
+
+archives:
+  - name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats: zip
+    files: []
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - typo
+      - readme
+    include:
+      - "^feat:"
+
+checksum:
+  name_template: '{{ .ProjectName }}_{{ .Version }}_checksums.txt'
+  algorithm: sha256
+
+brews:
+  - name: telegram-mcp
+    homepage: "https://github.com/chaindead/telegram-mcp"
+    description: "Telegram MCP server for AI assistants"
+    license: "MIT"
+    repository:
+      owner: chaindead
+      name: homebrew-tap
+    install: |
+      bin.install "telegram-mcp"
+    test: |
+      system "#{bin}/telegram-mcp", "--version"
+    

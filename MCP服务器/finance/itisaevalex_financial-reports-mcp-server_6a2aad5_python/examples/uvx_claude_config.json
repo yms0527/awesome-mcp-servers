@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "financial-reports": {
+      "command": "uvx",
+      "args": ["financial-reports-mcp-server"],
+      "env": {
+        "API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}

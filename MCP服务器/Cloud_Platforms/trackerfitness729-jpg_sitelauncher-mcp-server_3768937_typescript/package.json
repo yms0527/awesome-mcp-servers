@@ -1,0 +1,51 @@
+{
+  "name": "sitelauncher-mcp-server",
+  "version": "1.0.2",
+  "mcpName": "io.github.trackerfitness729-jpg/sitelauncher-mcp-server",
+  "description": "MCP server for deploying live HTTPS websites in seconds. Instant subdomains ($1 USDC) or custom .xyz domains ($10 USDC) on Base chain.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "sitelauncher-mcp-server": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    ".env.example"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "website-deploy",
+    "ai-agent",
+    "web3",
+    "usdc",
+    "base-chain",
+    "website-launcher"
+  ],
+  "author": "SiteLauncher",
+  "license": "MIT",
+  "homepage": "https://sitelauncher.xyz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trackerfitness729-jpg/sitelauncher-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/trackerfitness729-jpg/sitelauncher-mcp-server/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.27.3",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}

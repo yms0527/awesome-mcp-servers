@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "alienvault": {
+      "command": "/usr/local/opt/node@20/bin/node",
+      "args": ["/Users/javierballesteros/alienvault-mcp-server/dist/index.js"],
+      "env": {
+        "ALIENVAULT_CLIENT_ID": "your_client_id_here",
+        "ALIENVAULT_CLIENT_SECRET": "your_client_secret_here",
+        "ALIENVAULT_SUBDOMAIN": "your_subdomain_here"
+      }
+    }
+  }
+} 

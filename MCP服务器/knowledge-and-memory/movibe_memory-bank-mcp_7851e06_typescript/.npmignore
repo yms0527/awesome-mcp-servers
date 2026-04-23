@@ -1,0 +1,15 @@
+.git
+.github
+node_modules
+src
+__tests__
+*.log
+.cursor
+.gitignore
+.clinerules-*
+bunfig.toml
+bun.lock
+tsconfig.json
+bunbuild.toml
+memory-bank
+docs 

@@ -1,0 +1,59 @@
+package harvester
+
+import (
+	"github.com/mark3labs/mcp-go/server"
+	"github.com/mrostamii/rancher-mcp-server/internal/security"
+	"github.com/mrostamii/rancher-mcp-server/pkg/client/rancher"
+	"github.com/mrostamii/rancher-mcp-server/pkg/formatter"
+)
+
+// Toolset implements the Harvester MCP toolset (VMs, images, volumes, networks, hosts).
+type Toolset struct {
+	client    *rancher.SteveClient
+	policy    *security.Policy
+	formatter formatter.Formatter
+}
+
+// NewToolset creates a Harvester toolset.
+func NewToolset(client *rancher.SteveClient, policy *security.Policy) *Toolset {
+	return &Toolset{
+		client:    client,
+		policy:    policy,
+		formatter: formatter.JSONFormatter{},
+	}
+}
+
+// Register adds all Harvester tools to the MCP server.
+func (t *Toolset) Register(s *server.MCPServer) {
+	s.AddTool(t.vmListTool(), t.vmListHandler)
+	s.AddTool(t.vmGetTool(), t.vmGetHandler)
+	s.AddTool(t.imageListTool(), t.imageListHandler)
+	s.AddTool(t.volumeListTool(), t.volumeListHandler)
+	s.AddTool(t.networkListTool(), t.networkListHandler)
+	s.AddTool(t.hostListTool(), t.hostListHandler)
+	s.AddTool(t.settingsTool(), t.settingsHandler)
+	s.AddTool(t.addonListTool(), t.addonListHandler)
+	s.AddTool(t.vpcListTool(), t.vpcListHandler)
+	s.AddTool(t.subnetListTool(), t.subnetListHandler)
+	if t.policy.CanWrite() {
+		s.AddTool(t.vmActionTool(), t.vmActionHandler)
+		s.AddTool(t.vmCreateTool(), t.vmCreateHandler)
+		s.AddTool(t.vmSnapshotTool(), t.vmSnapshotHandler)
+		s.AddTool(t.vmBackupTool(), t.vmBackupHandler)
+		s.AddTool(t.imageCreateTool(), t.imageCreateHandler)
+		s.AddTool(t.volumeCreateTool(), t.volumeCreateHandler)
+		s.AddTool(t.addonSwitchTool(), t.addonSwitchHandler)
+		s.AddTool(t.hostActionTool(), t.hostActionHandler)
+		s.AddTool(t.vpcCreateTool(), t.vpcCreateHandler)
+		s.AddTool(t.vpcUpdateTool(), t.vpcUpdateHandler)
+		s.AddTool(t.networkCreateTool(), t.networkCreateHandler)
+		s.AddTool(t.networkUpdateTool(), t.networkUpdateHandler)
+		s.AddTool(t.subnetCreateTool(), t.subnetCreateHandler)
+		s.AddTool(t.subnetUpdateTool(), t.subnetUpdateHandler)
+	}
+	if t.policy.CanDelete() {
+		s.AddTool(t.vpcDeleteTool(), t.vpcDeleteHandler)
+		s.AddTool(t.networkDeleteTool(), t.networkDeleteHandler)
+		s.AddTool(t.subnetDeleteTool(), t.subnetDeleteHandler)
+	}
+}

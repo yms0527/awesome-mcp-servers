@@ -1,0 +1,4 @@
+{
+  "output": "# Commit: 4707587\n\n**SHA:** 4707587d1c57e90aeed4c846b1b71221c73de5f3  \n**Message:** Delete test file  \n**URL:** https://github.com/geropl/github-mcp-go-test/commit/4707587d1c57e90aeed4c846b1b71221c73de5f3  \n**Author:** geropl  \n**Committer:** geropl  \n**Date:** Fri, 07 Mar 2025 10:52:03 UTC  \n\n## Stats\n\n**Additions:** 0  \n**Deletions:** 1  \n**Total Changes:** 1  \n\n## Files Changed\n\n- **test-file2.md** (1 changes: +0/-1)  \n\n",
+  "err": ""
+}

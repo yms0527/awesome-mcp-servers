@@ -1,0 +1,55 @@
+{
+  "name": "@kevinwatt/yt-dlp-mcp",
+  "version": "0.8.4",
+  "description": "An MCP server implementation that integrates with yt-dlp, providing video and audio content download capabilities (e.g. YouTube, Facebook, Tiktok, etc.) for LLMs.",
+  "keywords": [
+    "mcp",
+    "youtube",
+    "yt-dlp",
+    "dive",
+    "llm"
+  ],
+  "homepage": "https://github.com/kevinwatt/yt-dlp-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/kevinwatt/yt-dlp-mcp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kevinwatt/yt-dlp-mcp.git"
+  },
+  "bin": {
+    "yt-dlp-mcp": "lib/index.mjs"
+  },
+  "files": [
+    "lib",
+    "README.md"
+  ],
+  "main": "./lib/index.mjs",
+  "scripts": {
+    "prepare": "tsc --skipLibCheck && chmod +x ./lib/index.mjs",
+    "test": "PYTHONPATH= PYTHONHOME= node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --forceExit"
+  },
+  "author": "Dewei Yen <k@funmula.com>",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./lib/index.mjs"
+    }
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "0.7.0",
+    "rimraf": "^6.0.1",
+    "spawn-rx": "^4.0.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "shx": "^0.3.4",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}

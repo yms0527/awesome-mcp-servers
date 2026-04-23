@@ -1,0 +1,92 @@
+# GitHub MCP Go Project Rules
+
+## Project Patterns
+
+### Code Organization
+- Go package structure follows standard Go conventions
+- Tools are organized by GitHub resource type (repository, pulls, files, etc.)
+- Each tool type has its own file in pkg/tools/
+- Implementation details are in pkg/github/
+
+### Naming Conventions
+- Tool names use snake_case (e.g., create_pull_request)
+- Go functions and methods use CamelCase
+- Constants use UPPERCASE
+- Test cases use descriptive names that indicate what's being tested
+
+### Error Handling
+- Custom error types in pkg/errors/
+- GitHub API errors are converted to MCP-compatible errors
+- Detailed error messages for troubleshooting
+- Logging with logrus for context
+
+## Testing Patterns
+
+### Key Testing Principles
+
+- **Iterative Approach**: Focus on one test case at a time, making each work completely before moving to the next
+- **Test-Driven Development**: Start with "happy path" test cases before error cases
+- **Definition of Done**: A feature is only complete when ALL its tests pass and test results are verified to be sensible
+
+### Detailed Testing Documentation
+
+For comprehensive testing instructions, refer to [TESTING.md](TESTING.md), which includes:
+
+- Step-by-step testing workflow with exact commands
+- Test verification template for activeContext.md
+- Troubleshooting common test issues
+
+### Test Structure
+
+- Table-driven tests with TestCase structs
+- Each test case has a Name, Tool, and Input
+- Test cases are run in a loop with t.Run()
+- RunTest function handles test execution and comparison
+
+### VCR and Golden Files
+
+- VCR records/replays HTTP interactions for deterministic testing into/from "cassettes"
+- Use `-record` flag to create new/update cassettes (might require authentication)
+- Golden files store expected results for comparison
+- Use `-golden` flag to update expected results
+
+## Development Workflow
+
+### Implementation Order
+
+1. Define tool schema and register with MCP server
+2. Implement GitHub operations in pkg/github/
+3. Implement tool handler in pkg/tools/
+4. Add test cases in pkg/tools/*_test.go
+5. Follow the testing workflow in TESTING.md for each test case
+6. Update progress.md with test status
+7. Document verification in activeContext.md
+
+## User Preferences
+
+### Testing Focus
+- Prefer thorough testing over quick implementation
+- Take an iterative approach to testing
+- Ensure each test case works completely before moving on
+- Document test cases clearly
+
+### Documentation
+- Keep memory bank files up to date
+- Document testing approach and progress
+- Update progress.md with current status
+- Update activeContext.md with current focus
+
+### Memory Bank Management
+- Be mindful of space in memory bank files
+- Deleting irrelevant memories is a good thing
+- Follow short-term vs. long-term memory strategy:
+  - Short-term memory (activeContext.md, progress.md): Detailed, recent, specific
+  - Long-term memory (systemPatterns.md, techContext.md, projectbrief.md): Compressed, patterns, principles
+- Apply this strategy on every interaction with the memory bank
+- Use "compress memory bank" trigger to perform a compression run
+- When compressing memory bank files:
+  1. Focus on patterns over instances
+  2. Use tables and summaries instead of exhaustive lists
+  3. Keep only the most relevant and recent information in short-term memory
+  4. Distill important insights into long-term memory
+  5. Delete outdated or redundant information

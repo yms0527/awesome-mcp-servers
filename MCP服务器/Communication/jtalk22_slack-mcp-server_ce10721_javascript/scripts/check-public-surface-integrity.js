@@ -1,0 +1,350 @@
+#!/usr/bin/env node
+
+import { spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { PUBLIC_METADATA, RELEASE_VERSION } from "../lib/public-metadata.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(__dirname, "..");
+const REPORT_PATH = resolve(ROOT, "output", "release-health", "public-surface-integrity.md");
+
+function read(relPath) {
+  return readFileSync(join(ROOT, relPath), "utf8");
+}
+
+function semverLiterals(text) {
+  return Array.from(text.matchAll(/\bv\d+\.\d+\.\d+\b/g), (match) => match[0]);
+}
+
+function runNode(args) {
+  const result = spawnSync("node", args, {
+    cwd: ROOT,
+    encoding: "utf8",
+    timeout: 120000,
+  });
+
+  return {
+    status: result.status ?? 1,
+    stdout: (result.stdout || "").trim(),
+    stderr: (result.stderr || "").trim(),
+  };
+}
+
+function check(results, name, ok, details) {
+  results.push({ name, ok, details });
+}
+
+function buildReport(results) {
+  const lines = [
+    "# Public Surface Integrity",
+    "",
+    `- Generated: ${new Date().toISOString()}`,
+    `- Release version: ${RELEASE_VERSION}`,
+    "",
+    "| Check | Status | Details |",
+    "|---|---|---|",
+  ];
+
+  for (const result of results) {
+    lines.push(`| ${result.name} | ${result.ok ? "pass" : "fail"} | ${result.details} |`);
+  }
+
+  lines.push("");
+  return `${lines.join("\n")}\n`;
+}
+
+function main() {
+  const results = [];
+  const packageJson = JSON.parse(read("package.json"));
+  const packageLock = JSON.parse(read("package-lock.json"));
+  const serverMeta = JSON.parse(read("server.json"));
+  const glamaMeta = JSON.parse(read("glama.json"));
+
+  check(
+    results,
+    "package.json version",
+    packageJson.version === RELEASE_VERSION,
+    `expected ${RELEASE_VERSION}, found ${packageJson.version}`
+  );
+  check(
+    results,
+    "package-lock root version",
+    packageLock.version === RELEASE_VERSION && packageLock.packages?.[""]?.version === RELEASE_VERSION,
+    `root=${packageLock.version}, package=${packageLock.packages?.[""]?.version ?? "n/a"}`
+  );
+  check(
+    results,
+    "server.json version parity",
+    serverMeta.version === RELEASE_VERSION && serverMeta.packages?.[0]?.version === RELEASE_VERSION,
+    `root=${serverMeta.version}, package=${serverMeta.packages?.[0]?.version ?? "n/a"}`
+  );
+  check(
+    results,
+    "glama version parity",
+    glamaMeta.version === RELEASE_VERSION,
+    `found ${glamaMeta.version}`
+  );
+  check(
+    results,
+    "description parity",
+    packageJson.description === PUBLIC_METADATA.canonicalShortDescription &&
+      serverMeta.description === PUBLIC_METADATA.canonicalShortDescription &&
+      glamaMeta.description === PUBLIC_METADATA.canonicalShortDescription,
+    `package=${packageJson.description}; server=${serverMeta.description}; glama=${glamaMeta.description}`
+  );
+  check(
+    results,
+    "glama tool count",
+    glamaMeta.features?.tools === PUBLIC_METADATA.selfHostedToolCount,
+    `expected ${PUBLIC_METADATA.selfHostedToolCount}, found ${glamaMeta.features?.tools ?? "n/a"}`
+  );
+
+  const cliVersionResult = runNode(["src/cli.js", "--version"]);
+  check(
+    results,
+    "CLI version output",
+    cliVersionResult.status === 0 && cliVersionResult.stdout.includes(`slack-mcp-server v${RELEASE_VERSION}`),
+    cliVersionResult.stdout || cliVersionResult.stderr || "no output"
+  );
+
+  const generatedPagesResult = runNode(["scripts/verify-generated-public-pages.js"]);
+  check(
+    results,
+    "Generated public pages",
+    generatedPagesResult.status === 0,
+    generatedPagesResult.stdout || generatedPagesResult.stderr || "no output"
+  );
+
+  for (const runtimePath of ["src/server.js", "src/server-http.js", "src/web-server.js", "scripts/setup-wizard.js"]) {
+    const source = read(runtimePath);
+    check(
+      results,
+      `${runtimePath} uses release metadata`,
+      source.includes("RELEASE_VERSION"),
+      "expected RELEASE_VERSION import/usage"
+    );
+  }
+
+  for (const marketingPath of [
+    "index.html",
+    "README.md",
+    "public/share.html",
+    "public/demo.html",
+    "public/demo-video.html",
+    "public/demo-claude.html",
+  ]) {
+    const versions = semverLiterals(read(marketingPath));
+    check(
+      results,
+      `${marketingPath} version-neutral`,
+      versions.length === 0,
+      versions.length === 0 ? "no hard-coded release literal" : versions.join(", ")
+    );
+  }
+
+  const readme = read("README.md");
+  check(
+    results,
+    "README cloud claims",
+    readme.includes(`${PUBLIC_METADATA.cloudManagedToolCount} standard tools`) &&
+      readme.includes(`${PUBLIC_METADATA.cloudManagedToolCount} standard + ${PUBLIC_METADATA.teamAiWorkflowCount} AI compound tools`) &&
+      readme.includes(PUBLIC_METADATA.secondaryClient) &&
+      readme.includes(PUBLIC_METADATA.cloudTurnkeyLaunchPrice) &&
+      readme.includes(PUBLIC_METADATA.cloudManagedReliabilityPrice) &&
+      !readme.includes("16 standard tools"),
+    "README must describe Cloud as 15 standard tools plus 3 AI compound tools on Team, with Gemini CLI and premium offers"
+  );
+  check(
+    results,
+    "README operator links",
+    readme.includes("Release health snapshot") &&
+      readme.includes("Version parity report") &&
+      readme.includes("Distribution ledger") &&
+      readme.includes(PUBLIC_METADATA.tracked.readme.officialComparison) &&
+      readme.includes(PUBLIC_METADATA.tracked.readme.marketplaceReadiness) &&
+      readme.includes(PUBLIC_METADATA.cloudPricingUrl) &&
+      readme.includes(PUBLIC_METADATA.cloudCheckoutUrl) &&
+      readme.includes(PUBLIC_METADATA.cloudSecurityUrl) &&
+      readme.includes(PUBLIC_METADATA.tracked.readme.account) &&
+      readme.includes(PUBLIC_METADATA.cloudDeploymentUrl) &&
+      readme.includes(PUBLIC_METADATA.cloudSupportUrl),
+    "README should link current release-health, version-parity, distribution ledger, comparison, marketplace readiness, pricing, checkout, security, account, deployment, and support surfaces"
+  );
+
+  const marketingIndex = read("index.html");
+  check(
+    results,
+    "GitHub Pages distribution snapshot",
+    marketingIndex.includes("Current distribution snapshot") &&
+      marketingIndex.includes("npm latest") &&
+      marketingIndex.includes("GitHub release") &&
+      marketingIndex.includes("Cloud status") &&
+    marketingIndex.includes("Cloud versus self-host decision guide") &&
+      marketingIndex.includes(PUBLIC_METADATA.cloudStatusUrl) &&
+      marketingIndex.includes(PUBLIC_METADATA.cloudCheckoutUrl) &&
+      !marketingIndex.includes("https://mcp.revasserlabs.com/health") &&
+      marketingIndex.includes("Release health"),
+    "index.html should expose the live distribution snapshot cards, decision guide, /status contract, hosted checkout, and operator links"
+  );
+  check(
+    results,
+    "GitHub Pages cloud routing",
+    marketingIndex.includes(PUBLIC_METADATA.cloudDocsUrl) &&
+      marketingIndex.includes(PUBLIC_METADATA.cloudPricingUrl) &&
+      marketingIndex.includes(PUBLIC_METADATA.cloudSecurityUrl) &&
+      marketingIndex.includes(PUBLIC_METADATA.cloudOfficialComparisonUrl) &&
+      marketingIndex.includes(PUBLIC_METADATA.cloudMarketplaceReadinessUrl) &&
+      marketingIndex.includes(PUBLIC_METADATA.cloudDeploymentUrl) &&
+      marketingIndex.includes(PUBLIC_METADATA.cloudSupportUrl) &&
+      marketingIndex.includes(`${PUBLIC_METADATA.canonicalSiteUrl}/privacy`),
+    "index.html should point Cloud routing at hosted pricing, docs, comparison, marketplace readiness, security, deployment, support, and privacy"
+  );
+  check(
+    results,
+    "GitHub Pages revenue path",
+    marketingIndex.includes(PUBLIC_METADATA.cloudTurnkeyLaunchPrice) &&
+      marketingIndex.includes(PUBLIC_METADATA.cloudManagedReliabilityPrice) &&
+      marketingIndex.includes(PUBLIC_METADATA.secondaryClient),
+    "index.html should describe the premium offer anchors and Gemini CLI support"
+  );
+
+  const sharePage = read("public/share.html");
+  check(
+    results,
+    "Share surface cloud routing",
+    sharePage.includes(PUBLIC_METADATA.cloudPricingUrl) &&
+      sharePage.includes(PUBLIC_METADATA.cloudDocsUrl) &&
+      sharePage.includes(PUBLIC_METADATA.cloudSecurityUrl) &&
+      sharePage.includes(PUBLIC_METADATA.tracked.pages.officialComparison) &&
+      sharePage.includes(PUBLIC_METADATA.tracked.pages.marketplaceReadiness) &&
+      sharePage.includes(PUBLIC_METADATA.cloudDeploymentUrl) &&
+      sharePage.includes(PUBLIC_METADATA.cloudSupportUrl) &&
+      !sharePage.includes("deployment-intake.md") &&
+      !sharePage.includes("SUPPORT-BOUNDARIES.md"),
+    "share surface should send Cloud buyers to hosted pricing, docs, comparison, marketplace readiness, security, deployment review, and support"
+  );
+  check(
+    results,
+    "Share surface client support",
+    sharePage.includes(PUBLIC_METADATA.secondaryClient),
+    "share surface should mention Gemini CLI support"
+  );
+
+  for (const demoPath of ["public/demo.html", "public/demo-video.html", "public/demo-claude.html"]) {
+    const demoPage = read(demoPath);
+    check(
+      results,
+      `${demoPath} cloud routing`,
+      demoPage.includes(PUBLIC_METADATA.cloudDocsUrl) &&
+        demoPage.includes(PUBLIC_METADATA.cloudSecurityUrl) &&
+        demoPage.includes(PUBLIC_METADATA.tracked.pages.officialComparison) &&
+        demoPage.includes(PUBLIC_METADATA.cloudDeploymentUrl) &&
+        demoPage.includes(PUBLIC_METADATA.cloudSupportUrl) &&
+        !demoPage.includes("deployment-intake.md"),
+      `${demoPath} should keep Cloud routing on hosted docs, comparison, security, deployment review, and support`
+    );
+  }
+
+  const setupGuide = read("docs/SETUP.md");
+  check(
+    results,
+    "Setup guide cloud claims",
+    setupGuide.includes(`one URL, ${PUBLIC_METADATA.cloudManagedToolCount} managed tools`) &&
+      setupGuide.includes(`${PUBLIC_METADATA.teamAiWorkflowCount} AI workflows`) &&
+      !setupGuide.includes("one URL, 16 tools"),
+    "docs/SETUP.md must describe the managed Cloud counts"
+  );
+
+  const troubleshootingGuide = read("docs/TROUBLESHOOTING.md");
+  check(
+    results,
+    "Troubleshooting cloud claims",
+    troubleshootingGuide.includes(`${PUBLIC_METADATA.cloudManagedToolCount} standard managed tools`) &&
+      !troubleshootingGuide.includes("standard 16 tools available on all plans"),
+    "docs/TROUBLESHOOTING.md must describe the managed Cloud counts"
+  );
+
+  const deploymentModes = read("docs/DEPLOYMENT-MODES.md");
+  check(
+    results,
+    "Deployment modes cloud claims",
+    deploymentModes.includes(`${PUBLIC_METADATA.cloudManagedToolCount} standard managed tools + ${PUBLIC_METADATA.teamAiWorkflowCount} AI workflows on Team`) &&
+      !deploymentModes.includes("16 standard tools + AI compound tools on Team"),
+    "docs/DEPLOYMENT-MODES.md must describe the managed Cloud counts"
+  );
+
+  const distributionLedger = read("docs/DISTRIBUTION-LEDGER.md");
+  check(
+    results,
+    "Distribution ledger coverage",
+    distributionLedger.includes("MCP Registry") &&
+      distributionLedger.includes("Glama") &&
+      distributionLedger.includes("mcp.so") &&
+      distributionLedger.includes("PulseMCP") &&
+      distributionLedger.includes("Smithery") &&
+      distributionLedger.includes("3.2.5"),
+    "docs/DISTRIBUTION-LEDGER.md must track the current external directory surfaces and next metadata-bearing release"
+  );
+
+  const docsIndex = read("docs/INDEX.md");
+  check(
+    results,
+    "Docs index current release",
+    docsIndex.includes("v3.2.5") &&
+      docsIndex.includes("Distribution Ledger") &&
+      docsIndex.includes("Cloud Gemini CLI") &&
+      docsIndex.includes("Cloud Readiness"),
+    "docs/INDEX.md must point to the current release, ledger, Gemini CLI, and readiness surfaces"
+  );
+
+  const runbook = read("docs/LAUNCH-OPS.md");
+  check(
+    results,
+    "Runbook search ops",
+    runbook.includes("v3.2.5") &&
+      runbook.includes("Google Search Console") &&
+      runbook.includes("Bing Webmaster Tools") &&
+      runbook.includes("docs/DISTRIBUTION-LEDGER.md"),
+    "docs/LAUNCH-OPS.md must reflect v3.2.5 and the weekly search/listing ops checklist"
+  );
+
+  const supportBoundaries = read("docs/SUPPORT-BOUNDARIES.md");
+  check(
+    results,
+    "Support boundaries company-led",
+    supportBoundaries.includes("Operated by Revasser") &&
+      !supportBoundaries.includes("Maintained by James Lambert"),
+    "docs/SUPPORT-BOUNDARIES.md must use company-led support wording"
+  );
+
+  const releaseTemplate = read(".github/RELEASE_NOTES_TEMPLATE.md");
+  check(
+    results,
+    "Release template company-led",
+    releaseTemplate.includes("Operated by Revasser") &&
+      !releaseTemplate.includes("Maintained by James Lambert"),
+    ".github/RELEASE_NOTES_TEMPLATE.md must use company-led support wording"
+  );
+
+  const localWebUi = read("public/index.html");
+  check(
+    results,
+    "Local web banner cloud claims",
+    localWebUi.includes(`${PUBLIC_METADATA.cloudManagedToolCount} managed tools`) &&
+      !localWebUi.includes("gives you 16 tools"),
+    "public/index.html banner must describe managed Cloud counts"
+  );
+
+  mkdirSync(dirname(REPORT_PATH), { recursive: true });
+  writeFileSync(REPORT_PATH, buildReport(results), "utf8");
+  console.log(`Wrote ${REPORT_PATH}`);
+
+  if (results.some((result) => !result.ok)) {
+    process.exit(1);
+  }
+}
+
+main();

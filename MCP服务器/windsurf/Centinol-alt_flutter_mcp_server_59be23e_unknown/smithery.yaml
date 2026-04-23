@@ -1,0 +1,18 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      DART_TOKEN:
+        type: string
+        description: "Dart API token for tool execution."
+    required:
+      - DART_TOKEN
+  commandFunction: |
+    (config) => ({
+      command: "/app/bin/server",
+      args: [],
+      env: {
+        DART_TOKEN: config.DART_TOKEN
+      }
+    })

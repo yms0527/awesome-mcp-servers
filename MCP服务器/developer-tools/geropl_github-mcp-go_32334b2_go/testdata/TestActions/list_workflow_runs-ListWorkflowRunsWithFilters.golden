@@ -1,0 +1,4 @@
+{
+  "output": "# Workflow Runs\n\nFound 1 workflow runs.\n\n## 1. Run #1: Test Data Generation Workflow\n\n**ID:** 13839912722  \n**Workflow ID:** 149593961  \n**Branch:** main  \n**Commit SHA:** 2842b65553a02e4c6735e7155c95cd10e3fe801b  \n**Event:** push  \n**Status:** completed  \n**Conclusion:** success  \n**Created:** Thu, 13 Mar 2025 16:38:51 UTC  \n**Updated:** Thu, 13 Mar 2025 16:39:29 UTC  \n**Started:** Thu, 13 Mar 2025 16:38:51 UTC  \n**Triggered by:** geropl  \n**Run Attempt:** 1  \n**URL:** https://github.com/geropl/github-mcp-go-test/actions/runs/13839912722  \n\n",
+  "err": ""
+}

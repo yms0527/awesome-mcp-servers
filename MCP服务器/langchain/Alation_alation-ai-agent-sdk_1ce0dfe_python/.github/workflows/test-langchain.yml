@@ -1,0 +1,88 @@
+name: Test langchain-integration
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test-langchain:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Download all wheels
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - run: pip install artifacts/**/alation_ai_agent_sdk*.whl pytest==8.3.5
+      - run: pip install artifacts/**/alation_ai_agent_langchain*.whl
+
+      - run: |
+          set +e
+          pytest python/dist-langchain/tests/test_langchain_integration.py --tb=line --maxfail=50 --disable-warnings -v --no-header > langchain-test-output.log 2>&1
+          echo $? > langchain-exit-code.txt
+          set -e
+
+      - run: |
+          TEST_EXIT_CODE=$(cat langchain-exit-code.txt)
+          
+          # Extract test statistics (using more portable regex)
+          TOTAL=$(grep -o 'collected [0-9]*' langchain-test-output.log | grep -o '[0-9]*' || echo "0")
+          PASSED=$(grep -o '[0-9]* passed' langchain-test-output.log | grep -o '[0-9]*' || echo "0")
+          FAILED=$(grep -o '[0-9]* failed' langchain-test-output.log | grep -o '[0-9]*' || echo "0")
+          ERRORS=$(grep -o '[0-9]* error' langchain-test-output.log | grep -o '[0-9]*' || echo "0")
+          SKIPPED=$(grep -o '[0-9]* skipped' langchain-test-output.log | grep -o '[0-9]*' || echo "0")
+          
+          # Calculate total failures (failed + errors)
+          TOTAL_FAILED=$((FAILED + ERRORS))
+          
+          {
+            echo "### 🔧 Langchain Test Summary"
+            echo ""
+            echo "| Suite | Total | Passed | Failed | Errors | Skipped |"
+            echo "|-------|-------|--------|--------|--------|---------|"
+            echo "| LANGCHAIN | $TOTAL | $PASSED | $FAILED | $ERRORS | $SKIPPED |"
+            
+            if [ "$TOTAL_FAILED" -gt 0 ]; then
+              echo ""
+              echo "**❌ Failed Tests Details:**"
+              echo '```'
+              
+              # Extract failed test details with better parsing
+              grep -E "FAILED|ERROR" langchain-test-output.log | head -20 || echo "No detailed failure info found"
+              
+              if [ $(grep -c -E "FAILED|ERROR" langchain-test-output.log) -gt 20 ]; then
+                echo ""
+                echo "... (showing first 20 failures, check logs for complete details)"
+              fi
+              
+              echo '```'
+              
+              # Add test execution summary if available
+              if grep -q "short test summary info" langchain-test-output.log; then
+                echo ""
+                echo "**📋 Test Summary:**"
+                echo '```'
+                sed -n '/short test summary info/,/==/p' langchain-test-output.log | head -30 || echo "Summary not available"
+                echo '```'
+              fi
+            fi
+          } > langchain-test-summary.md
+          
+          # Always show the output for debugging
+          echo "=== FULL TEST OUTPUT ==="
+          cat langchain-test-output.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: langchain-test-summary
+          path: langchain-test-summary.md
+
+      - run: exit $(cat langchain-exit-code.txt)

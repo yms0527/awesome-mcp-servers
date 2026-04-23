@@ -1,0 +1,10 @@
+[project]
+name = "livecode-mcp"
+version = "0.1.0"
+description = "Run io.livecode.ch as an MCP server"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]>=1.2.0",
+    "requests>=2.32.3",
+]

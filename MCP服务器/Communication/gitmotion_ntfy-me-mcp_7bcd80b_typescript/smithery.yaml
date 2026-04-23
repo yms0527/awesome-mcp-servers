@@ -1,0 +1,42 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required:
+      - topic
+    properties:
+      topic:
+        type: string
+        description: ntfy topic name to send notifications
+      url:
+        type: string
+        default: https://ntfy.sh
+        description: "URL of ntfy server (default: https://ntfy.sh)"
+      token:
+        type: string
+        default: ""
+        description: Authentication token for protected topics
+      protectedTopic:
+        type: boolean
+        default: false
+        description: Set to true if the topic is protected and requires authentication
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => ({
+      command: 'npx',
+      args: ['ntfy-me-mcp'],
+      env: Object.assign(
+        { NTFY_TOPIC: config.topic, PROTECTED_TOPIC: config.protectedTopic.toString() },
+        config.url ? { NTFY_URL: config.url } : {},
+        config.token ? { NTFY_TOKEN: config.token } : {}
+      )
+    })
+  exampleConfig:
+    topic: my-topic
+    url: https://ntfy.sh
+    token: my-secret-token
+    protectedTopic: false

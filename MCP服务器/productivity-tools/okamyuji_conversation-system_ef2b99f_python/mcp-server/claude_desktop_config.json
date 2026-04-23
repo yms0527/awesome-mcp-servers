@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "conversation-system": {
+      "command": "python",
+      "args": ["${PROJECT_ROOT}/mcp-server/main.py"],
+      "env": {
+        "CONVERSATION_API_URL": "http://localhost:8000"
+      }
+    }
+  }
+}
+
+// Enhanced Conversation System v2.0 - MCP Server Configuration
+// 
+// 新機能:
+// - スマート圧縮システム (zlib圧縮による55%容量削減)
+// - 適応的詳細レベル (short/medium/full/adaptive)
+// - 技術用語検索 (専門用語による高精度検索)
+// - 拡張分析機能 (圧縮効率・技術用語分析)
+//
+// 注意: このファイルは Claude Desktop の設定ファイルです
+// 実際に使用する場合は、${PROJECT_ROOT} を実際のプロジェクトパスに置き換えてください
+// 
+// 設定場所: 
+// - macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
+// - Windows: %APPDATA%\Claude\claude_desktop_config.json
+//
+// 実際の設定例:
+// "args": ["/Users/systemi/devs/python/conversation-system/mcp-server/main.py"]
+//
+// セットアップ手順:
+// 1. Docker Compose起動: docker-compose up -d
+// 2. API稼働確認: curl -X GET "http://localhost:8000/health"  
+// 3. Claude Desktopを再起動
+// 4. "今週の会話の記録を分析してください" などで動作確認

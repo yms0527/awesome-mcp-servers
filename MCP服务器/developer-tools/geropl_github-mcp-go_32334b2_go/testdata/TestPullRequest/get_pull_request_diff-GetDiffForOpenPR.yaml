@@ -1,0 +1,98 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3.diff
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/geropl/github-mcp-go-test/pulls/1
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 248
+        uncompressed: false
+        body: |
+            diff --git a/super-important-feature-design-doc.md b/super-important-feature-design-doc.md
+            new file mode 100644
+            index 0000000..4596328
+            --- /dev/null
+            +++ b/super-important-feature-design-doc.md
+            @@ -0,0 +1 @@
+            +bla bla bla
+            \ No newline at end of file
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=60, s-maxage=60
+            Content-Length:
+                - "248"
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/vnd.github.v3.diff; charset=utf-8
+            Date:
+                - Fri, 07 Mar 2025 10:06:05 GMT
+            Etag:
+                - '"08f9bae60b01824cb2d70a751a3ce24a9bba2476938b74cf21271710351f5031"'
+            Github-Authentication-Token-Expiration:
+                - 2025-04-06 08:38:40 +0200
+            Last-Modified:
+                - Fri, 07 Mar 2025 07:45:38 GMT
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Github-Permissions:
+                - pull_requests=read; contents=read
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; param=diff
+            X-Github-Request-Id:
+                - 345B:9471C:314C95A:32EF62D:67CAC50D
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "3500"
+            X-Ratelimit-Reset:
+                - "1741342629"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "1500"
+            X-Xss-Protection:
+                - "0"
+        status: 200 OK
+        code: 200
+        duration: 421.814768ms

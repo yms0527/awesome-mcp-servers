@@ -1,0 +1,20 @@
+{
+  "ignorePatterns": [
+    { "pattern": "^https://tally\\.so/" },
+    { "pattern": "^https://console\\.cloud\\.google\\.com/" },
+    { "pattern": "^https://smithery\\.ai/" },
+    { "pattern": "^https://crates\\.io/crates/" },
+    { "pattern": "^https://www\\.npmjs\\.com/package/" },
+    { "pattern": "^https://github\\.com/temporal-cortex/mcp/compare/" },
+    { "pattern": "^https://github\\.com/temporal-cortex/mcp/issues/new" },
+    { "pattern": "^https://github\\.com/temporal-cortex/skills" },
+    { "pattern": "^https://docs\\.crewai\\.com/" },
+    { "pattern": "^https://www\\.crewai\\.com/" },
+    { "pattern": "^\\.\\./\\.\\./docs/" },
+    { "pattern": "^docs/" }
+  ],
+  "retryOn429": true,
+  "retryCount": 3,
+  "timeout": "15s",
+  "aliveStatusCodes": [200, 206]
+}

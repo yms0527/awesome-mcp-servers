@@ -1,0 +1,124 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-cli"
+version = "0.20"
+description = "A cli for the Model Context Provider"
+requires-python = ">=3.11"
+readme = "README.md"
+authors = []
+keywords = ["llm", "openai", "claude", "mcp", "cli"]
+license = {text = "Apache-2.0"}
+dependencies = [
+  "asyncio>=3.4.3",
+  "chuk-ai-planner>=0.2",
+  "chuk-ai-session-manager>=0.11",
+  "chuk-llm>=0.17.1",
+  "chuk-mcp-client-oauth>=0.3.5",
+  "chuk-term>=0.4.2",
+  "chuk-tool-processor>=0.22.1",
+  "cryptography>=44.0.0",
+  "fast-json>=0.3.2",
+  "httpx>=0.27.0",
+  "jsonschema>=4.25.1",
+  "keyring>=25.0.0",
+  "orjson>=3.11.4",
+  "prompt-toolkit>=3.0.50",
+  "python-dotenv>=1.0.1",
+  "rich>=13.9.4",
+  "typer>=0.15.2",
+]
+
+
+[project.optional-dependencies]
+vault = [
+  "hvac>=2.0.0"
+]
+apps = [
+  "websockets>=13.0"
+]
+dashboard = [
+  "websockets>=13.0"
+]
+wasm = []
+dev = [
+  "numpy>=2.2.3",
+  "pytest-asyncio>=0.25.3",
+  "asyncio>=3.4.3"
+]
+
+
+[project.scripts]
+mcp-cli = "mcp_cli.main:app"
+mcp-llm = "mcp_cli.llm.__main__:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["mcp_cli*"]
+
+[tool.setuptools.package-data]
+mcp_cli = ["server_config.json", "dashboard/static/**/*"]
+[dependency-groups]
+dev = [
+  "colorama>=0.4.6",
+  "pydantic>=2.10.2",
+  "pytest-asyncio>=0.25.3",
+  "pytest-cov>=6.2.1",
+  "ruff>=0.12.10",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: end-to-end tests requiring external MCP servers",
+]
+filterwarnings = [
+    "error::RuntimeWarning",
+    # Third-party deprecation warnings we can't fix
+    "ignore::pydantic.warnings.PydanticDeprecatedSince211",
+    "ignore::pydantic.warnings.PydanticDeprecatedSince212",
+    "ignore:The 'is_flag' and 'flag_value' parameters:DeprecationWarning:typer",
+    "ignore:Pydantic serializer warnings:UserWarning:pydantic",
+    "ignore:datetime.datetime.utcnow:DeprecationWarning",
+]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+exclude = [
+    "^.venv/",
+    "^build/",
+    "^dist/",
+]
+
+# Ignore errors in site-packages (external libraries)
+[[tool.mypy.overrides]]
+module = [
+    "mlx.*",
+    "transformers.*",
+    "langchain.*",
+    "langchain_core.*",
+    "langchain_text_splitters.*",
+]
+ignore_errors = true
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 60
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ ==",
+    "@overload",
+]

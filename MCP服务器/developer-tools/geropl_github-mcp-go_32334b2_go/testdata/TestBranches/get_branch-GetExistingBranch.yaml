@@ -1,0 +1,86 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/geropl/github-mcp-go-test/branches/main
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: true
+        body: '{"name":"main","commit":{"sha":"6f4e312c2e1478d5a59fc11d1bb0d14209db21f9","node_id":"C_kwDOOEmhctoAKDZmNGUzMTJjMmUxNDc4ZDVhNTlmYzExZDFiYjBkMTQyMDlkYjIxZjk","commit":{"author":{"name":"Gero Posmyk-Leinemann","email":"gero@gitpod.io","date":"2025-03-07T07:43:55Z"},"committer":{"name":"Gero Posmyk-Leinemann","email":"gero@gitpod.io","date":"2025-03-07T07:43:55Z"},"message":"first draft of a design doc\n\nTool: gitpod/catfood.gitpod.cloud","tree":{"sha":"1a1eb16f1b7cd208ec090bc6d57a9947c45d1559","url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/trees/1a1eb16f1b7cd208ec090bc6d57a9947c45d1559"},"url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/commits/6f4e312c2e1478d5a59fc11d1bb0d14209db21f9","comment_count":0,"verification":{"verified":false,"reason":"unsigned","signature":null,"payload":null,"verified_at":null}},"url":"https://api.github.com/repos/geropl/github-mcp-go-test/commits/6f4e312c2e1478d5a59fc11d1bb0d14209db21f9","html_url":"https://github.com/geropl/github-mcp-go-test/commit/6f4e312c2e1478d5a59fc11d1bb0d14209db21f9","comments_url":"https://api.github.com/repos/geropl/github-mcp-go-test/commits/6f4e312c2e1478d5a59fc11d1bb0d14209db21f9/comments","author":{"login":"geropl","id":32448529,"node_id":"MDQ6VXNlcjMyNDQ4NTI5","avatar_url":"https://avatars.githubusercontent.com/u/32448529?v=4","gravatar_id":"","url":"https://api.github.com/users/geropl","html_url":"https://github.com/geropl","followers_url":"https://api.github.com/users/geropl/followers","following_url":"https://api.github.com/users/geropl/following{/other_user}","gists_url":"https://api.github.com/users/geropl/gists{/gist_id}","starred_url":"https://api.github.com/users/geropl/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/geropl/subscriptions","organizations_url":"https://api.github.com/users/geropl/orgs","repos_url":"https://api.github.com/users/geropl/repos","events_url":"https://api.github.com/users/geropl/events{/privacy}","received_events_url":"https://api.github.com/users/geropl/received_events","type":"User","user_view_type":"public","site_admin":false},"committer":{"login":"geropl","id":32448529,"node_id":"MDQ6VXNlcjMyNDQ4NTI5","avatar_url":"https://avatars.githubusercontent.com/u/32448529?v=4","gravatar_id":"","url":"https://api.github.com/users/geropl","html_url":"https://github.com/geropl","followers_url":"https://api.github.com/users/geropl/followers","following_url":"https://api.github.com/users/geropl/following{/other_user}","gists_url":"https://api.github.com/users/geropl/gists{/gist_id}","starred_url":"https://api.github.com/users/geropl/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/geropl/subscriptions","organizations_url":"https://api.github.com/users/geropl/orgs","repos_url":"https://api.github.com/users/geropl/repos","events_url":"https://api.github.com/users/geropl/events{/privacy}","received_events_url":"https://api.github.com/users/geropl/received_events","type":"User","user_view_type":"public","site_admin":false},"parents":[{"sha":"f68aa0ed39aae8e2dedef581081dc181d637dded","url":"https://api.github.com/repos/geropl/github-mcp-go-test/commits/f68aa0ed39aae8e2dedef581081dc181d637dded","html_url":"https://github.com/geropl/github-mcp-go-test/commit/f68aa0ed39aae8e2dedef581081dc181d637dded"}]},"_links":{"self":"https://api.github.com/repos/geropl/github-mcp-go-test/branches/main","html":"https://github.com/geropl/github-mcp-go-test/tree/main"},"protected":false,"protection":{"enabled":false,"required_status_checks":{"enforcement_level":"off","contexts":[],"checks":[]}},"protection_url":"https://api.github.com/repos/geropl/github-mcp-go-test/branches/main/protection"}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=60, s-maxage=60
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Fri, 07 Mar 2025 15:28:14 GMT
+            Etag:
+                - W/"ca4a3f6f78725de0791ab24947225934f64bbf6bfc1fa35e8f952b7231e1770d"
+            Github-Authentication-Token-Expiration:
+                - 2025-04-06 13:14:03 +0200
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Github-Permissions:
+                - contents=read
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - 2258:3C7982:43E26C5:46035CA:67CB108E
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "4960"
+            X-Ratelimit-Reset:
+                - "1741364247"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "40"
+            X-Xss-Protection:
+                - "0"
+        status: 200 OK
+        code: 200
+        duration: 203.102311ms

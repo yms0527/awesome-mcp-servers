@@ -1,0 +1,35 @@
+{
+  "name": "bitbucket-pipelines-mcp",
+  "version": "1.0.0",
+  "description": "MCP Server for interacting with Bitbucket pipelines",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node --esm src/index.ts",
+    "test": "jest",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:test": "node docker-mcp-test.js",
+    "docker:client": "node docker-mcp-client.js"
+  },
+  "dependencies": {
+    "zod": "^3.22.4",
+    "axios": "^1.6.7",
+    "@modelcontextprotocol/sdk": "^1.9.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "@types/jest": "^29.5.12",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 

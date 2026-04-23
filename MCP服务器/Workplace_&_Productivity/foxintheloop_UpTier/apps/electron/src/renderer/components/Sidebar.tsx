@@ -1,0 +1,1259 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
+  Sun,
+  Star,
+  Calendar,
+  CalendarDays,
+  CheckCircle2,
+  List,
+  Plus,
+  Target,
+  Settings,
+  ChevronDown,
+  ChevronRight,
+  ChevronLeft,
+  Database,
+  Check,
+  Trash2,
+  MoreVertical,
+  Pencil,
+  PanelLeftClose,
+  PanelLeft,
+  Search,
+  Filter,
+  Zap,
+  Flame,
+  Clock,
+  Flag,
+  Tag,
+  Inbox,
+  Archive,
+  Eye,
+  Sunrise,
+  BarChart3,
+  AlertTriangle,
+  GripVertical,
+} from 'lucide-react';
+import { ScrollArea } from './ui/scroll-area';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { cn } from '@/lib/utils';
+import { SmartListEditor } from './SmartListEditor';
+import { useFeatures } from '../hooks/useFeatures';
+import { undoableDelete } from '@/lib/undo-delete';
+import type { ListWithCount, GoalWithProgress, Timeframe, List as ListType } from '@uptier/shared';
+
+interface DatabaseProfile {
+  id: string;
+  name: string;
+  path: string;
+  color: string;
+  icon: string;
+  createdAt: string;
+}
+
+interface SidebarProps {
+  selectedListId: string | null;
+  onSelectList: (id: string) => void;
+  selectedGoalId: string | null;
+  onSelectGoal: (goal: GoalWithProgress | null) => void;
+  onSettingsClick: () => void;
+  onSearchClick?: () => void;
+  onDatabaseSwitch?: () => void;
+  onPlanDay?: () => void;
+  onNewTask?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+  width?: number;
+  onWidthChange?: (width: number) => void;
+}
+
+const MIN_SIDEBAR_WIDTH = 180;
+const MAX_SIDEBAR_WIDTH = 400;
+const DEFAULT_SIDEBAR_WIDTH = 256;
+
+const SMART_LISTS = [
+  { id: 'smart:my_day', name: 'My Day', icon: Sun, color: '#f59e0b' },
+  { id: 'smart:important', name: 'Important', icon: Star, color: '#ef4444' },
+  { id: 'smart:planned', name: 'Planned', icon: Calendar, color: '#3b82f6' },
+  { id: 'smart:calendar', name: 'Calendar', icon: CalendarDays, color: '#8b5cf6' },
+  { id: 'smart:dashboard', name: 'Dashboard', icon: BarChart3, color: '#10b981' },
+  { id: 'smart:completed', name: 'Completed', icon: CheckCircle2, color: '#22c55e' },
+];
+
+const FILTER_ICON_MAP: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
+  filter: Filter,
+  zap: Zap,
+  flame: Flame,
+  clock: Clock,
+  flag: Flag,
+  tag: Tag,
+  inbox: Inbox,
+  archive: Archive,
+  eye: Eye,
+  star: Star,
+};
+
+function getFilterIcon(iconName: string) {
+  return FILTER_ICON_MAP[iconName] ?? Filter;
+}
+
+const TIMEFRAME_COLORS: Record<Timeframe, string> = {
+  daily: 'text-emerald-400',
+  weekly: 'text-blue-400',
+  monthly: 'text-purple-400',
+  quarterly: 'text-amber-400',
+  yearly: 'text-red-400',
+};
+
+function SortableSidebarItem({ id, disabled, children }: {
+  id: string;
+  disabled?: boolean;
+  children: (props: { dragHandleProps: Record<string, unknown>; isDragging: boolean }) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      {children({ dragHandleProps: listeners ?? {}, isDragging })}
+    </div>
+  );
+}
+
+export function Sidebar({ selectedListId, onSelectList, selectedGoalId, onSelectGoal, onSettingsClick, onSearchClick, onDatabaseSwitch, onPlanDay, onNewTask, collapsed = false, onToggleCollapse, width = DEFAULT_SIDEBAR_WIDTH, onWidthChange }: SidebarProps) {
+  const [showNewList, setShowNewList] = useState(false);
+  const [newListName, setNewListName] = useState('');
+  const [listsExpanded, setListsExpanded] = useState(true);
+  const [goalsExpanded, setGoalsExpanded] = useState(true);
+  const [dbDropdownOpen, setDbDropdownOpen] = useState(false);
+  const [showNewDb, setShowNewDb] = useState(false);
+  const [newDbName, setNewDbName] = useState('');
+  const [editingListId, setEditingListId] = useState<string | null>(null);
+  const [editingListName, setEditingListName] = useState('');
+  const [listMenuOpen, setListMenuOpen] = useState<string | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
+  const [showNewGoal, setShowNewGoal] = useState(false);
+  const [newGoalName, setNewGoalName] = useState('');
+  const [newGoalTimeframe, setNewGoalTimeframe] = useState<Timeframe>('weekly');
+  const [filtersExpanded, setFiltersExpanded] = useState(true);
+  const [filterEditorOpen, setFilterEditorOpen] = useState(false);
+  const [editingFilter, setEditingFilter] = useState<ListType | null>(null);
+  const [filterMenuOpen, setFilterMenuOpen] = useState<string | null>(null);
+  const [smartListOrder, setSmartListOrder] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('smartListOrder');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+
+  const queryClient = useQueryClient();
+  const features = useFeatures();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const { data: lists = [] } = useQuery<ListWithCount[]>({
+    queryKey: ['lists'],
+    queryFn: () => window.electronAPI.lists.getAll(),
+  });
+
+  const { data: customSmartLists = [] } = useQuery<ListType[]>({
+    queryKey: ['smartLists'],
+    queryFn: () => window.electronAPI.smartLists.getAll(),
+  });
+
+  const { data: dbProfiles = [] } = useQuery<DatabaseProfile[]>({
+    queryKey: ['database-profiles'],
+    queryFn: () => window.electronAPI.database.getProfiles(),
+  });
+
+  const { data: activeDbProfile } = useQuery<DatabaseProfile>({
+    queryKey: ['database-active'],
+    queryFn: () => window.electronAPI.database.getActiveProfile(),
+  });
+
+  const { data: goals = [] } = useQuery<GoalWithProgress[]>({
+    queryKey: ['goals'],
+    queryFn: () => window.electronAPI.goals.getAllWithProgress(),
+  });
+
+  const { data: atRiskTasks = [] } = useQuery<Array<{ id: string; risk_level: 'warning' | 'critical' }>>({
+    queryKey: ['deadlines', 'atRisk'],
+    queryFn: () => window.electronAPI.deadlines.getAtRisk(),
+    staleTime: 60_000,
+  });
+  const atRiskCount = atRiskTasks.length;
+
+  const { data: smartListCounts = {} } = useQuery<Record<string, number>>({
+    queryKey: ['smartListCounts'],
+    queryFn: () => window.electronAPI.tasks.getSmartListCounts(),
+  });
+
+  const { data: focusGoalData } = useQuery<{ todayMinutes: number; dailyGoalMinutes: number; progressPercent: number }>({
+    queryKey: ['analytics', 'focusGoal'],
+    queryFn: async () => {
+      const dashboard = await window.electronAPI.analytics.getDashboard();
+      return dashboard.focusGoal;
+    },
+    staleTime: 30_000,
+  });
+
+  // Compute ordered smart lists from localStorage order
+  const filteredSmartLists = useMemo(() =>
+    SMART_LISTS.filter((sl) => {
+      if (sl.id === 'smart:calendar') return features.calendarView;
+      if (sl.id === 'smart:dashboard') return features.dashboard;
+      return true;
+    }),
+    [features.calendarView, features.dashboard]
+  );
+
+  const orderedSmartLists = useMemo(() => {
+    if (smartListOrder.length === 0) return filteredSmartLists;
+    const ordered = [...filteredSmartLists].sort((a, b) => {
+      const ai = smartListOrder.indexOf(a.id);
+      const bi = smartListOrder.indexOf(b.id);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+    return ordered;
+  }, [filteredSmartLists, smartListOrder]);
+
+  // Drag-end handlers
+  const handleSmartListDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = orderedSmartLists.findIndex(s => s.id === active.id);
+    const newIndex = orderedSmartLists.findIndex(s => s.id === (over.id as string));
+    if (oldIndex === -1 || newIndex === -1) return;
+    const newOrder = arrayMove(orderedSmartLists, oldIndex, newIndex);
+    const newIds = newOrder.map(s => s.id);
+    setSmartListOrder(newIds);
+    localStorage.setItem('smartListOrder', JSON.stringify(newIds));
+  }, [orderedSmartLists]);
+
+  const handleListDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = lists.findIndex(l => l.id === active.id);
+    const newIndex = lists.findIndex(l => l.id === (over.id as string));
+    if (oldIndex === -1 || newIndex === -1) return;
+    const newOrder = arrayMove(lists, oldIndex, newIndex);
+    queryClient.setQueryData(['lists'], newOrder);
+    await window.electronAPI.lists.reorder(newOrder.map(l => l.id));
+    queryClient.invalidateQueries({ queryKey: ['lists'] });
+  }, [lists, queryClient]);
+
+  const handleFilterDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = customSmartLists.findIndex(l => l.id === active.id);
+    const newIndex = customSmartLists.findIndex(l => l.id === (over.id as string));
+    if (oldIndex === -1 || newIndex === -1) return;
+    const newOrder = arrayMove(customSmartLists, oldIndex, newIndex);
+    queryClient.setQueryData(['smartLists'], newOrder);
+    await window.electronAPI.smartLists.reorder(newOrder.map(l => l.id));
+    queryClient.invalidateQueries({ queryKey: ['smartLists'] });
+  }, [customSmartLists, queryClient]);
+
+  const handleGoalDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = goals.findIndex(g => g.id === active.id);
+    const newIndex = goals.findIndex(g => g.id === (over.id as string));
+    if (oldIndex === -1 || newIndex === -1) return;
+    const newOrder = arrayMove(goals, oldIndex, newIndex);
+    queryClient.setQueryData(['goals'], newOrder);
+    await window.electronAPI.goals.reorder(newOrder.map(g => g.id));
+    queryClient.invalidateQueries({ queryKey: ['goals'] });
+  }, [goals, queryClient]);
+
+  const createListMutation = useMutation({
+    mutationFn: (name: string) => window.electronAPI.lists.create({ name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lists'] });
+      setNewListName('');
+      setShowNewList(false);
+    },
+  });
+
+  const createGoalMutation = useMutation({
+    mutationFn: ({ name, timeframe }: { name: string; timeframe: Timeframe }) =>
+      window.electronAPI.goals.create({ name, timeframe }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      setNewGoalName('');
+      setNewGoalTimeframe('weekly');
+      setShowNewGoal(false);
+    },
+  });
+
+  const createDbMutation = useMutation({
+    mutationFn: (name: string) => window.electronAPI.database.create({ name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['database-profiles'] });
+      setNewDbName('');
+      setShowNewDb(false);
+    },
+  });
+
+  const switchDbMutation = useMutation({
+    mutationFn: (profileId: string) => window.electronAPI.database.switch(profileId),
+    onSuccess: () => {
+      // Invalidate all queries after database switch
+      queryClient.invalidateQueries();
+      setDbDropdownOpen(false);
+      onDatabaseSwitch?.();
+    },
+  });
+
+  const deleteDbMutation = useMutation({
+    mutationFn: (id: string) => window.electronAPI.database.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['database-profiles'] });
+    },
+  });
+
+  const updateListMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      window.electronAPI.lists.update(id, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lists'] });
+      setEditingListId(null);
+      setEditingListName('');
+    },
+  });
+
+  const deleteListMutation = useMutation({
+    mutationFn: (id: string) => window.electronAPI.lists.delete(id),
+    onSuccess: (_, deletedId) => {
+      queryClient.invalidateQueries({ queryKey: ['lists'] });
+      queryClient.invalidateQueries({ queryKey: ['smartListCounts'] });
+      // If deleted list was selected, select first available list or smart list
+      if (selectedListId === deletedId) {
+        const remainingLists = lists.filter((l) => l.id !== deletedId);
+        if (remainingLists.length > 0) {
+          onSelectList(remainingLists[0].id);
+        } else {
+          onSelectList('smart:my_day');
+        }
+      }
+    },
+  });
+
+  const deleteSmartListMutation = useMutation({
+    mutationFn: (id: string) => window.electronAPI.smartLists.delete(id),
+    onSuccess: (_, deletedId) => {
+      queryClient.invalidateQueries({ queryKey: ['smartLists'] });
+      if (selectedListId === deletedId) {
+        onSelectList('smart:my_day');
+      }
+    },
+  });
+
+  const handleDeleteSmartList = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setFilterMenuOpen(null);
+    const filterName = smartLists.find(l => l.id === id)?.name || 'filter';
+    if (selectedListId === id) {
+      onSelectList('smart:my_day');
+    }
+    undoableDelete({
+      label: filterName,
+      onDelete: () => {
+        deleteSmartListMutation.mutate(id);
+      },
+      onUndo: () => {
+        queryClient.invalidateQueries({ queryKey: ['smartLists'] });
+      },
+    });
+  };
+
+  const handleEditSmartList = (list: ListType) => {
+    setFilterMenuOpen(null);
+    setEditingFilter(list);
+    setFilterEditorOpen(true);
+  };
+
+  const handleCreateFilter = () => {
+    setEditingFilter(null);
+    setFilterEditorOpen(true);
+  };
+
+  const handleCreateList = () => {
+    if (newListName.trim()) {
+      createListMutation.mutate(newListName.trim());
+    }
+  };
+
+  const handleCreateGoal = () => {
+    if (newGoalName.trim()) {
+      createGoalMutation.mutate({ name: newGoalName.trim(), timeframe: newGoalTimeframe });
+    }
+  };
+
+  const handleCreateDb = () => {
+    if (newDbName.trim()) {
+      createDbMutation.mutate(newDbName.trim());
+    }
+  };
+
+  const handleSwitchDb = (profileId: string) => {
+    if (profileId !== activeDbProfile?.id) {
+      switchDbMutation.mutate(profileId);
+    }
+  };
+
+  const handleDeleteDb = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (window.confirm('Delete this database profile? This will not delete the database file.')) {
+      deleteDbMutation.mutate(id);
+    }
+  };
+
+  const handleStartRename = (list: ListWithCount) => {
+    setEditingListId(list.id);
+    setEditingListName(list.name);
+    setListMenuOpen(null);
+  };
+
+  const handleRenameList = (listId: string) => {
+    if (editingListName.trim() && editingListName.trim() !== lists.find(l => l.id === listId)?.name) {
+      updateListMutation.mutate({ id: listId, name: editingListName.trim() });
+    } else {
+      setEditingListId(null);
+      setEditingListName('');
+    }
+  };
+
+  const handleDeleteList = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setListMenuOpen(null);
+    const listName = lists.find(l => l.id === id)?.name || 'list';
+    if (selectedListId === id) {
+      const remainingLists = lists.filter((l) => l.id !== id);
+      if (remainingLists.length > 0) {
+        onSelectList(remainingLists[0].id);
+      } else {
+        onSelectList('smart:my_day');
+      }
+    }
+    undoableDelete({
+      label: `${listName} and all its tasks`,
+      onDelete: () => {
+        deleteListMutation.mutate(id);
+      },
+      onUndo: () => {
+        queryClient.invalidateQueries({ queryKey: ['lists'] });
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['smartListCounts'] });
+      },
+    });
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.db-switcher')) {
+        setDbDropdownOpen(false);
+      }
+    };
+    if (dbDropdownOpen) {
+      document.addEventListener('click', handleClickOutside);
+    }
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [dbDropdownOpen]);
+
+  // Close list menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.list-menu')) {
+        setListMenuOpen(null);
+      }
+      if (!target.closest('.filter-menu')) {
+        setFilterMenuOpen(null);
+      }
+    };
+    if (listMenuOpen || filterMenuOpen) {
+      document.addEventListener('click', handleClickOutside);
+    }
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [listMenuOpen, filterMenuOpen]);
+
+  // Handle sidebar resize
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, e.clientX));
+      onWidthChange?.(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, onWidthChange]);
+
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  return (
+    <div
+      className={cn(
+        "bg-secondary/30 border-r border-border flex flex-col h-full relative",
+        collapsed && "w-14",
+        !isResizing && "transition-all duration-200"
+      )}
+      style={!collapsed ? { width: `${width}px` } : undefined}
+    >
+      {/* Resize Handle */}
+      {!collapsed && (
+        <div
+          className={cn(
+            "absolute top-0 right-0 w-1 h-full cursor-col-resize z-10 hover:bg-primary/30 transition-colors",
+            isResizing && "bg-primary/50"
+          )}
+          onMouseDown={handleResizeStart}
+        />
+      )}
+      {/* Header */}
+      <div className={cn("border-b border-border", collapsed ? "p-2" : "p-4")}>
+        <div className="flex items-center justify-end">
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className={cn(
+                "p-1.5 rounded-md hover:bg-accent transition-colors",
+                collapsed && "mx-auto"
+              )}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </button>
+          )}
+        </div>
+
+        {/* New Task Button */}
+        {onNewTask && !collapsed && (
+          <button
+            onClick={onNewTask}
+            className="w-full flex items-center gap-2 px-2 py-1.5 mt-2 rounded-md text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="flex-1 text-left">New Task</span>
+            <kbd className="text-[10px] bg-primary-foreground/20 rounded px-1 py-0.5">Ctrl+N</kbd>
+          </button>
+        )}
+        {onNewTask && collapsed && (
+          <button
+            onClick={onNewTask}
+            className="w-full flex items-center justify-center p-2 mt-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            title="New Task (Ctrl+N)"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        )}
+
+        {/* Search Trigger */}
+        {onSearchClick && !collapsed && (
+          <button
+            onClick={onSearchClick}
+            className="w-full flex items-center gap-2 px-2 py-1.5 mt-2 rounded-md text-xs bg-secondary/50 hover:bg-secondary border border-border transition-colors text-muted-foreground"
+          >
+            <Search className="h-3 w-3" />
+            <span className="flex-1 text-left">Search...</span>
+            <kbd className="text-[10px] bg-secondary rounded px-1 py-0.5">Ctrl+K</kbd>
+          </button>
+        )}
+        {onSearchClick && collapsed && (
+          <button
+            onClick={onSearchClick}
+            className="w-full flex items-center justify-center p-2 mt-1 rounded-md text-muted-foreground hover:bg-accent transition-colors"
+            title="Search (Ctrl+K)"
+          >
+            <Search className="h-4 w-4" />
+          </button>
+        )}
+
+        {/* Database Switcher */}
+        {features.databaseProfiles && !collapsed && (
+          <div className="db-switcher relative mt-2">
+            <button
+              onClick={() => setDbDropdownOpen(!dbDropdownOpen)}
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs bg-secondary/50 hover:bg-secondary border border-border transition-colors"
+            >
+              <Database className="h-3 w-3" style={{ color: activeDbProfile?.color || '#6366f1' }} />
+              <span className="flex-1 text-left truncate text-muted-foreground">
+                {activeDbProfile?.name || 'Default'}
+              </span>
+              <ChevronDown className={cn('h-3 w-3 transition-transform', dbDropdownOpen && 'rotate-180')} />
+            </button>
+
+          {dbDropdownOpen && (
+            <div className="absolute left-0 right-0 top-full mt-1 bg-background border border-border rounded-md shadow-lg z-50 overflow-hidden">
+              <div className="max-h-48 overflow-y-auto">
+                {dbProfiles.map((profile) => (
+                  <button
+                    key={profile.id}
+                    onClick={() => handleSwitchDb(profile.id)}
+                    className={cn(
+                      'w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-accent transition-colors',
+                      profile.id === activeDbProfile?.id && 'bg-accent/50'
+                    )}
+                  >
+                    <div
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: profile.color }}
+                    />
+                    <span className="flex-1 text-left truncate">{profile.name}</span>
+                    {profile.id === activeDbProfile?.id && (
+                      <Check className="h-3 w-3 text-primary" />
+                    )}
+                    {profile.id !== 'default' && profile.id !== activeDbProfile?.id && (
+                      <button
+                        onClick={(e) => handleDeleteDb(e, profile.id)}
+                        className="p-0.5 hover:text-destructive"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <div className="border-t border-border p-2">
+                {showNewDb ? (
+                  <Input
+                    autoFocus
+                    placeholder="Database name"
+                    value={newDbName}
+                    onChange={(e) => setNewDbName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCreateDb();
+                      if (e.key === 'Escape') {
+                        setShowNewDb(false);
+                        setNewDbName('');
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!newDbName.trim()) {
+                        setShowNewDb(false);
+                      }
+                    }}
+                    className="h-7 text-xs"
+                  />
+                ) : (
+                  <button
+                    onClick={() => setShowNewDb(true)}
+                    className="w-full flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <Plus className="h-3 w-3" />
+                    New Database
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          </div>
+        )}
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className={cn("p-2", collapsed && "px-1")}>
+          {/* Plan My Day */}
+          {features.dailyPlanning && onPlanDay && !collapsed && (
+            <button
+              onClick={onPlanDay}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm bg-primary/10 hover:bg-primary/20 text-primary mb-1 transition-colors"
+            >
+              <Sunrise className="h-4 w-4" />
+              Plan My Day
+            </button>
+          )}
+
+          {/* Focus Goal Indicator */}
+          {features.focusTimer && !collapsed && focusGoalData && focusGoalData.dailyGoalMinutes > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1 mb-2 text-xs text-muted-foreground">
+              <FocusGoalMiniRing percent={focusGoalData.progressPercent} size={16} />
+              <span>
+                {Math.round(focusGoalData.todayMinutes)}m / {focusGoalData.dailyGoalMinutes}m focus
+              </span>
+            </div>
+          )}
+
+          {/* Smart Lists */}
+          <div className="mb-4">
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSmartListDragEnd}>
+              <SortableContext items={orderedSmartLists.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                {orderedSmartLists.map((smartList) => {
+                  const count = smartListCounts[smartList.id];
+                  const showAtRisk = !collapsed && features.deadlineAlerts && atRiskCount > 0 &&
+                    (smartList.id === 'smart:my_day' || smartList.id === 'smart:planned');
+                  return (
+                    <SortableSidebarItem key={smartList.id} id={smartList.id}>
+                      {({ dragHandleProps, isDragging }) => (
+                        <div
+                          className={cn(
+                            'group flex items-center rounded-md text-sm transition-colors cursor-pointer',
+                            collapsed ? 'justify-center p-2' : 'gap-1 px-1 py-2',
+                            selectedListId === smartList.id
+                              ? 'bg-accent text-accent-foreground'
+                              : 'hover:bg-accent/50 text-muted-foreground',
+                            isDragging && 'opacity-50 bg-accent shadow-lg'
+                          )}
+                          onClick={() => onSelectList(smartList.id)}
+                          title={collapsed ? smartList.name : undefined}
+                        >
+                          {!collapsed && (
+                            <div
+                              {...dragHandleProps}
+                              className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity px-0.5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                            </div>
+                          )}
+                          <smartList.icon
+                            className="h-4 w-4 flex-shrink-0 ml-1"
+                            style={{ color: smartList.color }}
+                          />
+                          {!collapsed && (
+                            <>
+                              <span className="flex-1 text-left ml-2">{smartList.name}</span>
+                              {count > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                  {count}
+                                </span>
+                              )}
+                              {showAtRisk && (
+                                <AlertTriangle className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" />
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </SortableSidebarItem>
+                  );
+                })}
+              </SortableContext>
+            </DndContext>
+          </div>
+
+          {/* Custom Smart Lists (Filters) */}
+          {features.customSmartFilters && (customSmartLists.length > 0 || !collapsed) && (
+            <>
+              <div className="border-t border-border my-2" />
+              <div className="mb-4">
+                {!collapsed && (
+                  <button
+                    onClick={() => setFiltersExpanded(!filtersExpanded)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    {filtersExpanded ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                    <Filter className="h-4 w-4" />
+                    <span>Filters</span>
+                    {customSmartLists.length > 0 && (
+                      <span className="ml-auto text-xs">{customSmartLists.length}</span>
+                    )}
+                  </button>
+                )}
+
+                {(collapsed || filtersExpanded) && (
+                  <div className={cn(!collapsed && "ml-2")}>
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleFilterDragEnd}>
+                      <SortableContext items={customSmartLists.map(l => l.id)} strategy={verticalListSortingStrategy}>
+                        {customSmartLists.map((smartList) => {
+                          const IconComp = getFilterIcon(smartList.icon);
+                          return (
+                            <SortableSidebarItem key={smartList.id} id={smartList.id}>
+                              {({ dragHandleProps, isDragging }) => (
+                                <div className={cn("group relative filter-menu", isDragging && "opacity-50 bg-accent shadow-lg rounded-md")}>
+                                  <div
+                                    onClick={() => onSelectList(smartList.id)}
+                                    className={cn(
+                                      'w-full flex items-center rounded-md text-sm transition-colors cursor-pointer',
+                                      collapsed ? 'justify-center p-2' : 'gap-1 px-1 py-2',
+                                      selectedListId === smartList.id
+                                        ? 'bg-accent text-accent-foreground'
+                                        : 'hover:bg-accent/50 text-muted-foreground'
+                                    )}
+                                    title={collapsed ? smartList.name : undefined}
+                                  >
+                                    {!collapsed && (
+                                      <div
+                                        {...dragHandleProps}
+                                        className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity px-0.5"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                    <IconComp
+                                      className="h-4 w-4 flex-shrink-0 ml-1"
+                                      style={{ color: smartList.color }}
+                                    />
+                                    {!collapsed && (
+                                      <>
+                                        <span className="flex-1 text-left truncate ml-2">{smartList.name}</span>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setFilterMenuOpen(filterMenuOpen === smartList.id ? null : smartList.id);
+                                          }}
+                                          className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-accent transition-opacity"
+                                        >
+                                          <MoreVertical className="h-3.5 w-3.5" />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+
+                                  {/* Filter context menu */}
+                                  {filterMenuOpen === smartList.id && (
+                                    <div className="absolute right-2 top-full mt-1 bg-background border border-border rounded-md shadow-lg z-50 overflow-hidden min-w-[120px]">
+                                      <button
+                                        onClick={() => handleEditSmartList(smartList)}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-accent transition-colors"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                        Edit
+                                      </button>
+                                      <button
+                                        onClick={(e) => handleDeleteSmartList(e, smartList.id)}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-accent text-destructive transition-colors"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                        Delete
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </SortableSidebarItem>
+                          );
+                        })}
+                      </SortableContext>
+                    </DndContext>
+
+                    {/* New Filter button */}
+                    {!collapsed && (
+                      <button
+                        onClick={handleCreateFilter}
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>New Filter</span>
+                      </button>
+                    )}
+                    {collapsed && (
+                      <button
+                        onClick={() => {
+                          if (onToggleCollapse) onToggleCollapse();
+                          handleCreateFilter();
+                        }}
+                        className="w-full flex items-center justify-center p-2 rounded-md text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                        title="New Filter"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Separator */}
+          <div className="border-t border-border my-2" />
+
+          {/* User Lists */}
+          <div className="mb-4">
+            {!collapsed && (
+              <button
+                onClick={() => setListsExpanded(!listsExpanded)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                {listsExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+                <List className="h-4 w-4" />
+                <span>Lists</span>
+              </button>
+            )}
+
+            {(collapsed || listsExpanded) && (
+              <div className={cn(!collapsed && "ml-2")}>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleListDragEnd}>
+                  <SortableContext items={lists.map(l => l.id)} strategy={verticalListSortingStrategy}>
+                    {lists.map((list) => (
+                      <SortableSidebarItem key={list.id} id={list.id} disabled={editingListId === list.id}>
+                        {({ dragHandleProps, isDragging }) => (
+                          <div className={cn("group relative list-menu", isDragging && "opacity-50 bg-accent shadow-lg rounded-md")}>
+                            {editingListId === list.id && !collapsed ? (
+                              <div className="px-3 py-2">
+                                <Input
+                                  autoFocus
+                                  value={editingListName}
+                                  onChange={(e) => setEditingListName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleRenameList(list.id);
+                                    if (e.key === 'Escape') {
+                                      setEditingListId(null);
+                                      setEditingListName('');
+                                    }
+                                  }}
+                                  onBlur={() => handleRenameList(list.id)}
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                            ) : (
+                              <div
+                                onClick={() => onSelectList(list.id)}
+                                className={cn(
+                                  'w-full flex items-center rounded-md text-sm transition-colors cursor-pointer',
+                                  collapsed ? 'justify-center p-2' : 'gap-1 px-1 py-2',
+                                  selectedListId === list.id
+                                    ? 'bg-accent text-accent-foreground'
+                                    : 'hover:bg-accent/50 text-muted-foreground'
+                                )}
+                                title={collapsed ? list.name : undefined}
+                              >
+                                {!collapsed && (
+                                  <div
+                                    {...dragHandleProps}
+                                    className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity px-0.5"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                                  </div>
+                                )}
+                                <div
+                                  className={cn("rounded-sm flex-shrink-0 ml-1", collapsed ? "h-4 w-4" : "h-3 w-3")}
+                                  style={{ backgroundColor: list.color }}
+                                />
+                                {!collapsed && (
+                                  <>
+                                    <span className="flex-1 text-left truncate ml-2">{list.name}</span>
+                                    {list.incomplete_count > 0 && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {list.incomplete_count}
+                                      </span>
+                                    )}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setListMenuOpen(listMenuOpen === list.id ? null : list.id);
+                                      }}
+                                      className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-accent transition-opacity"
+                                    >
+                                      <MoreVertical className="h-3.5 w-3.5" />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Dropdown Menu */}
+                            {listMenuOpen === list.id && (
+                              <div className="absolute right-2 top-full mt-1 bg-background border border-border rounded-md shadow-lg z-50 overflow-hidden min-w-[120px]">
+                                <button
+                                  onClick={() => handleStartRename(list)}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-accent transition-colors"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                  Rename
+                                </button>
+                                <button
+                                  onClick={(e) => handleDeleteList(e, list.id)}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-accent text-destructive transition-colors"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </SortableSidebarItem>
+                    ))}
+                  </SortableContext>
+                </DndContext>
+
+                {/* New List Input */}
+                {!collapsed && (
+                  showNewList ? (
+                    <div className="px-3 py-2">
+                      <Input
+                        autoFocus
+                        placeholder="List name"
+                        value={newListName}
+                        onChange={(e) => setNewListName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleCreateList();
+                          if (e.key === 'Escape') {
+                            setShowNewList(false);
+                            setNewListName('');
+                          }
+                        }}
+                        onBlur={() => {
+                          if (!newListName.trim()) {
+                            setShowNewList(false);
+                          }
+                        }}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowNewList(true)}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>New List</span>
+                    </button>
+                  )
+                )}
+                {collapsed && (
+                  <button
+                    onClick={() => {
+                      if (onToggleCollapse) onToggleCollapse();
+                      setShowNewList(true);
+                    }}
+                    className="w-full flex items-center justify-center p-2 rounded-md text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                    title="New List"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Goals */}
+          {features.goalsSystem && (<>
+          <div className="border-t border-border my-2" />
+          <div className="mb-4">
+            {!collapsed && (
+              <button
+                onClick={() => setGoalsExpanded(!goalsExpanded)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                {goalsExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+                <Target className="h-4 w-4" />
+                <span>Goals</span>
+                {goals.length > 0 && (
+                  <span className="ml-auto text-xs">{goals.length}</span>
+                )}
+              </button>
+            )}
+
+            {(collapsed || goalsExpanded) && (
+              <div className={cn(!collapsed && "ml-2")}>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGoalDragEnd}>
+                  <SortableContext items={goals.map(g => g.id)} strategy={verticalListSortingStrategy}>
+                    {goals.map((goal) => (
+                      <SortableSidebarItem key={goal.id} id={goal.id}>
+                        {({ dragHandleProps, isDragging }) => (
+                          <div
+                            className={cn(
+                              'group flex items-center rounded-md text-sm transition-colors cursor-pointer',
+                              collapsed ? 'justify-center p-2' : 'gap-1 px-1 py-2',
+                              selectedGoalId === goal.id
+                                ? 'bg-accent text-accent-foreground'
+                                : 'hover:bg-accent/50 text-muted-foreground',
+                              isDragging && 'opacity-50 bg-accent shadow-lg'
+                            )}
+                            onClick={() => onSelectGoal(goal)}
+                            title={collapsed ? goal.name : undefined}
+                          >
+                            {!collapsed && (
+                              <div
+                                {...dragHandleProps}
+                                className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity px-0.5"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                              </div>
+                            )}
+                            <Target
+                              className={cn('h-4 w-4 flex-shrink-0 ml-1', TIMEFRAME_COLORS[goal.timeframe])}
+                            />
+                            {!collapsed && (
+                              <>
+                                <div className="flex-1 text-left min-w-0 ml-2">
+                                  <div className="truncate">{goal.name}</div>
+                                  {goal.total_tasks > 0 && (
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <div className="flex-1 h-1 bg-secondary rounded-full overflow-hidden">
+                                        <div
+                                          className={cn(
+                                            'h-full rounded-full',
+                                            goal.progress_percentage === 100 ? 'bg-green-500' : 'bg-primary'
+                                          )}
+                                          style={{ width: `${goal.progress_percentage}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                                        {goal.completed_tasks}/{goal.total_tasks}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </SortableSidebarItem>
+                    ))}
+                  </SortableContext>
+                </DndContext>
+
+                {/* New Goal Input */}
+                {!collapsed && (
+                  showNewGoal ? (
+                    <div className="px-3 py-2 space-y-2">
+                      <Input
+                        autoFocus
+                        placeholder="Goal name"
+                        value={newGoalName}
+                        onChange={(e) => setNewGoalName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleCreateGoal();
+                          if (e.key === 'Escape') {
+                            setShowNewGoal(false);
+                            setNewGoalName('');
+                          }
+                        }}
+                        onBlur={() => {
+                          if (!newGoalName.trim()) {
+                            setShowNewGoal(false);
+                          }
+                        }}
+                        className="h-8 text-sm"
+                      />
+                      <div className="flex flex-wrap gap-1">
+                        {(['daily', 'weekly', 'monthly', 'quarterly', 'yearly'] as Timeframe[]).map((tf) => (
+                          <button
+                            key={tf}
+                            onClick={() => setNewGoalTimeframe(tf)}
+                            className={cn(
+                              'px-2 py-0.5 text-xs rounded transition-colors',
+                              newGoalTimeframe === tf
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-secondary hover:bg-secondary/80'
+                            )}
+                          >
+                            {tf}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowNewGoal(true)}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>New Goal</span>
+                    </button>
+                  )
+                )}
+                {collapsed && (
+                  <button
+                    onClick={() => {
+                      if (onToggleCollapse) onToggleCollapse();
+                      setShowNewGoal(true);
+                    }}
+                    className="w-full flex items-center justify-center p-2 rounded-md text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                    title="New Goal"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          </>)}
+        </div>
+      </ScrollArea>
+
+      {/* Footer */}
+      <div className={cn("border-t border-border", collapsed ? "p-1" : "p-2")}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn(
+            "w-full",
+            collapsed ? "justify-center p-2" : "justify-start gap-2"
+          )}
+          onClick={onSettingsClick}
+          title={collapsed ? "Settings" : undefined}
+        >
+          <Settings className="h-4 w-4" />
+          {!collapsed && "Settings"}
+        </Button>
+      </div>
+
+      {/* Smart List Editor Dialog */}
+      <SmartListEditor
+        open={filterEditorOpen}
+        onOpenChange={setFilterEditorOpen}
+        editingList={editingFilter}
+        onSaved={() => {
+          setEditingFilter(null);
+        }}
+      />
+    </div>
+  );
+}
+
+function FocusGoalMiniRing({ percent, size }: { percent: number; size: number }) {
+  const r = (size - 2) / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (Math.min(percent, 100) / 100) * circumference;
+  return (
+    <svg width={size} height={size} className="transform -rotate-90 flex-shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth="2" className="text-muted/20" />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth="2"
+        strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+        className={percent >= 100 ? 'text-green-500' : 'text-primary'} />
+    </svg>
+  );
+}

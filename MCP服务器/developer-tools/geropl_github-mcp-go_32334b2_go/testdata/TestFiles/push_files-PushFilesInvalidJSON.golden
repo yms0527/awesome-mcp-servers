@@ -1,0 +1,4 @@
+{
+  "output": "",
+  "err": "GitHub API Error: files must be a valid JSON array: invalid character 'i' looking for beginning of value"
+}

@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic
+requests
+langchain-core 
+langchain-community 
+langchain-google-genai 
+langchain-anthropic 
+python-dotenv 
+google-cloud-storage
+streamlit
+requests
+anthropic

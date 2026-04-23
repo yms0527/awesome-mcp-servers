@@ -1,0 +1,4 @@
+{
+  "output": "# Pull Request: PR with Assignees\n\n**Number:** #11  \n**State:** open  \n**Created:** Fri, 07 Mar 2025 09:55:55 UTC  \n**URL:** https://github.com/geropl/github-mcp-go-test/pull/11  \n\n## Description\n\nThis PR has assignees\n\n## Details\n\n- **Head:** test/assignees-pr-branch  \n- **Base:** main  \n- **Draft:** false  \n- **Changes:** +3/-0 in 1 files  \n",
+  "err": ""
+}

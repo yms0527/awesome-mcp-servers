@@ -1,0 +1,31 @@
+# Node (for any local tooling)
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Claude Code (personal config)
+CLAUDE.md
+CLAUDE.local.md
+.claude/CLAUDE.md
+.claude/settings.local.json
+.claude/*.local.json

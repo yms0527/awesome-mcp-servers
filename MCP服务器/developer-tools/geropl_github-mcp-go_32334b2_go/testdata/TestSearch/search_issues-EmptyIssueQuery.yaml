@@ -1,0 +1,92 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.squirrel-girl-preview
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/search/issues?page=1&per_page=30&q=+is%3Aissue
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 234
+        uncompressed: false
+        body: '{"message":"Validation Failed","errors":[{"message":"None of the search qualifiers apply to this search type.","resource":"Search","field":"q","code":"invalid"}],"documentation_url":"https://docs.github.com/v3/search/","status":"422"}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "234"
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Wed, 12 Mar 2025 10:54:38 GMT
+            Deprecation:
+                - Tue, 04 Mar 2025 00:00:00 GMT
+            Github-Authentication-Token-Expiration:
+                - 2025-04-06 13:14:03 +0200
+            Link:
+                - <>; rel="deprecation"; type="text/html"
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Sunset:
+                - Thu, 04 Sep 2025 00:00:00 GMT
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Github-Permissions:
+                - allows_permissionless_access=true
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; param=squirrel-girl-preview
+            X-Github-Request-Id:
+                - 2925:12B36D:D0D1C0:D5EEC4:67D167EE
+            X-Ratelimit-Limit:
+                - "30"
+            X-Ratelimit-Remaining:
+                - "24"
+            X-Ratelimit-Reset:
+                - "1741776900"
+            X-Ratelimit-Resource:
+                - search
+            X-Ratelimit-Used:
+                - "6"
+            X-Xss-Protection:
+                - "0"
+        status: 422 Unprocessable Entity
+        code: 422
+        duration: 230.939093ms

@@ -1,0 +1,41 @@
+[project]
+site_name = "SchemaPin Documentation"
+site_url = "https://docs.schemapin.org/"
+site_description = "Cryptographic tool schema verification to prevent MCP Rug Pull attacks"
+repo_url = "https://github.com/ThirdKeyAI/SchemaPin"
+repo_name = "ThirdKeyAI/SchemaPin"
+nav = [
+  {"Home" = "index.md"},
+  {"Getting Started" = "getting-started.md"},
+  {"API Reference" = "api-reference.md"},
+  {"Skill Signing" = "skill-signing.md"},
+  {"Trust Bundles" = "trust-bundles.md"},
+  {"Deployment" = "deployment.md"},
+  {"Troubleshooting" = "troubleshooting.md"},
+  {"schemapin.org" = "https://schemapin.org"},
+]
+
+[[project.theme.palette]]
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/ThirdKeyAI/SchemaPin"
+name = "SchemaPin on GitHub"
+
+[[project.extra.social]]
+icon = "fontawesome/solid/globe"
+link = "https://schemapin.org"
+name = "schemapin.org"
+
+[[project.extra.social]]
+icon = "fontawesome/solid/shield-halved"
+link = "https://thirdkey.ai"
+name = "ThirdKey"

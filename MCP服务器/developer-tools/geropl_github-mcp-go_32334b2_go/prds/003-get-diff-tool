@@ -1,0 +1,110 @@
+# Project Requirements Document: Get Diff Tool
+
+## Overview
+
+This document outlines the requirements for adding a new "get_diff" tool to the GitHub MCP Server. This tool will provide a way to get the diff between two commits, branches, or tags in a GitHub repository, offering more detailed and focused diff information than the existing compare_commits tool.
+
+## Background
+
+Currently, the GitHub MCP Server provides a `compare_commits` tool that allows comparing two commits or branches in a GitHub repository. However, this tool returns a comprehensive comparison that includes commit information, file changes, and other metadata. There's a need for a more focused tool that specifically returns the diff content in a format that's easier to parse and display.
+
+The `get_diff` tool will address this need by providing a way to get just the diff content between two commits, branches, or tags, making it easier for AI assistants to analyze code changes.
+
+## Requirements
+
+### Tool Definition
+
+1. Create a new tool called `get_diff` with the following input schema:
+   ```json
+   {
+     "type": "object",
+     "properties": {
+       "owner": {
+         "description": "Repository owner (username or organization)",
+         "type": "string"
+       },
+       "repo": {
+         "description": "Repository name",
+         "type": "string"
+       },
+       "base": {
+         "description": "Base branch, commit SHA, or tag",
+         "type": "string"
+       },
+       "head": {
+         "description": "Head branch, commit SHA, or tag",
+         "type": "string"
+       },
+       "format": {
+         "description": "Output format (unified, split)",
+         "type": "string"
+       }
+     },
+     "required": [
+       "owner",
+       "repo",
+       "base",
+       "head"
+     ]
+   }
+   ```
+
+2. The tool should return a diff in the specified format (unified or split), with default being unified.
+
+### Implementation Details
+
+1. Use the GitHub API to get the diff between two commits, branches, or tags.
+2. Format the diff according to the specified format.
+3. Handle large diffs appropriately, potentially with pagination or truncation.
+4. Provide clear error messages for common issues (e.g., invalid base or head, repository not found).
+
+### Error Handling
+
+1. Implement proper error handling for the following scenarios:
+   - Invalid owner or repository
+   - Invalid base or head reference
+   - Repository not found
+   - No diff available (e.g., identical commits)
+   - GitHub API errors
+
+## Testing Strategy
+
+### Test Cases
+
+1. **Basic Diff**: Get diff between two commits in a repository
+2. **Branch Diff**: Get diff between two branches
+3. **Tag Diff**: Get diff between two tags
+4. **Format Options**: Test different format options (unified, split)
+5. **Error Cases**:
+   - Invalid owner
+   - Invalid repository
+   - Invalid base
+   - Invalid head
+   - Non-existent repository
+
+### Test Implementation
+
+Follow the standard testing approach outlined in TESTING.md:
+1. Implement one test case at a time
+2. Record HTTP interactions with `-record` flag
+3. Create golden files with `-golden` flag
+4. Verify tests pass in normal mode
+5. Update test verification in activeContext.md
+
+## Implementation Status
+
+| Task | Status | Progress |
+|------|--------|----------|
+| Define tool schema | Not Started | 0% |
+| Implement GitHub operations | Not Started | 0% |
+| Implement tool handler | Not Started | 0% |
+| Add test cases | Not Started | 0% |
+| Update documentation | Not Started | 0% |
+| **Overall Progress** | **Not Started** | **0%** |
+
+## Future Considerations
+
+1. Consider adding options for context lines (e.g., number of lines before and after changes)
+2. Consider adding options for ignoring whitespace changes
+3. Consider adding support for file-specific diffs (e.g., get diff for a specific file)
+4. Evaluate integration with the existing `compare_commits` tool

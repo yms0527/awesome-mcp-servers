@@ -1,0 +1,57 @@
+name: merge-main
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
+jobs:
+  merge-main:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+
+      - name: Verify npm authentication
+        if: ${{ steps.release.outputs.releases_created }}
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Tests
+        run: npm test
+
+      - name: Creating Release
+        id: release
+        uses: google-github-actions/release-please-action@v3
+        with:
+          command: manifest
+
+      - name: Build Package
+        if: ${{ steps.release.outputs.releases_created }}
+        run: npm run build
+
+      - name: Publish Package (NPM Registry)
+        if: ${{ steps.release.outputs.releases_created }}
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

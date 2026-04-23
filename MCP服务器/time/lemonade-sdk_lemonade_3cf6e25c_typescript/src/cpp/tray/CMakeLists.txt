@@ -1,0 +1,310 @@
+# Tray application subproject
+# Note: This is included from parent CMakeLists.txt via add_subdirectory(tray)
+# Parent project already sets C++ standard and fetches dependencies
+
+# Generate manifest files from templates (Windows only)
+if(WIN32)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/lemonade-server.manifest.in
+        ${CMAKE_CURRENT_BINARY_DIR}/lemonade-server.manifest
+        @ONLY
+    )
+endif()
+
+# Platform-specific sources
+set(PLATFORM_SOURCES "")
+set(PLATFORM_LIBS "")
+
+if(WIN32)
+    set(PLATFORM_SOURCES
+        platform/windows_tray.cpp
+    )
+    set(PLATFORM_LIBS
+        user32
+        shell32
+        ole32
+        oleaut32
+        comctl32
+    )
+
+    # Note: Not using WIN32 flag to support both --no-tray (console) and tray modes
+    # For true GUI-only mode, could add WIN32 flag and use WinMain
+
+elseif(APPLE)
+    set(PLATFORM_SOURCES
+        platform/macos_tray.mm
+    )
+
+    find_library(COCOA_LIBRARY Cocoa REQUIRED)
+    find_library(FOUNDATION_LIBRARY Foundation REQUIRED)
+    find_library(USERNOTIFICATIONS_LIBRARY UserNotifications REQUIRED)
+    find_library(METAL_LIBRARY Metal REQUIRED)
+
+    set(PLATFORM_LIBS
+        ${COCOA_LIBRARY}
+        ${FOUNDATION_LIBRARY}
+        ${USERNOTIFICATIONS_LIBRARY}
+        ${METAL_LIBRARY}
+    )
+
+    # Enable Objective-C++ compilation
+    set_source_files_properties(
+        platform/macos_tray.mm
+        PROPERTIES
+        COMPILE_FLAGS "-x objective-c++"
+    )
+
+elseif(UNIX)  # Linux
+    # Linux builds are headless-only (no tray support)
+    # This avoids LGPL dependencies (GTK3, libappindicator3, libnotify)
+    message(STATUS "Linux build: Tray application disabled (headless mode only)")
+    message(STATUS "Use 'lemonade-server serve --no-tray' to run server")
+
+    # Include stub Linux tray implementation (headless mode)
+    set(PLATFORM_SOURCES
+        platform/linux_tray.cpp
+    )
+    set(PLATFORM_LIBS "")
+endif()
+
+# Common sources
+set(COMMON_SOURCES
+    main.cpp
+    tray_app.cpp
+    agent_launcher.cpp
+    server_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../server/cli_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../server/recipe_options.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../server/system_info.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../server/utils/json_utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../server/utils/process_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../server/backends/backend_utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../server/utils/path_utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../server/utils/wmi_helper.cpp
+    platform/tray_factory.cpp
+)
+
+# macOS-specific sources
+if(APPLE)
+    list(APPEND COMMON_SOURCES
+        LemonadeServiceManager.mm
+        ${CMAKE_CURRENT_SOURCE_DIR}/../server/macos_system_info.mm
+    )
+
+    # Enable Objective-C++ compilation for macOS files
+    set_source_files_properties(
+        LemonadeServiceManager.mm
+        ${CMAKE_CURRENT_SOURCE_DIR}/../server/macos_system_info.mm
+        PROPERTIES
+        COMPILE_FLAGS "-x objective-c++"
+    )
+endif()
+
+# Add version resource file on Windows
+if(WIN32)
+    list(APPEND COMMON_SOURCES version.rc)
+endif()
+
+# ============================================================
+# lemonade-server.exe - Console CLI client
+# ============================================================
+add_executable(lemonade-server
+    ${COMMON_SOURCES}
+    ${PLATFORM_SOURCES}
+)
+
+target_link_libraries(lemonade-server PRIVATE
+    nlohmann_json::nlohmann_json
+    ${PLATFORM_LIBS}
+)
+
+# Link httplib based on what's available (set by parent CMakeLists.txt)
+if(USE_SYSTEM_HTTPLIB)
+    target_link_libraries(lemonade-server PRIVATE cpp-httplib)
+else()
+    target_link_libraries(lemonade-server PRIVATE httplib::httplib)
+endif()
+
+# Link CLI11 based on what's available
+if(USE_SYSTEM_CLI11)
+    target_include_directories(lemonade-server PRIVATE ${CLI11_INCLUDE_DIRS})
+else()
+    target_link_libraries(lemonade-server PRIVATE CLI11::CLI11)
+endif()
+
+# Add include directories for header-only system packages
+target_include_directories(lemonade-server PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+if(USE_SYSTEM_HTTPLIB AND HTTPLIB_INCLUDE_DIRS)
+    target_include_directories(lemonade-server PRIVATE ${HTTPLIB_INCLUDE_DIRS})
+endif()
+
+target_compile_definitions(lemonade-server PRIVATE LEMONADE_TRAY)
+
+# Enable ARC (Automatic Reference Counting) for macOS Objective-C++ files
+if(APPLE)
+    target_compile_options(lemonade-server PRIVATE -fobjc-arc)
+endif()
+
+# Set output directory to build root for all platforms
+# Windows uses Debug/Release subdirectories (multi-config generator)
+# Linux/Mac go directly to CMAKE_BINARY_DIR (single-config generator)
+set_target_properties(lemonade-server PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)
+if(WIN32)
+    set_target_properties(lemonade-server PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/Debug"
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/Release"
+    )
+endif()
+
+# ============================================================
+# lemonade-tray.exe - GUI tray launcher (Windows only)
+# ============================================================
+if(WIN32)
+    add_executable(lemonade-tray WIN32
+        tray_launcher.cpp
+    )
+
+    # Add version resource for tray launcher
+    target_sources(lemonade-tray PRIVATE version.rc)
+
+    # Include directories for single_instance.h
+    target_include_directories(lemonade-tray PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    )
+
+    target_link_libraries(lemonade-tray PRIVATE
+        nlohmann_json::nlohmann_json
+        user32
+        shell32
+    )
+
+    set_target_properties(lemonade-tray PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/Debug"
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/Release"
+    )
+
+    # ============================================================
+    # lemonade-log-viewer.exe - Log file viewer (Windows only)
+    # ============================================================
+    add_executable(lemonade-log-viewer
+        log-viewer.cpp
+    )
+
+    target_link_libraries(lemonade-log-viewer PRIVATE
+        nlohmann_json::nlohmann_json
+    )
+
+    set_target_properties(lemonade-log-viewer PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/Debug"
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/Release"
+    )
+endif()
+
+# Platform-specific settings
+if(WIN32)
+    # On Windows, make sure we have Unicode support
+    target_compile_definitions(lemonade-server PRIVATE
+        UNICODE
+        _UNICODE
+    )
+
+    # Link with networking and system libraries
+    target_link_libraries(lemonade-server PRIVATE
+        ws2_32     # Winsock
+        iphlpapi   # IP Helper API for network connection enumeration
+    )
+
+    # Embed manifest file
+    if(MSVC)
+        set_target_properties(lemonade-server PROPERTIES
+            LINK_FLAGS "/MANIFEST:EMBED /MANIFESTINPUT:${CMAKE_CURRENT_BINARY_DIR}/lemonade-server.manifest"
+        )
+    endif()
+endif()
+
+if(UNIX AND NOT APPLE)
+    # On Linux, link with pthread
+    find_package(Threads REQUIRED)
+    target_link_libraries(lemonade-server PRIVATE
+        Threads::Threads
+    )
+
+    # Optional: systemd detection for service status
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(SYSTEMD QUIET libsystemd)
+        if(SYSTEMD_FOUND)
+            if(NOT DEFINED LEMONADE_SYSTEMD_UNIT_NAME)
+                set(LEMONADE_SYSTEMD_UNIT_NAME "lemonade-server.service" CACHE STRING
+                    "Systemd unit name to match for journald log mode (overridable at runtime via LEMONADE_SYSTEMD_UNIT env var)")
+            endif()
+            target_include_directories(lemonade-server PRIVATE ${SYSTEMD_INCLUDE_DIRS})
+            target_link_libraries(lemonade-server PRIVATE ${SYSTEMD_LIBRARIES})
+            target_compile_definitions(lemonade-server PRIVATE
+                HAVE_SYSTEMD
+                LEMONADE_SYSTEMD_UNIT_NAME="${LEMONADE_SYSTEMD_UNIT_NAME}")
+        endif()
+    endif()
+endif()
+
+# Install target (only on non-macOS platforms where main CMakeLists doesn't handle it)
+if(NOT APPLE)
+    install(TARGETS lemonade-server
+        RUNTIME DESTINATION bin
+    )
+endif()
+
+# ============================================================
+# macOS Signing (Must be in this file where target is defined)
+# ============================================================
+if(APPLE AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    message(STATUS "Configuring signing for Tray Application (lemonade-server)")
+
+    # Inherit variables from Parent CMake
+    if(NOT DEFINED SIGNING_IDENTITY OR NOT DEFINED ENTITLEMENTS_PATH)
+        message(FATAL_ERROR "Signing variables missing! Ensure add_subdirectory(tray) is called AFTER identities are set in root CMakeLists.txt")
+    endif()
+
+    add_custom_command(TARGET lemonade-server POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "--- Signing lemonade-server (Tray) ---"
+        COMMAND codesign --force --options runtime --timestamp --entitlements "${ENTITLEMENTS_PATH}" --sign "${SIGNING_IDENTITY}" -v $<TARGET_FILE:lemonade-server>
+        COMMENT "Signing lemonade-server with Hardened Runtime"
+        VERBATIM
+    )
+endif()
+
+# Create symlink in standard bin path only if not installing to /usr
+if(UNIX AND NOT APPLE AND NOT CMAKE_INSTALL_PREFIX STREQUAL "/usr")
+    install(CODE "
+        file(MAKE_DIRECTORY \"\$ENV{DESTDIR}/usr/bin\")
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+                ${CMAKE_INSTALL_PREFIX}/bin/lemonade-server
+                \"\$ENV{DESTDIR}/usr/bin/lemonade-server\"
+        )
+    ")
+endif()
+
+# Note: Icon resources are copied by parent CMakeLists.txt
+
+# Print configuration summary
+message(STATUS "=== Lemonade Tray Application Configuration ===")
+message(STATUS "Platform: ${CMAKE_SYSTEM_NAME}")
+message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID}")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+if(WIN32)
+    message(STATUS "Windows tray support: YES")
+elseif(APPLE)
+    message(STATUS "macOS tray support: PARTIAL (stub)")
+elseif(UNIX)
+    message(STATUS "Linux tray support: HEADLESS ONLY (use --no-tray)")
+    message(STATUS "  No LGPL dependencies - permissively licensed only")
+endif()
+message(STATUS "===============================================")

@@ -1,0 +1,15 @@
+.claude
+.idea
+.DS_Store
+.vscode
+*.out
+coverage.html
+coverage.txt
+dist
+vendor
+dist/
+/kubefwd
+/kubefwd.*
+RELEASE_*
+NOTES_*
+site/

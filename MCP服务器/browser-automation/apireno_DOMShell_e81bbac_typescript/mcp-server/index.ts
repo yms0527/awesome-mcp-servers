@@ -1,0 +1,1087 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import express, { type Request, type Response, type NextFunction } from "express";
+import { WebSocketServer, type WebSocket } from "ws";
+import { z } from "zod";
+import { randomBytes, randomUUID } from "node:crypto";
+import { appendFileSync, openSync, readSync, writeSync } from "node:fs";
+
+// ---- CLI Flags ----
+
+const args = process.argv.slice(2);
+
+function hasFlag(name: string): boolean {
+  return args.includes(name);
+}
+
+function getFlagValue(name: string, fallback: string): string {
+  const idx = args.indexOf(name);
+  return idx !== -1 && idx + 1 < args.length ? args[idx + 1] : fallback;
+}
+
+const ALLOW_WRITE = hasFlag("--allow-write") || hasFlag("--allow-all");
+const ALLOW_SENSITIVE = hasFlag("--allow-sensitive") || hasFlag("--allow-all");
+const NO_CONFIRM = hasFlag("--no-confirm");
+const EXPOSE_COOKIES = hasFlag("--expose-cookies");
+const PORT = parseInt(getFlagValue("--port", "9876"), 10);
+const MCP_PORT = parseInt(getFlagValue("--mcp-port", "3001"), 10);
+const LOG_FILE = getFlagValue("--log-file", "audit.log");
+const ALLOWED_DOMAINS = getFlagValue("--domains", "")
+  .split(",")
+  .map((d) => d.trim().toLowerCase())
+  .filter(Boolean);
+
+// ---- Auth Token ----
+
+const AUTH_TOKEN = getFlagValue("--token", "") || randomBytes(24).toString("hex");
+
+// ---- Logging ----
+
+function log(msg: string): void {
+  process.stderr.write(`[DOMShell MCP] ${msg}\n`);
+}
+
+function audit(entry: string): void {
+  const line = `[${new Date().toISOString()}] ${entry}\n`;
+  try {
+    appendFileSync(LOG_FILE, line);
+  } catch {
+    // Ignore log write failures
+  }
+}
+
+// ---- Command Tiers ----
+
+const NAVIGATE_COMMANDS = new Set(["navigate", "goto", "open", "back", "forward"]);
+const WRITE_COMMANDS = new Set(["click", "focus", "type", "scroll", "js", "select", "close", "call"]);
+const SENSITIVE_COMMANDS = new Set(["whoami"]);
+
+function getCommandTier(command: string): "read" | "navigate" | "write" | "sensitive" {
+  const cmd = command.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+  if (NAVIGATE_COMMANDS.has(cmd)) return "navigate";
+  if (WRITE_COMMANDS.has(cmd)) return "write";
+  if (SENSITIVE_COMMANDS.has(cmd)) return "sensitive";
+  return "read";
+}
+
+function isCommandAllowed(command: string): { allowed: boolean; reason?: string } {
+  const tier = getCommandTier(command);
+  if (tier === "navigate" && !ALLOW_WRITE) {
+    return { allowed: false, reason: "Navigation commands (navigate/open) are disabled. Start the MCP server with --allow-write or --allow-all." };
+  }
+  if (tier === "write" && !ALLOW_WRITE) {
+    return { allowed: false, reason: "Write commands (click/focus/type) are disabled. Start the MCP server with --allow-write or --allow-all." };
+  }
+  if (tier === "sensitive" && !ALLOW_SENSITIVE) {
+    return { allowed: false, reason: "Sensitive commands (whoami) are disabled. Start the MCP server with --allow-sensitive or --allow-all." };
+  }
+  return { allowed: true };
+}
+
+// ---- User Confirmation via /dev/tty ----
+
+function confirmAction(description: string): Promise<boolean> {
+  if (NO_CONFIRM) return Promise.resolve(true);
+
+  return new Promise((resolve) => {
+    try {
+      const fd = openSync("/dev/tty", "r+");
+      const prompt = `\n[DOMShell] Claude wants to: ${description}\nAllow? (y/n): `;
+      writeSync(fd, prompt);
+
+      const buf = Buffer.alloc(10);
+      const bytesRead = readSync(fd, buf, 0, 10, null);
+      const answer = buf.slice(0, bytesRead).toString().trim().toLowerCase();
+
+      resolve(answer === "y" || answer === "yes");
+    } catch {
+      // /dev/tty not available (e.g., Windows, or running without a terminal)
+      log("WARNING: Cannot open /dev/tty for confirmation. Denying write action.");
+      log("Use --no-confirm to skip confirmation prompts.");
+      resolve(false);
+    }
+
+    // Timeout after 60 seconds
+    setTimeout(() => resolve(false), 60000);
+  });
+}
+
+// ---- Sensitive Data Redaction ----
+
+function redactSensitiveOutput(command: string, output: string): string {
+  if (!SENSITIVE_COMMANDS.has(command.trim().split(/\s+/)[0]?.toLowerCase() ?? "")) {
+    return output;
+  }
+
+  if (!EXPOSE_COOKIES) {
+    // Redact cookie values — pattern: "Via: cookie_name" lines are OK, but
+    // any line that looks like a cookie value assignment gets masked
+    return output.replace(
+      /^(.*?(?:cookie|session|token|jwt|auth|sid).*?=\s*)(.{4})(.+?)(.{4})$/gim,
+      (_, prefix, start, _middle, end) => `${prefix}${start}***${end}`
+    );
+  }
+
+  return output;
+}
+
+// ---- WebSocket Server (Extension Bridge) ----
+
+let extensionClient: WebSocket | null = null;
+const pendingRequests = new Map<
+  string,
+  { resolve: (result: string) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }
+>();
+
+const wss = new WebSocketServer({ port: PORT, host: "127.0.0.1" });
+
+wss.on("error", (err: NodeJS.ErrnoException) => {
+  if (err.code === "EADDRINUSE") {
+    log(`ERROR: Port ${PORT} is already in use.`);
+    log("Another MCP server or process is using this port.");
+    log(`Try: --port ${PORT + 1}  (or kill the other process)`);
+    process.exit(1);
+  }
+  log(`WebSocket server error: ${err.message}`);
+  process.exit(1);
+});
+
+wss.on("listening", () => {
+  log(`WebSocket bridge listening on ws://127.0.0.1:${PORT}`);
+});
+
+wss.on("connection", (ws, req) => {
+  // Validate auth token from URL query
+  const url = new URL(req.url ?? "", `http://127.0.0.1:${PORT}`);
+  const token = url.searchParams.get("token");
+
+  if (token !== AUTH_TOKEN) {
+    log("Connection rejected: invalid auth token");
+    audit("REJECTED: invalid auth token");
+    ws.close(4001, "Invalid auth token");
+    return;
+  }
+
+  // Only allow one extension client
+  if (extensionClient) {
+    log("Replacing existing extension connection");
+    extensionClient.close();
+  }
+
+  extensionClient = ws;
+  log("Extension connected (authenticated)");
+  audit("CONNECTED: extension authenticated");
+
+  ws.on("message", (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+
+      if (msg.type === "RESULT" && msg.id) {
+        const pending = pendingRequests.get(msg.id);
+        if (pending) {
+          clearTimeout(pending.timer);
+          pendingRequests.delete(msg.id);
+          pending.resolve(msg.result ?? "");
+        }
+      } else if (msg.type === "pong") {
+        // Heartbeat response — ignore
+      }
+    } catch {
+      // Ignore malformed messages
+    }
+  });
+
+  ws.on("close", () => {
+    if (extensionClient === ws) {
+      extensionClient = null;
+      log("Extension disconnected");
+      audit("DISCONNECTED: extension");
+    }
+  });
+
+  ws.on("error", () => {
+    if (extensionClient === ws) {
+      extensionClient = null;
+    }
+  });
+});
+
+// ---- Send Command to Extension ----
+
+function sendCommand(command: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!extensionClient || extensionClient.readyState !== 1) {
+      reject(new Error("Extension not connected. Open the DOMShell side panel and run: connect <token>"));
+      return;
+    }
+
+    const id = randomBytes(8).toString("hex");
+    const timer = setTimeout(() => {
+      pendingRequests.delete(id);
+      reject(new Error("Command timed out after 150 seconds"));
+    }, 150000);
+
+    pendingRequests.set(id, { resolve, reject, timer });
+
+    extensionClient.send(
+      JSON.stringify({
+        type: "EXECUTE",
+        id,
+        command,
+        allowedDomains: ALLOWED_DOMAINS.length > 0 ? ALLOWED_DOMAINS : undefined,
+      })
+    );
+  });
+}
+
+async function executeWithSecurity(command: string): Promise<string> {
+  // Check tier
+  const check = isCommandAllowed(command);
+  if (!check.allowed) {
+    audit(`DENIED: ${command} — ${check.reason}`);
+    return `Error: ${check.reason}`;
+  }
+
+  const tier = getCommandTier(command);
+
+  // Confirm write actions
+  if (tier === "write") {
+    const approved = await confirmAction(command);
+    if (!approved) {
+      audit(`[WRITE] DENIED by user: ${command}`);
+      return "Action denied by user.";
+    }
+  }
+
+  // Execute
+  const tag = tier === "write" ? "[WRITE] " : tier === "navigate" ? "[NAV] " : tier === "sensitive" ? "[SENSITIVE] " : "";
+  audit(`${tag}EXECUTE: ${command}`);
+
+  try {
+    let result = await sendCommand(command);
+    result = redactSensitiveOutput(command, result);
+    const summary = result.length > 80 ? result.slice(0, 80) + "..." : result;
+    audit(`${tag}RESULT: ${summary}`);
+    return result;
+  } catch (err: any) {
+    audit(`${tag}ERROR: ${err.message}`);
+    return `Error: ${err.message}`;
+  }
+}
+
+// ---- MCP Server Factory ----
+// Each MCP client session gets its own McpServer instance.
+// All instances share the same WebSocket bridge to the Chrome extension.
+
+const MCP_INSTRUCTIONS = `DOMShell gives you full browser control through a filesystem metaphor. The DOM's Accessibility Tree (AXTree) is mapped to directories (containers like navigation/, main/, form/) and files (interactive elements like submit_btn, search_input, login_link). The browser itself (windows, tabs) is also part of the hierarchy.
+
+WHEN TO USE DOMSHELL (prefer over native browser tools):
+- Navigating to websites: use domshell_navigate or domshell_open
+- Going back/forward: domshell_back / domshell_forward (faster than re-navigating, uses browser cache)
+- Listing/switching tabs: use domshell_tabs, then domshell_cd with "~/tabs/<id>"
+- Closing tabs: domshell_close to clean up after extraction
+- Reading page content: domshell_text for bulk text, domshell_cat for element metadata, domshell_tree for structure
+- Visual inspection: domshell_screenshot to see the page layout (great for unfamiliar sites)
+- Finding elements: domshell_find (deep recursive) or domshell_grep (current directory)
+- Getting URLs/hrefs: domshell_cat on a link shows its URL, or domshell_find with --meta --type link
+- Scrolling to see more content: domshell_scroll down/up, or scroll a specific element into view
+- Complex DOM queries: domshell_js for CSS selectors, batch extraction, or computed values
+- Read-only JS queries: domshell_eval for expression evaluation without --allow-write (e.g. document.title, element counts)
+- Interacting: domshell_click, domshell_focus, domshell_type, domshell_select (dropdowns)
+- Waiting for dynamic content: domshell_wait to poll for elements on SPA/AJAX pages
+- Detecting changes: domshell_diff after clicks/submissions to see what was added, removed, or changed in the DOM
+- Saving locations: bookmark paths with domshell_execute "bookmark name", jump back with domshell_cd "@name"
+- Discovering page functions: domshell_functions to list callable window functions (optionally filter by pattern)
+- Calling page functions: domshell_call to invoke a global function (write-tier)
+- Monitoring changes: domshell_watch to re-run a command periodically. Use --until-change to stop when output changes.
+- Batch operations on output: domshell_for to iterate over command output lines, replacing {} in a template
+- Reusable workflows: domshell_script to save and run multi-command scripts with $1, $2 variable substitution
+- Cross-tab operations: domshell_each to run a command in every matching tab
+
+TYPICAL WORKFLOW:
+1. Enter a tab: domshell_here (focused tab), domshell_cd with "%here%" (composable), or domshell_open (new tab)
+2. Understand structure: domshell_screenshot (visual overview), domshell_tree (AX structure), domshell_ls (children)
+3. Extract content: domshell_text (bulk text — much faster than multiple cat calls)
+4. Find specific elements: domshell_find with pattern or --type (e.g. --type link, --type button)
+5. Scroll to reach content: domshell_scroll down (page) or domshell_scroll with target (element into view)
+6. Inspect element details: domshell_cat shows full metadata — AX role, DOM tag, href/src/id/class, text, outerHTML
+7. Interact: domshell_click, domshell_focus + domshell_type, domshell_select (dropdowns)
+8. Advanced extraction: domshell_js for batch DOM queries (e.g. extract all comments in one call via CSS selectors)
+8b. Discover page APIs: domshell_functions to find callable JS functions. Use domshell_eval "mw.config.get(...)" to access discovered APIs.
+9. Detect changes: domshell_diff after clicks/submissions to see exactly what changed (added/removed/modified elements)
+10. Navigate back: domshell_back to return to previous page (faster than re-navigating, preserves browser history)
+11. Clean up: domshell_close to close tabs when done extracting
+
+BROWSER HIERARCHY:
+- "~" or "/" = browser root. "ls" shows windows/ and tabs/.
+- "~/tabs/<id>" = enter a tab by ID. "~/tabs/<pattern>" = match by title/URL substring.
+- "~/windows/<id>/" = browse a window's tabs.
+- "%here%" = path variable that expands to the focused tab (via its window). Composable:
+  - "cd %here%" = enter the active tab
+  - "cd %here%/.." = go to the window containing the active tab
+  - "cd %here%/main" = enter the active tab and navigate to main
+- "cd .." from DOM root exits to browser level.
+
+READING ELEMENT METADATA:
+- domshell_cat shows full info for any element: AX role, DOM tag, href (for links), src (for images), id, class, text content (textContent), visible text (innerText — only rendered text, respects CSS visibility), and an outerHTML snippet.
+- If a child element (like a span) doesn't have the property you need (like href), navigate up with "cd .." to the parent element (like the <a> tag) and cat that instead.
+- domshell_ls with --meta option shows href/src/id inline for each element in the listing.
+- domshell_ls with --text option shows visible text preview (innerText) per element. Combine with --meta: "ls --meta --text".
+- domshell_find with --meta option shows href/src/id inline for each search result. Use "find --type link --meta" to get all URLs on a page.
+- domshell_find with --text option shows visible text preview per result. Use "find --type link --meta --text" to get all URLs with their link text.
+- domshell_text with --links option inlines hyperlink URLs as markdown [text](url) within the text content. Use "text --links" to get article text with clickable links preserved.
+
+IMPORTANT TIPS:
+- Element names are human-readable (e.g. "Sign_in_btn", "Search_input") not CSS selectors.
+- Use domshell_text for reading article content — it's one call vs. dozens of cat calls.
+- Use domshell_find --type link --meta to extract all URLs from a page.
+- find --type accepts natural aliases: input (textbox/searchbox/combobox), dropdown (combobox/listbox), nav (navigation), btn (button), toggle (switch/checkbox), modal (dialog), image (img), sidebar (complementary).
+- Directories (navigation/, main/) are containers you cd into. Files (submit_btn, logo_link) are leaf elements you cat or click.
+- Use domshell_scroll to reach below-the-fold content. Scroll returns position percentage so you know where you are on the page.
+- Use domshell_scroll with a target element name to jump directly to a section (e.g. scroll see_also_heading).
+- Use domshell_js to batch complex extractions into a single call — e.g. extract all comments, all table rows, or all links matching a CSS selector.
+- Prefer domshell_text/domshell_find for simple extraction (more structured). Use domshell_js when you need CSS selectors or would otherwise need 3+ calls.
+- Use domshell_back instead of domshell_navigate to return to a previous page — it's faster (browser cache) and doesn't require remembering the URL.
+- Use domshell_screenshot on unfamiliar pages to see the layout before starting extraction — one visual can replace multiple exploration calls.
+- Use domshell_wait after clicks/navigation that trigger async content loading (SPAs, AJAX) instead of retry loops with refresh + find.
+- Use domshell_select for <select> dropdowns instead of js-based workarounds.
+- Use domshell_eval for read-only JS queries (document.title, element counts) — always available, no --allow-write needed. Use domshell_js for DOM-mutating operations.
+- Use --json flag via domshell_execute for machine-parseable output (e.g. "ls --json", "cat --json name", "find --json --type link").
+- Use domshell_diff after clicks/submissions to see what changed — replaces re-exploration with ls/find.
+- Save frequently-visited paths with domshell_execute "bookmark name", then jump back with domshell_cd "@name".
+- Shell state (path, env, bookmarks, scripts, history) persists across service worker restarts — no need to re-navigate after extension reloads.
+- Use domshell_functions to discover callable JS functions on the page. Use domshell_call to invoke them (write-tier).
+- Use domshell_watch to monitor changes by re-running a command periodically. Add --until-change to stop early when output differs.
+- Use domshell_for to iterate over command output — {} in the template is replaced with each line.
+- Use domshell_script to save reusable workflows. Run with "run name arg1 arg2" — $1, $2 are replaced with args.
+- Use domshell_each to run a command across multiple tabs in one call (optionally --pattern filter).
+- The AXTree auto-refreshes after clicks/navigation — no manual refresh needed.
+
+EFFICIENT PATTERNS:
+1. Scoped Extraction: open URL → cd main/article → find --type heading (locate section) → cd section → text (content) + find --type link --meta (links)
+2. Table Reading: find --type table → text table_element (reads ALL rows at once). For structured data, read the whole table, don't read row-by-row.
+3. Section Discovery: grep "section_name" (recursive: true) OR find "section_name". NOT ls --offset pagination (too many calls).
+4. Link Extraction: cd into the container with links → find --type link --meta. Use --text with a pattern to filter by visible text: find --type link --text "keyword" --meta. For inline links within text: text --links (preserves [text](url) markdown in the output).
+5. Form Interaction: find --type textbox → focus input → type "query" → click submit_button. If page doesn't navigate, use domshell_navigate as fallback.
+6. Path Resolution: All commands accept relative paths — text main/article/paragraph, cat nav/logo_link, click form/submit_btn. Saves cd round-trips.
+7. Sibling Navigation: find --type heading "section" → cd container → ls --after section_heading -n 5 --text (elements after a heading). Combines with --type: ls --after intro --type link --meta.
+8. Below-the-fold Content: scroll down → ls --text (see what's visible). For known targets: find --type heading → scroll target_heading → text nearby_content. Returns position as percentage for orientation.
+9. Batch Extraction with JS: js [...document.querySelectorAll('.item')].map(el => ({title: el.querySelector('a').textContent, url: el.querySelector('a').href})) — one call replaces multiple find + cat calls. Use for repetitive extraction patterns.
+10. Multi-page Navigation: open page1 → extract → navigate page2 → extract → back (returns to page1 via browser history). Use back instead of re-navigating — it's faster and preserves scroll position.
+11. Visual-first Exploration: screenshot (see layout) → js (targeted extraction based on what you see). Replaces tree → ls → find exploration on unfamiliar sites.
+12. Dynamic Content: click button → wait results_list → text results_list. Use wait instead of refresh + find retry loops.
+13. Change Detection: click button → diff → extract new content. Diff shows exactly what appeared/disappeared.
+14. Bookmarked Paths: bookmark inbox → (work elsewhere) → cd @inbox to jump back. Saves re-navigation in multi-tab workflows.
+15. Structured Output: ls --json, cat --json name, find --json --type link for machine-parseable JSON. Eliminates text parsing.
+16. Iterating Over Results: for "find --type link -n 5" : cat {} — runs cat on each of the first 5 links. Replaces manual iteration with N separate calls.
+17. Cross-tab Summary: each --pattern wiki eval document.title — gets the title of every Wikipedia tab in one call.
+18. Reusable Scraping: script save scrape open URL ; cd main ; text ; close — then script run scrape to replay.
+19. Watch for Changes: watch "eval document.querySelector('.counter').textContent" --until-change --interval 1 — stops as soon as the value changes instead of burning all iterations.
+20. Parameterized Scripts: script save search open https://en.wikipedia.org ; submit search_input $1 — then script run search "machine learning" (replaces $1 with arg).
+
+MULTI-STEP AUTOMATION PATTERNS (combine Sprint 3 features for maximum efficiency):
+- Multi-tab extract: open URL1 → open URL2 → each --pattern filter eval <JS> (one call extracts from all matching tabs)
+- Discover-and-visit: for "eval [...links].map(a=>a.href).join('\\n')" : open {} (opens N tabs from discovered URLs in one call)
+- Bulk iteration: for "find --type heading -n 5" : cat {} (runs a command on each discovered element)
+- Save & replay with args: script save name cmd1 ; cmd2 → script run name "arg1" ($1 replaced with arg1). IMPORTANT: quote multi-word args: script run search "Artificial intelligence" (NOT script run search Artificial intelligence)
+- Monitor until change: watch "eval element.textContent" --until-change --interval 1 (returns when value changes, not after N iterations)
+- Discover-visit-extract pipeline: open page → for "eval [URLs]" : open {} → each --pattern filter eval <JS> (3 calls replaces 2N+1)
+
+COMMAND CHAINING (grep is the linchpin):
+grep discovers sections and elements by name, giving you paths for subsequent commands. Chain pattern: grep (locate) → cd (scope) → extract (read/find/text). Examples:
+- Article extraction: grep "article" (recursive) → cd article/ → text (bulk content)
+- Link harvesting: grep "references" (recursive) → cd references/ → find --type link --meta (all URLs)
+- Table data: grep "table" (recursive) → extract_table table_1234 (structured output)
+- Targeted content: grep "results" (recursive) → cd results/ → find --type heading → cd target_heading/ → text
+- Content search: grep "keyword" (recursive, content: true) → finds elements whose VISIBLE TEXT contains keyword → cd to parent → text
+- Sibling content: find heading → cd to its container → ls --after heading -n 1 --text (content right after the heading)
+The key insight: grep output feeds cd, and cd scopes everything else. Never skip the grep step when you don't know where content lives.
+
+COMPOSING COMMANDS (think like bash):
+DOMShell works like a filesystem. Use the same mental model as searching files on disk:
+- grep -r "pattern" → finds WHERE (like grep -r in bash)
+- cd into the result → scopes your context (like cd in bash)
+- text / cat / find → reads content (like cat, head, less in bash)
+- ls --after/--before → filters siblings (like ls | grep in bash)
+- find --type X --meta → targeted search (like find -name "*.ext" in bash)
+- command | grep "pattern" → filter output lines (pipe operator, just like bash)
+Real-world examples:
+- "Find all PDFs linked on this page": find --type link --text "pdf" --meta
+- "Read paragraph after intro": ls --after intro_heading -n 1 → text paragraph_name
+- "Filter links to GitHub": find --type link --meta | grep "github"
+- "What's in the sidebar?": text sidebar (or text main/sidebar with path resolution)
+
+ANTI-PATTERNS (avoid these):
+- Do NOT cd into an element just to read its text — use text element_name or text path/to/element instead (saves a cd + cd .. round trip)
+- Do NOT use ls --offset pagination to search for a section — use find or grep with recursive: true
+- Do NOT call text on individual rows/items — text the parent container instead (one call replaces N)
+- Do NOT make multiple cat calls for content — use text for bulk content, find --meta for properties
+- Do NOT cd into a leaf element (links, buttons) — use cat element_name or text element_name instead
+- Do NOT repeatedly ls --offset to find content far down the page — use scroll down + ls --text, or find the target element and scroll it into view
+- Do NOT use navigate to return to a previous page — use back instead (browser cache makes it instant, no URL tracking needed)
+- Do NOT use multiple ls/find calls to understand an unfamiliar page layout — use screenshot first for instant visual orientation, then targeted extraction
+- Do NOT poll with repeated find calls for dynamic content — use wait <pattern> to block until the element appears
+- Do NOT use js to set dropdown values — use select <name> <value> for proper event dispatch
+- Do NOT re-explore with ls/find after a click/submit — use diff to see exactly what changed
+- Do NOT use domshell_js for read-only queries when domshell_eval is available — eval works without --allow-write
+- Do NOT manually iterate with separate calls when for can do it — for "find --type heading -n 5" : text {} replaces 5 separate text calls
+- Do NOT switch tabs manually to repeat an operation — use each --pattern filter cmd to run across all matching tabs in one call
+- Do NOT open tabs one-by-one to extract from each — use for "eval [URLs]" : open {} to open them, then each --pattern filter eval <JS> to extract (2 calls instead of 2N)
+- Do NOT make N separate eval calls for N items — use for "eval [items]" : eval <per-item query> (1 call instead of N)
+- Do NOT poll with separate tool calls to detect changes — use watch "cmd" --until-change to monitor within a single call
+
+Note: Use --no-confirm when starting the server to skip interactive confirmation prompts for write actions.`;
+
+function createMcpServer(): McpServer {
+  const server = new McpServer(
+    { name: "domshell", version: "1.0.0" },
+    { instructions: MCP_INSTRUCTIONS }
+  );
+
+  // -- Read tier tools (always available) --
+
+  server.tool(
+    "domshell_tabs",
+    "List all open browser tabs with their IDs, titles, URLs, and window info. Use this to find the right tab before switching. Equivalent to 'ls ~/tabs/'.",
+    {},
+    async () => ({
+      content: [{ type: "text", text: await executeWithSecurity("tabs") }],
+    })
+  );
+
+  server.tool(
+    "domshell_here",
+    "Jump to the active tab in the last focused Chrome window. Use this to quickly enter whichever tab the user is currently looking at, without needing to know the tab ID.",
+    {},
+    async () => ({
+      content: [{ type: "text", text: await executeWithSecurity("here") }],
+    })
+  );
+
+  server.tool(
+    "domshell_ls",
+    "List children of the current directory. In the DOM tree: shows elements as files and directories. At the browser level (~): shows tabs/windows.\n\nFlags:\n  -l              Long format (more detail per element)\n  --meta          Show DOM properties (href, src, id) inline — great for extracting links\n  --text          Show visible text preview per element\n  -r              Recursive listing\n  -n N            Limit to N results\n  --offset N      Skip first N children (pagination)\n  --type ROLE     Filter by AX role (link, heading, button, etc.)\n  --count         Just count children\n  --textlen N     Max chars for text preview (default 80)\n  --after NAME    Show only children after the named element (sibling navigation)\n  --before NAME   Show only children before the named element (sibling navigation)\n\nSibling navigation: Use --after/--before to find content relative to a landmark. Example: ls --after See_also_heading -n 3 --text shows the 3 elements after a heading. Combines with --type: ls --after intro --type link --meta.\n\nPipe support: ls output can be piped into grep for filtering: ls --text | grep keyword.\n\nBest for: viewing immediate children of the current element.\nNOT recommended for: searching deep in the tree — use domshell_find or domshell_grep instead.",
+    { options: z.string().optional().describe("Flags and options, e.g. '-l', '-n 10', '--type button', '--text', '--meta --text', '--after heading_name', or '~/tabs/' for tab listing") },
+    async ({ options }) => ({
+      content: [{ type: "text", text: await executeWithSecurity(`ls ${options ?? ""}`.trim()) }],
+    })
+  );
+
+  server.tool(
+    "domshell_cd",
+    "Change directory — sets your scope for all subsequent commands (ls, find, grep, text all operate relative to current directory).\n\nPaths: 'main/form', '..', '~' (browser root), '~/tabs/<id>', '~/tabs/<pattern>', '%here%' (focused tab).\n\nWhen to cd:\n  - cd into a SECTION (article, main, sidebar) to scope find/grep/ls to that area\n  - cd into ~/tabs/<id> to switch between tabs\n  - cd .. to go up when done with a section\n\nWhen NOT to cd:\n  - To read a child's text: use 'domshell_text' with the name parameter instead (saves a cd + cd .. round trip)\n  - To inspect a child: use 'domshell_cat' with the name parameter instead\n  - To extract links: domshell_find --type link --meta works from the current directory",
+    { path: z.string().describe("Path: DOM path, '~', '~/tabs/<id>', '~/windows/<id>', '%here%', '..', '/'") },
+    async ({ path }) => ({
+      content: [{ type: "text", text: await executeWithSecurity(`cd ${path}`) }],
+    })
+  );
+
+  server.tool(
+    "domshell_pwd",
+    "Print the current working directory path in the DOM tree.",
+    {},
+    async () => ({
+      content: [{ type: "text", text: await executeWithSecurity("pwd") }],
+    })
+  );
+
+  server.tool(
+    "domshell_cat",
+    "Read detailed metadata about a DOM element: role, type, AX ID, DOM backend ID, value, child count, text content (textContent), visible text (innerText — only rendered text, respects CSS visibility), and outerHTML snippet.",
+    { name: z.string().describe("Name or path of the element (e.g. 'link_name' or 'main/link_name')") },
+    async ({ name }) => ({
+      content: [{ type: "text", text: await executeWithSecurity(`cat ${name}`) }],
+    })
+  );
+
+  server.tool(
+    "domshell_find",
+    "Deep recursive search from the CURRENT DIRECTORY downward. Scope matters: cd into a section first, then find, to get only that section's elements (fewer, more relevant results). Returns full paths to matching elements.\n\nKey flags:\n  --type ROLE   Filter by AX role. Accepts exact roles (link, button, heading, textbox, table, list)\n                AND natural aliases: input→textbox/searchbox/combobox, dropdown→combobox/listbox,\n                nav→navigation, sidebar→complementary, toggle→switch/checkbox, modal→dialog,\n                image→img, searchbar→searchbox/search, btn→button, anchor→link, header→banner,\n                footer→contentinfo, field→textbox/searchbox/combobox, select→combobox/listbox\n  --meta        Include DOM properties (href, src, id) inline — essential for extracting URLs\n  --text        Show visible text preview per result\n\nCommon patterns:\n  find --type link --meta              All links with URLs under current directory\n  find --type heading                  All section headings (to locate 'See Also', 'References', etc.)\n  find --type input                    All text inputs (matches textbox, searchbox, combobox, spinbutton)\n  find --type table                    Find tables for data extraction\n  find 'paragraph'                     Find paragraph elements by name pattern\n\nEfficiency tip: cd into the container you care about FIRST, then find within it. This avoids sidebar/nav/footer noise in results. Use 'text element_name' on find results to read their content without cd'ing.\n\nWhen --text is used with a search pattern, elements are also matched against their visible text content (not just name/role). Example: find --type link --text 'login' --meta finds links whose displayed text contains 'login' and shows their hrefs — even when the text is in nested spans.\n\nPipe support: find output can be piped into grep for filtering: find --type link --meta | grep 'github'. Think like bash: find is your 'find + grep' combined.",
+    {
+      pattern: z.string().optional().describe("Search pattern (matches name, role, value)"),
+      type: z.string().optional().describe("Filter by AX role or natural alias (e.g. 'button', 'link', 'input', 'dropdown', 'nav', 'modal', 'toggle', 'image')"),
+      limit: z.number().optional().describe("Maximum number of results"),
+      meta: z.boolean().optional().describe("Include DOM properties (href, src, id, tag) per result"),
+      text: z.boolean().optional().describe("Show visible text preview per result (uses innerText, respects CSS visibility)"),
+      textlen: z.number().optional().describe("Maximum characters for text preview (default: 80)"),
+      content: z.boolean().optional().describe("Also match against visible text content of elements (slower but finds elements by their displayed text, e.g. find a heading whose text says 'See also')"),
+    },
+    async ({ pattern, type, limit, meta, text, textlen, content }) => {
+      let cmd = "find";
+      if (pattern) cmd += ` ${pattern}`;
+      if (type) cmd += ` --type ${type}`;
+      if (limit) cmd += ` -n ${limit}`;
+      if (meta) cmd += ` --meta`;
+      if (text) cmd += ` --text`;
+      if (textlen) cmd += ` --textlen ${textlen}`;
+      if (content) cmd += ` --content`;
+      return { content: [{ type: "text", text: await executeWithSecurity(cmd) }] };
+    }
+  );
+
+  server.tool(
+    "domshell_grep",
+    "Search for elements matching a pattern. Matches against name, role, and value. Case-insensitive.\n\nBy default, searches only IMMEDIATE children. Use recursive: true to search all descendants — this is almost always what you want for finding sections or elements by name.\n\ngrep is the primary section-discovery tool. Its output gives you element names and paths that you then use with cd, text, find, and other commands. This is how you chain commands together efficiently.\n\nCommon patterns:\n  grep 'see_also' (recursive: true)      Find a section by name anywhere below\n  grep 'heading' (recursive: true)        Find all headings in the subtree\n  grep 'button'                           Find buttons among immediate children\n\nWorkflow chains (grep → cd → extract):\n  1. Find + Read: grep 'references' (recursive: true) → cd references/ → text\n  2. Find + Links: grep 'sidebar' (recursive: true) → cd sidebar/ → find --type link --meta\n  3. Find + Table: grep 'table' (recursive: true) → extract_table table_1234\n  4. Scoped Search: grep 'article' (recursive: true) → cd article/ → find --type heading → cd into target section → text\n  5. Content Discovery: grep 'results' (recursive: true, content: true) → cd search_results/ → read --text\n\ngrep tells you WHERE things are; cd + text/find/extract_links/extract_table gets the content. Always grep first to scope your work, then extract within that scope.\n\nThink like bash: grep output gives you paths. Use those paths with cd, text, cat — just as you'd use grep to find a file, then cat to read it.",
+    {
+      pattern: z.string().describe("Search pattern"),
+      recursive: z.boolean().optional().describe("Search all descendants recursively"),
+      limit: z.number().optional().describe("Maximum number of results"),
+      content: z.boolean().optional().describe("Also match against visible text content of elements (slower but finds elements by their displayed text)"),
+    },
+    async ({ pattern, recursive, limit, content }) => {
+      let cmd = "grep";
+      if (recursive) cmd += " -r";
+      if (limit) cmd += ` -n ${limit}`;
+      if (content) cmd += ` --content`;
+      cmd += ` ${pattern}`;
+      return { content: [{ type: "text", text: await executeWithSecurity(cmd) }] };
+    }
+  );
+
+  server.tool(
+    "domshell_tree",
+    "Show a tree view of the current directory in the DOM, displaying the hierarchy of elements with type prefixes [d]=directory, [x]=interactive, [-]=static.",
+    { depth: z.number().optional().describe("Maximum depth to display (default: 2)") },
+    async ({ depth }) => ({
+      content: [{ type: "text", text: await executeWithSecurity(`tree ${depth ?? 2}`) }],
+    })
+  );
+
+  server.tool(
+    "domshell_text",
+    "Extract ALL text content from the current directory or a named child, including every descendant. Returns full textContent in a single call.\n\nThe name parameter lets you read any child without cd'ing into it first:\n  text paragraph_2994      Read a paragraph's text without cd'ing into it\n  text table_1234          Read an ENTIRE table (all rows, all cells) in one call\n  text list_5678           Read all list items at once\n  text                     Read everything under current directory\n\nEfficiency tip: call text on the HIGHEST container that has the content you need.\n  - Need a table? text on the table element, not individual rows.\n  - Need a section? text on the section container, not each paragraph.\n  - Need article body? cd into article/main, then text with no args.\n\nOne text call on a parent replaces N calls on its children.\n\nUse links=true to include hyperlink URLs inline as markdown [text](url). This lets you extract both text content and link destinations in a single call.",
+    {
+      name: z.string().optional().describe("Name or path of element to extract text from (e.g. 'paragraph' or 'article/paragraph'). Default: current directory"),
+      limit: z.number().optional().describe("Maximum characters to return"),
+      links: z.boolean().optional().describe("Include link URLs inline as [text](url) markdown"),
+    },
+    async ({ name, limit, links }) => {
+      let cmd = "text";
+      if (name) cmd += ` ${name}`;
+      if (limit) cmd += ` -n ${limit}`;
+      if (links) cmd += ` --links`;
+      return { content: [{ type: "text", text: await executeWithSecurity(cmd) }] };
+    }
+  );
+
+  server.tool(
+    "domshell_read",
+    "Structured subtree extraction — returns the hierarchy of elements under the current directory or a named child, with roles, names, and values in one call. Think of it as 'tree' + 'cat' combined: you get the structure AND the content.\n\nExcellent for tables, lists, and nested sections. A single read on a table returns all rows and cells with their roles and values, replacing N separate text calls.\n\nFlags:\n  --meta     Include DOM properties (href, src, id) per element\n  --text     Include visible text preview per element\n  -d N       Max depth to traverse (default 5)\n  -n N       Max total elements to return\n\nExamples:\n  read table_1234          Get full table structure with values\n  read list_5678 --meta    Get list with href/src/id properties\n  read -d 3                Current directory, 3 levels deep",
+    {
+      name: z.string().optional().describe("Name or path of element to read (e.g. 'table_1' or 'main/table_1'). Default: current directory"),
+      depth: z.number().optional().describe("Maximum depth to traverse (default: 5)"),
+      limit: z.number().optional().describe("Maximum total elements to return"),
+      meta: z.boolean().optional().describe("Include DOM properties (href, src, id) per element"),
+      text: z.boolean().optional().describe("Include visible text preview per element"),
+      textlen: z.number().optional().describe("Max chars for text preview (default: 120)"),
+    },
+    async ({ name, depth, limit, meta, text, textlen }) => {
+      let cmd = "read";
+      if (name) cmd += ` ${name}`;
+      if (depth) cmd += ` -d ${depth}`;
+      if (limit) cmd += ` -n ${limit}`;
+      if (meta) cmd += ` --meta`;
+      if (text) cmd += ` --text`;
+      if (textlen) cmd += ` --textlen ${textlen}`;
+      return { content: [{ type: "text", text: await executeWithSecurity(cmd) }] };
+    }
+  );
+
+  server.tool(
+    "domshell_refresh",
+    "Force re-fetch the Accessibility Tree. Use after page navigation or significant DOM changes. Note: the tree also auto-refreshes when changes are detected.",
+    {},
+    async () => ({
+      content: [{ type: "text", text: await executeWithSecurity("refresh") }],
+    })
+  );
+
+  server.tool(
+    "domshell_diff",
+    "Compare the current AX tree against the snapshot taken before the last write/navigate action (click, type, submit, select, navigate, open, back, forward, scroll). Shows added, removed, and changed elements. Use after a click or form submission to see exactly what changed on the page instead of re-exploring with ls/find.",
+    {},
+    async () => ({
+      content: [{ type: "text", text: await executeWithSecurity("diff --json") }],
+    })
+  );
+
+  server.tool(
+    "domshell_eval",
+    "Evaluate a JavaScript expression in the tab context (read-only). Returns the result. Unlike domshell_js (which requires --allow-write), eval is always available in read-only mode. Use for extracting data without write permission.\n\nExamples:\n  eval document.title\n  eval window.location.href\n  eval document.querySelectorAll('a').length\n  eval [...document.querySelectorAll('h2')].map(h => h.textContent)",
+    { expression: z.string().describe("JavaScript expression to evaluate") },
+    async ({ expression }) => ({
+      content: [{ type: "text", text: await executeWithSecurity(`eval ${expression}`) }],
+    })
+  );
+
+  server.tool(
+    "domshell_functions",
+    "List callable global JavaScript functions on the current page. Shows function name, arity (parameter count), and parameter names. Useful for discovering page APIs (e.g. MediaWiki's mw.config.get on Wikipedia).\n\nExamples:\n  functions             All non-standard window functions\n  functions mw          Functions matching 'mw'\n  functions --json      Machine-parseable output",
+    {
+      pattern: z.string().optional().describe("Filter functions by name pattern (case-insensitive substring match)"),
+      json: z.boolean().optional().describe("Return JSON output instead of formatted text"),
+    },
+    async ({ pattern, json }) => {
+      let cmd = "functions";
+      if (pattern) cmd += ` ${pattern}`;
+      if (json) cmd += " --json";
+      return { content: [{ type: "text", text: await executeWithSecurity(cmd) }] };
+    }
+  );
+
+  server.tool(
+    "domshell_watch",
+    "Re-run a command periodically and collect results. Useful for monitoring dynamic content changes within a single tool call instead of making N separate calls.\n\nOptions:\n  --interval N      Seconds between runs (default: 2, min: 0.5)\n  --times N         Number of iterations (default: 5, max: 100)\n  --until-change    Stop early when output differs from previous iteration\n\nTotal runtime capped at 120 seconds.\n\nExamples:\n  watch ls --times 3 --interval 1\n  watch \"eval document.title\" --until-change --interval 1",
+    { command: z.string().describe("The command to re-run periodically (e.g. 'ls', 'eval document.title')") },
+    async ({ command }) => ({
+      content: [{ type: "text", text: await executeWithSecurity(`watch ${command}`) }],
+    })
+  );
+
+  server.tool(
+    "domshell_for",
+    "Iterate over command output lines. Runs a source command, splits output into lines, and for each line replaces {} in the action template and executes it. Capped at 50 items and 120 seconds.\n\nSeparator is ' : ' (space-colon-space) to avoid conflicts with URL colons.\n\nExamples:\n  for \"find --type heading -n 3\" : text {}\n  for \"eval [...urls].join('\\\\n')\" : open {}",
+    {
+      source: z.string().describe("Source command whose output lines become iteration items"),
+      template: z.string().describe("Action template with {} placeholder replaced by each line"),
+    },
+    async ({ source, template }) => ({
+      content: [{ type: "text", text: await executeWithSecurity(`for ${source} : ${template}`) }],
+    })
+  );
+
+  server.tool(
+    "domshell_script",
+    "Save and run multi-command scripts. Scripts persist across service worker restarts.\n\nSubcommands:\n  script list                    List saved scripts\n  script save <name> cmd1 ; cmd2 Save commands (separated by ' ; ')\n  script show <name>             Show commands in a script\n  script run <name> [args...]    Execute with $1, $2 variable substitution\n  script delete <name>           Delete a script\n\nIMPORTANT: Multi-word arguments for 'script run' MUST be quoted with double quotes:\n  script run search \"Artificial intelligence\"     (correct: $1 = Artificial intelligence)\n  script run search Artificial intelligence        (WRONG: $1 = Artificial, $2 = intelligence)\n\nExamples:\n  script save search open https://en.wikipedia.org ; submit search_input $1\n  script run search \"machine learning\"\n  script run search \"deep learning\"",
+    { command: z.string().describe("Script subcommand and arguments. IMPORTANT: quote multi-word args with double quotes (e.g. 'run myscraper \"Artificial intelligence\"', 'save extract open url ; text', 'list')") },
+    async ({ command }) => ({
+      content: [{ type: "text", text: await executeWithSecurity(`script ${command}`) }],
+    })
+  );
+
+  server.tool(
+    "domshell_each",
+    "Run a command across multiple open tabs. Iterates over all non-chrome tabs (optionally filtered by title/URL pattern), switches into each, runs the command, and collects results. Restores the original tab when done.\n\nOptions:\n  --pattern FILTER  Only tabs whose title or URL contains FILTER\n  --limit N         Process at most N matching tabs\n\nExamples:\n  each eval document.title                         Title from every tab\n  each --pattern wiki eval document.title           Only Wikipedia tabs\n  each --pattern wiki --limit 3 eval document.title First 3 Wikipedia tabs",
+    {
+      command: z.string().describe("The command to run in each tab, optionally prefixed with --pattern FILTER and/or --limit N"),
+    },
+    async ({ command }) => ({
+      content: [{ type: "text", text: await executeWithSecurity(`each ${command}`) }],
+    })
+  );
+
+  server.tool(
+    "domshell_extract_links",
+    "Extract all links under the current directory or a named child as a clean numbered list in [text](url) format. Purpose-built for link extraction — returns display text and URLs in one call.\n\nExamples:\n  extract_links              All links under current directory\n  extract_links main -n 20   First 20 links in 'main' section",
+    {
+      name: z.string().optional().describe("Name or path of element to extract links from (e.g. 'nav' or 'main/nav'). Default: current directory"),
+      limit: z.number().optional().describe("Maximum number of links to return"),
+    },
+    async ({ name, limit }) => {
+      let cmd = "extract_links";
+      if (name) cmd += ` ${name}`;
+      if (limit) cmd += ` -n ${limit}`;
+      return { content: [{ type: "text", text: await executeWithSecurity(cmd) }] };
+    }
+  );
+
+  server.tool(
+    "domshell_extract_table",
+    "Extract a table element as structured markdown or CSV. Reads all rows and cells, returns formatted output. First row is treated as the header.\n\nExamples:\n  extract_table table_1234              Markdown table\n  extract_table table_1234 --format csv CSV format\n  extract_table table_1234 -n 10        First 10 rows only",
+    {
+      name: z.string().describe("Name or path of the table element (e.g. 'table_1' or 'article/table_1')"),
+      format: z.enum(["markdown", "csv"]).optional().describe("Output format (default: markdown)"),
+      limit: z.number().optional().describe("Maximum number of rows to return"),
+    },
+    async ({ name, format, limit }) => {
+      let cmd = `extract_table ${name}`;
+      if (format) cmd += ` --format ${format}`;
+      if (limit) cmd += ` -n ${limit}`;
+      return { content: [{ type: "text", text: await executeWithSecurity(cmd) }] };
+    }
+  );
+
+  // -- Write tier tools (require --allow-write) --
+
+  if (ALLOW_WRITE) {
+    server.tool(
+      "domshell_click",
+      "Click a DOM element. May trigger navigation, form submission, or page changes. The DOM tree auto-refreshes on the next command.\n\nAfter clicking: use domshell_ls or domshell_pwd to verify the page actually changed. Some clicks (like search buttons) may need a domshell_refresh to see updated content. If clicking a search/submit button doesn't navigate, try using domshell_navigate as a fallback.",
+      { name: z.string().describe("Name or path of the element to click (e.g. 'submit_btn' or 'form/submit_btn')") },
+      async ({ name }) => ({
+        content: [{ type: "text", text: await executeWithSecurity(`click ${name}`) }],
+      })
+    );
+
+    server.tool(
+      "domshell_focus",
+      "Focus an input element. Use before 'domshell_type' to direct keyboard input to the right field.",
+      { name: z.string().describe("Name or path of the input to focus (e.g. 'search_input' or 'form/search_input')") },
+      async ({ name }) => ({
+        content: [{ type: "text", text: await executeWithSecurity(`focus ${name}`) }],
+      })
+    );
+
+    server.tool(
+      "domshell_scroll",
+      "Scroll the page or scroll a specific element into view. Use this when content is below the fold or when you need to reach elements not currently visible.\n\nModes:\n  scroll down [N]      Scroll page down by N viewport heights (default: 1)\n  scroll up [N]        Scroll page up by N viewport heights (default: 1)\n  scroll element_name  Scroll a specific element into the center of the viewport\n\nReturns current scroll position as percentage. Use after scrolling to verify position.\n\nCommon patterns:\n  scroll down → ls --text (see what's now visible)\n  scroll heading_name (jump to a section)\n  find --type heading → scroll target_heading (locate then scroll)",
+      {
+        direction: z.enum(["up", "down"]).optional().describe("Scroll direction. Omit when scrolling an element into view."),
+        amount: z.number().optional().describe("Number of viewport heights to scroll (default: 1)"),
+        target: z.string().optional().describe("Element name or path to scroll into view (e.g. 'see_also_heading', 'main/article/table_123')"),
+      },
+      async ({ direction, amount, target }) => {
+        let cmd = "scroll";
+        if (target) {
+          cmd += ` ${target}`;
+        } else {
+          cmd += ` ${direction || "down"}`;
+          if (amount && amount !== 1) cmd += ` ${amount}`;
+        }
+        return { content: [{ type: "text", text: await executeWithSecurity(cmd) }] };
+      }
+    );
+
+    server.tool(
+      "domshell_js",
+      "Execute arbitrary JavaScript in the current tab and return the result. Use this for complex DOM queries, CSS selector extraction, or any operation that would take multiple DOMShell commands.\n\nThe code runs in the page context with full DOM access. Promises are automatically awaited. Results are JSON-serialized (truncated at 10000 chars).\n\nCommon patterns:\n  js document.title\n  js document.querySelectorAll('a').length\n  js [...document.querySelectorAll('.comment')].map(c => ({user: c.querySelector('.user').textContent, text: c.querySelector('.comment-text').textContent}))\n  js document.querySelector('table').outerHTML\n\nWhen to use js vs other tools:\n  - Use js when you need to batch multiple extractions into one call\n  - Use js for CSS selector queries that don't map cleanly to AX tree roles\n  - Use js for computed values (e.g. counting elements, filtering by attribute)\n  - Prefer domshell_text/domshell_find for simple content extraction (more structured output)",
+      {
+        code: z.string().describe("JavaScript code to evaluate in the tab context. Can be an expression or statement block. Async/await and Promises are supported."),
+      },
+      async ({ code }) => ({
+        content: [{ type: "text", text: await executeWithSecurity(`js ${code}`) }],
+      })
+    );
+
+    server.tool(
+      "domshell_type",
+      "Type text into the currently focused element. Use domshell_focus first to target an input field.\n\nFor search forms: after typing, you may need to either:\n  1. click the submit/search button, OR\n  2. type '\\n' to simulate pressing Enter\n\nIf the page doesn't navigate after form submission, use domshell_navigate as a fallback to go to the expected URL directly.",
+      { text: z.string().describe("Text to type into the focused element") },
+      async ({ text }) => ({
+        content: [{ type: "text", text: await executeWithSecurity(`type ${text}`) }],
+      })
+    );
+
+    server.tool(
+      "domshell_navigate",
+      "Navigate the current tab to a URL. Automatically rebuilds the accessibility tree after navigation completes. Requires a tab context (cd into a tab first). Use this to go to a specific website without opening a new tab.",
+      { url: z.string().describe("URL to navigate to (e.g. 'https://example.com' or 'example.com')") },
+      async ({ url }) => ({
+        content: [{ type: "text", text: await executeWithSecurity(`navigate ${url}`) }],
+      })
+    );
+
+    server.tool(
+      "domshell_open",
+      "Open a URL in a new tab and enter it (path becomes ~/tabs/<id>). Automatically builds the accessibility tree after page loads. Works from any location.\n\nAfter opening a page, a typical extraction workflow is:\n  1. open URL\n  2. find the section you need (find --type heading, or grep section_name with recursive: true)\n  3. cd into the container\n  4. text (for content) or find --type link --meta (for links)",
+      { url: z.string().describe("URL to open in a new tab (e.g. 'https://example.com' or 'example.com')") },
+      async ({ url }) => ({
+        content: [{ type: "text", text: await executeWithSecurity(`open ${url}`) }],
+      })
+    );
+
+    server.tool(
+      "domshell_submit",
+      "Atomic form submission — focuses input, clears existing value, types new value, then submits (clicks button or presses Enter). Replaces the 3-step focus → type → click pattern in one reliable call.\n\nExamples:\n  submit search_input 'machine learning'                   Type and press Enter\n  submit search_input 'machine learning' --submit search_btn  Type and click button",
+      {
+        input: z.string().describe("Name or path of the input element (e.g. 'search_input' or 'form/search_input')"),
+        value: z.string().describe("Text value to type into the input"),
+        submit_button: z.string().optional().describe("Name or path of submit button to click (default: press Enter)"),
+      },
+      async ({ input, value, submit_button }) => {
+        let cmd = `submit ${input} ${value}`;
+        if (submit_button) cmd += ` --submit ${submit_button}`;
+        return { content: [{ type: "text", text: await executeWithSecurity(cmd) }] };
+      }
+    );
+
+    server.tool(
+      "domshell_back",
+      "Navigate back in browser history. Equivalent to the browser back button. Automatically refreshes the AX tree after navigation. Use this instead of domshell_navigate when returning to a previously visited page — it's faster (uses browser cache) and doesn't require remembering the URL.",
+      {},
+      async () => ({
+        content: [{ type: "text", text: await executeWithSecurity("back") }],
+      })
+    );
+
+    server.tool(
+      "domshell_forward",
+      "Navigate forward in browser history. Only works after a 'back' command. Automatically refreshes the AX tree after navigation.",
+      {},
+      async () => ({
+        content: [{ type: "text", text: await executeWithSecurity("forward") }],
+      })
+    );
+
+    server.tool(
+      "domshell_close",
+      "Close a tab. With no arguments, closes the current tab and returns to browser root. With a tab ID, closes that specific tab. Use after extracting data from a page to keep the tab count manageable.",
+      {
+        tabId: z.string().optional().describe("Tab ID to close (default: current tab)"),
+      },
+      async ({ tabId }) => ({
+        content: [{ type: "text", text: await executeWithSecurity(`close ${tabId ?? ""}`.trim()) }],
+      })
+    );
+
+    server.tool(
+      "domshell_select",
+      "Select an option from a <select> dropdown element. Matches by option value first, then by visible text (case-insensitive). Dispatches change and input events to trigger form updates.\n\nExamples:\n  select language_dropdown en\n  select country_select United States",
+      {
+        name: z.string().describe("Name or path of the <select> element"),
+        value: z.string().describe("Option value or visible text to select"),
+      },
+      async ({ name, value }) => ({
+        content: [{ type: "text", text: await executeWithSecurity(`select ${name} ${value}`) }],
+      })
+    );
+
+    server.tool(
+      "domshell_screenshot",
+      "Capture a PNG screenshot of the current tab. Returns the image for visual inspection. Useful for understanding page layout on unfamiliar sites — one screenshot can replace multiple exploration calls (tree, ls, find) by showing you exactly what the page looks like.",
+      {},
+      async () => {
+        const result = await executeWithSecurity("screenshot");
+        if (result.startsWith("__SCREENSHOT_BASE64__")) {
+          const base64 = result.slice("__SCREENSHOT_BASE64__".length);
+          return {
+            content: [{ type: "image", data: base64, mimeType: "image/png" }],
+          };
+        }
+        return { content: [{ type: "text", text: result }] };
+      }
+    );
+
+    server.tool(
+      "domshell_wait",
+      "Wait for an element to appear in the AX tree. Polls the tree every 500ms until the element is found or timeout is reached. Use after clicks or navigation that trigger async content loading (SPAs, AJAX).\n\nExamples:\n  wait results_list                    Wait for search results\n  wait submit_btn --type button         Wait for a button to appear\n  wait loading_spinner --timeout 10     Wait up to 10 seconds",
+      {
+        pattern: z.string().describe("Pattern to match against element names (case-insensitive)"),
+        type: z.string().optional().describe("Filter by AX role (e.g. 'button', 'link', 'heading')"),
+        timeout: z.number().optional().describe("Timeout in seconds (default: 5, max: 30)"),
+      },
+      async ({ pattern, type, timeout }) => {
+        let cmd = `wait ${pattern}`;
+        if (type) cmd += ` --type ${type}`;
+        if (timeout) cmd += ` --timeout ${timeout}`;
+        return { content: [{ type: "text", text: await executeWithSecurity(cmd) }] };
+      }
+    );
+
+    server.tool(
+      "domshell_call",
+      "Call a global JavaScript function by name. Arguments are auto-parsed as JSON if valid, otherwise passed as strings. Write-tier — requires --allow-write.\n\nExamples:\n  call getCount\n  call getMessage Agent\n  call resetCount\n  call setConfig {\"key\": \"value\"}",
+      {
+        functionName: z.string().describe("Name of the global function to call (e.g. 'getCount', 'getMessage')"),
+        args: z.string().optional().describe("Space-separated arguments to pass to the function"),
+      },
+      async ({ functionName, args }) => {
+        let cmd = `call ${functionName}`;
+        if (args) cmd += ` ${args}`;
+        return { content: [{ type: "text", text: await executeWithSecurity(cmd) }] };
+      }
+    );
+  }
+
+  // -- Sensitive tier tools (require --allow-sensitive) --
+
+  if (ALLOW_SENSITIVE) {
+    server.tool(
+      "domshell_whoami",
+      "Check authentication status by examining cookies for the current page. Shows session cookies and expiry.",
+      {},
+      async () => ({
+        content: [{ type: "text", text: await executeWithSecurity("whoami") }],
+      })
+    );
+  }
+
+  // -- Fallback execute tool --
+
+  server.tool(
+    "domshell_execute",
+    "Execute any DOMShell command. Use this for commands not covered by specific tools (e.g. 'env', 'export', 'debug stats'). Supports pipe operator: 'find --type link --meta | grep github'. Write and sensitive commands are subject to the same security restrictions.",
+    { command: z.string().describe("The full command to execute (e.g. 'ls -l', 'debug stats', 'find --type link | grep login')") },
+    async ({ command }) => ({
+      content: [{ type: "text", text: await executeWithSecurity(command) }],
+    })
+  );
+
+  console.error("[DOMShell] MCP server created with all tool registrations");
+  return server;
+}
+
+// ---- MCP Session Management ----
+
+const transports: Record<string, StreamableHTTPServerTransport> = {};
+
+// ---- MCP Auth Middleware ----
+
+function mcpAuthMiddleware(req: Request, res: Response, next: NextFunction): void {
+  // Check Authorization header: "Bearer <token>"
+  const authHeader = req.headers["authorization"];
+  if (authHeader) {
+    const [scheme, token] = authHeader.split(" ");
+    if (scheme?.toLowerCase() === "bearer" && token === AUTH_TOKEN) {
+      next();
+      return;
+    }
+  }
+  // Fallback: check query param ?token=<token>
+  if (req.query["token"] === AUTH_TOKEN) {
+    next();
+    return;
+  }
+  res.status(401).json({
+    jsonrpc: "2.0",
+    error: { code: -32000, message: "Unauthorized: invalid or missing auth token" },
+    id: null,
+  });
+}
+
+// ---- Start ----
+
+async function main() {
+  log("Starting DOMShell MCP server...");
+
+  // ---- HTTP transport (standalone, multi-client) ----
+  const app = express();
+  app.use(express.json());
+
+  // Auth on all /mcp routes
+  app.use("/mcp", mcpAuthMiddleware);
+
+  // POST /mcp — handle MCP requests (initialize, tool calls, etc.)
+  app.post("/mcp", async (req: Request, res: Response) => {
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+
+    try {
+      // Existing session — route to its transport
+      if (sessionId && transports[sessionId]) {
+        await transports[sessionId].handleRequest(req, res, req.body);
+        return;
+      }
+
+      // New session — must be an initialize request
+      if (!sessionId && isInitializeRequest(req.body)) {
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          onsessioninitialized: (sid) => {
+            log(`MCP session initialized: ${sid}`);
+            transports[sid] = transport;
+          },
+        });
+
+        transport.onclose = () => {
+          const sid = Object.entries(transports).find(([, t]) => t === transport)?.[0];
+          if (sid) {
+            log(`MCP session closed: ${sid}`);
+            delete transports[sid];
+          }
+        };
+
+        const server = createMcpServer();
+        await server.connect(transport);
+        console.error(`[DOMShell] New MCP session connected (sid: ${sessionId})`);
+        await transport.handleRequest(req, res, req.body);
+        return;
+      }
+
+      // Bad request — no session and not initialize
+      res.status(400).json({
+        jsonrpc: "2.0",
+        error: { code: -32000, message: "Bad Request: no valid session. Send an initialize request first." },
+        id: null,
+      });
+    } catch (error: any) {
+      log(`MCP request error: ${error.message}`);
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: "2.0",
+          error: { code: -32603, message: "Internal server error" },
+          id: null,
+        });
+      }
+    }
+  });
+
+  // GET /mcp — SSE stream for server-to-client messages
+  app.get("/mcp", async (req: Request, res: Response) => {
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    if (!sessionId || !transports[sessionId]) {
+      res.status(400).json({
+        jsonrpc: "2.0",
+        error: { code: -32000, message: "Invalid or missing session ID" },
+        id: null,
+      });
+      return;
+    }
+    await transports[sessionId].handleRequest(req, res);
+  });
+
+  // DELETE /mcp — session termination
+  app.delete("/mcp", async (req: Request, res: Response) => {
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    if (!sessionId || !transports[sessionId]) {
+      res.status(400).json({
+        jsonrpc: "2.0",
+        error: { code: -32000, message: "Invalid or missing session ID" },
+        id: null,
+      });
+      return;
+    }
+    await transports[sessionId].handleRequest(req, res);
+  });
+
+  // Start HTTP server
+  const httpServer = app.listen(MCP_PORT, "127.0.0.1", () => {
+    log("");
+    log(`MCP HTTP endpoint: http://127.0.0.1:${MCP_PORT}/mcp`);
+    log(`WebSocket bridge:  ws://127.0.0.1:${PORT}`);
+    log(`Auth token: ${AUTH_TOKEN}`);
+    log("");
+    log("In the DOMShell terminal, run:");
+    log(`  connect ${AUTH_TOKEN}`);
+    log("");
+    log(`Security: write=${ALLOW_WRITE ? "ON" : "OFF"}, sensitive=${ALLOW_SENSITIVE ? "ON" : "OFF"}, confirm=${!NO_CONFIRM ? "ON" : "OFF"}`);
+    if (ALLOWED_DOMAINS.length > 0) {
+      log(`Domains: ${ALLOWED_DOMAINS.join(", ")}`);
+    } else {
+      log("Domains: all (no restriction)");
+    }
+    log(`Audit log: ${LOG_FILE}`);
+    log("");
+    log("Configure MCP clients with:");
+    log(`  { "url": "http://localhost:${MCP_PORT}/mcp?token=${AUTH_TOKEN}" }`);
+  });
+
+  httpServer.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      log(`ERROR: MCP port ${MCP_PORT} is already in use.`);
+      log(`Try: --mcp-port ${MCP_PORT + 1}  (or kill the other process)`);
+      process.exit(1);
+    }
+    log(`HTTP server error: ${err.message}`);
+    process.exit(1);
+  });
+
+  // Graceful shutdown
+  process.on("SIGINT", async () => {
+    log("Shutting down...");
+    for (const sid in transports) {
+      try {
+        await transports[sid].close();
+      } catch {}
+      delete transports[sid];
+    }
+    wss.close();
+    httpServer.close();
+    process.exit(0);
+  });
+}
+
+main().catch((err) => {
+  log(`Fatal error: ${err.message}`);
+  process.exit(1);
+});

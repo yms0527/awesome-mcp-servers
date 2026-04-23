@@ -1,0 +1,93 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 98
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: |
+            {"body":"This is a test comment on a specific file in a commit.","path":"README.md","position":1}
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            Content-Type:
+                - application/json
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/geropl/github-mcp-go-test/commits/main/comments
+        method: POST
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 1628
+        uncompressed: false
+        body: '{"url":"https://api.github.com/repos/geropl/github-mcp-go-test/comments/153418989","html_url":"https://github.com/geropl/github-mcp-go-test/commit/4707587d1c57e90aeed4c846b1b71221c73de5f3#r153418989","id":153418989,"node_id":"CC_kwDOOEmhcs4JJPzt","user":{"login":"geropl","id":32448529,"node_id":"MDQ6VXNlcjMyNDQ4NTI5","avatar_url":"https://avatars.githubusercontent.com/u/32448529?v=4","gravatar_id":"","url":"https://api.github.com/users/geropl","html_url":"https://github.com/geropl","followers_url":"https://api.github.com/users/geropl/followers","following_url":"https://api.github.com/users/geropl/following{/other_user}","gists_url":"https://api.github.com/users/geropl/gists{/gist_id}","starred_url":"https://api.github.com/users/geropl/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/geropl/subscriptions","organizations_url":"https://api.github.com/users/geropl/orgs","repos_url":"https://api.github.com/users/geropl/repos","events_url":"https://api.github.com/users/geropl/events{/privacy}","received_events_url":"https://api.github.com/users/geropl/received_events","type":"User","user_view_type":"public","site_admin":false},"position":1,"line":null,"path":"README.md","commit_id":"4707587d1c57e90aeed4c846b1b71221c73de5f3","created_at":"2025-03-07T13:02:42Z","updated_at":"2025-03-07T13:02:42Z","author_association":"OWNER","body":"This is a test comment on a specific file in a commit.","reactions":{"url":"https://api.github.com/repos/geropl/github-mcp-go-test/comments/153418989/reactions","total_count":0,"+1":0,"-1":0,"laugh":0,"hooray":0,"confused":0,"heart":0,"rocket":0,"eyes":0}}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=60, s-maxage=60
+            Content-Length:
+                - "1628"
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Fri, 07 Mar 2025 13:02:42 GMT
+            Etag:
+                - '"aea51b38e2c92e3dbc0067acdaa8216a3ca2d68361b44b7f5726501e795a376b"'
+            Github-Authentication-Token-Expiration:
+                - 2025-04-06 13:14:03 +0200
+            Location:
+                - https://api.github.com/repos/geropl/github-mcp-go-test/comments/153418989
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Github-Permissions:
+                - contents=read
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - 7498:1EA0F8:3C7E397:3E662E7:67CAEE72
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "4929"
+            X-Ratelimit-Reset:
+                - "1741353443"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "71"
+            X-Xss-Protection:
+                - "0"
+        status: 201 Created
+        code: 201
+        duration: 343.66001ms

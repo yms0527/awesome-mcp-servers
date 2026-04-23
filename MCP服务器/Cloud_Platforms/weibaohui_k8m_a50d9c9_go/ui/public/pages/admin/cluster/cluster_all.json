@@ -1,0 +1,1265 @@
+{
+  "type": "page",
+  "title": "多集群管理",
+  "body": [
+    {
+      "type": "crud",
+      "id": "detailCRUD",
+      "name": "detailCRUD",
+      "autoFillHeight": true,
+      "autoGenerateFilter": {
+        "columnsNum": 4,
+        "showBtnToolbar": false
+      },
+      "headerToolbar": [
+        {
+          "type": "button",
+          "label": "重新扫描",
+          "level": "primary",
+          "actionType": "ajax",
+          "api": "post:/admin/cluster/scan"
+        },
+        {
+          "type": "dropdown-button",
+          "label": "纳管集群",
+          "level": "primary",
+          "buttons": [
+            {
+              "type": "button",
+              "label": "Kubeconfig文件",
+              "actionType": "drawer",
+              "drawer": {
+                "closeOnEsc": true,
+                "closeOnOutside": true,
+                "size": "xl",
+                "title": "新增集群 kubeconfig (ESC 关闭)",
+                "body": [
+                  {
+                    "type": "kubeConfigEditor"
+                  }
+                ],
+                "actions": []
+              }
+            },
+            {
+              "type": "button",
+              "label": "AWS EKS集群",
+              "actionType": "drawer",
+              "drawer": {
+                "closeOnEsc": true,
+                "closeOnOutside": true,
+                "size": "lg",
+                "title": "纳管AWS EKS集群 (ESC 关闭)",
+                "body": [
+                  {
+                    "type": "form",
+                    "api": "post:/admin/cluster/aws/save",
+                    "body": [
+                      {
+                        "type": "input-text",
+                        "name": "accessKey",
+                        "label": "Access Key",
+                        "placeholder": "请输入AWS Access Key",
+                        "required": true
+                      },
+                      {
+                        "type": "input-password",
+                        "name": "secretKey",
+                        "label": "Secret Key",
+                        "placeholder": "请输入AWS Secret Key",
+                        "required": true
+                      },
+                      {
+                        "placeholder": "请输入AWS Region，例如：us-west-2qq",
+                        "required": true,
+                        "type": "select",
+                        "name": "region",
+                        "label": "AWS 区域",
+                        "searchable": true,
+                        "clearable": true,
+                        "options": [
+                          {
+                            "label": "美国东部（弗吉尼亚北部） - us-east-1",
+                            "value": "us-east-1"
+                          },
+                          {
+                            "label": "美国东部（俄亥俄） - us-east-2",
+                            "value": "us-east-2"
+                          },
+                          {
+                            "label": "美国西部（加利福尼亚北部） - us-west-1",
+                            "value": "us-west-1"
+                          },
+                          {
+                            "label": "美国西部（俄勒冈） - us-west-2",
+                            "value": "us-west-2"
+                          },
+                          {
+                            "label": "AWS GovCloud（美国东部） - us-gov-east-1",
+                            "value": "us-gov-east-1"
+                          },
+                          {
+                            "label": "AWS GovCloud（美国西部） - us-gov-west-1",
+                            "value": "us-gov-west-1"
+                          },
+                          {
+                            "label": "加拿大（中部，蒙特利尔） - ca-central-1",
+                            "value": "ca-central-1"
+                          },
+                          {
+                            "label": "加拿大（西部，卡尔加里） - ca-west-1",
+                            "value": "ca-west-1"
+                          },
+                          {
+                            "label": "墨西哥（中部，克雷塔罗） - mx-central-1",
+                            "value": "mx-central-1"
+                          },
+                          {
+                            "label": "南美洲（圣保罗，巴西） - sa-east-1",
+                            "value": "sa-east-1"
+                          },
+                          {
+                            "label": "欧洲（爱尔兰） - eu-west-1",
+                            "value": "eu-west-1"
+                          },
+                          {
+                            "label": "欧洲（伦敦，英国） - eu-west-2",
+                            "value": "eu-west-2"
+                          },
+                          {
+                            "label": "欧洲（巴黎，法国） - eu-west-3",
+                            "value": "eu-west-3"
+                          },
+                          {
+                            "label": "欧洲（法兰克福，德国） - eu-central-1",
+                            "value": "eu-central-1"
+                          },
+                          {
+                            "label": "欧洲（苏黎世，瑞士） - eu-central-2",
+                            "value": "eu-central-2"
+                          },
+                          {
+                            "label": "欧洲（斯德哥尔摩，瑞典） - eu-north-1",
+                            "value": "eu-north-1"
+                          },
+                          {
+                            "label": "欧洲（米兰，意大利） - eu-south-1",
+                            "value": "eu-south-1"
+                          },
+                          {
+                            "label": "欧洲（西班牙，马德里） - eu-south-2",
+                            "value": "eu-south-2"
+                          },
+                          {
+                            "label": "中东（巴林） - me-south-1",
+                            "value": "me-south-1"
+                          },
+                          {
+                            "label": "中东（阿联酋，迪拜） - me-central-1",
+                            "value": "me-central-1"
+                          },
+                          {
+                            "label": "中东（以色列，特拉维夫） - il-central-1",
+                            "value": "il-central-1"
+                          },
+                          {
+                            "label": "非洲（开普敦，南非） - af-south-1",
+                            "value": "af-south-1"
+                          },
+                          {
+                            "label": "亚太（东京，日本） - ap-northeast-1",
+                            "value": "ap-northeast-1"
+                          },
+                          {
+                            "label": "亚太（首尔，韩国） - ap-northeast-2",
+                            "value": "ap-northeast-2"
+                          },
+                          {
+                            "label": "亚太（大阪，日本） - ap-northeast-3",
+                            "value": "ap-northeast-3"
+                          },
+                          {
+                            "label": "亚太（香港，中国） - ap-east-1",
+                            "value": "ap-east-1"
+                          },
+                          {
+                            "label": "亚太（台北，台湾，规划中） - ap-east-2",
+                            "value": "ap-east-2"
+                          },
+                          {
+                            "label": "亚太（新加坡） - ap-southeast-1",
+                            "value": "ap-southeast-1"
+                          },
+                          {
+                            "label": "亚太（悉尼，澳大利亚） - ap-southeast-2",
+                            "value": "ap-southeast-2"
+                          },
+                          {
+                            "label": "亚太（雅加达，印度尼西亚） - ap-southeast-3",
+                            "value": "ap-southeast-3"
+                          },
+                          {
+                            "label": "亚太（墨尔本，澳大利亚） - ap-southeast-4",
+                            "value": "ap-southeast-4"
+                          },
+                          {
+                            "label": "亚太（马来西亚，吉隆坡） - ap-southeast-5",
+                            "value": "ap-southeast-5"
+                          },
+                          {
+                            "label": "亚太（新西兰，奥克兰） - ap-southeast-6",
+                            "value": "ap-southeast-6"
+                          },
+                          {
+                            "label": "亚太（孟买，印度） - ap-south-1",
+                            "value": "ap-south-1"
+                          },
+                          {
+                            "label": "亚太（海得拉巴，印度） - ap-south-2",
+                            "value": "ap-south-2"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "input-text",
+                        "name": "clusterName",
+                        "label": "集群名称",
+                        "placeholder": "请输入EKS集群名称",
+                        "required": true
+                      },
+                      {
+                        "type": "input-text",
+                        "name": "displayName",
+                        "label": "显示名称",
+                        "placeholder": "请输入显示名称（可选）"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "type": "button",
+              "label": "Token方式",
+              "actionType": "drawer",
+              "drawer": {
+                "closeOnEsc": true,
+                "closeOnOutside": true,
+                "size": "lg",
+                "title": "Token方式纳管集群 (ESC 关闭)",
+                "body": [
+                  {
+                    "type": "form",
+                    "api": "post:/admin/cluster/token/save",
+                    "body": [
+                      {
+                        "type": "input-text",
+                        "name": "server",
+                        "label": "服务器地址",
+                        "placeholder": "请输入Kubernetes API服务器地址，例如：https://kubernetes.example.com:6443",
+                        "required": true,
+                        "validations": {
+                          "isUrl": true
+                        }
+                      },
+                      {
+                        "type": "input-password",
+                        "name": "token",
+                        "label": "访问Token",
+                        "placeholder": "请输入Kubernetes访问Token",
+                        "required": true
+                      },
+                      {
+                        "type": "textarea",
+                        "name": "caData",
+                        "label": "CA证书数据",
+                        "placeholder": "请输入CA证书数据（可选，Base64编码）",
+                        "required": false,
+                        "minRows": 3,
+                        "maxRows": 8
+                      },
+                      {
+                        "type": "input-text",
+                        "name": "displayName",
+                        "label": "显示名称",
+                        "placeholder": "请输入集群显示名称",
+                        "required": true
+                      },
+                      {
+                        "type": "textarea",
+                        "name": "description",
+                        "label": "集群描述",
+                        "placeholder": "请输入集群描述信息（可选）",
+                        "required": false,
+                        "minRows": 2,
+                        "maxRows": 4
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "columns-toggler",
+          "align": "right",
+          "draggable": true,
+          "icon": "fas fa-cog",
+          "overlay": true,
+          "footerBtnSize": "sm"
+        },
+        {
+          "type": "tpl",
+          "tpl": "共${count}条",
+          "align": "right",
+          "visibleOn": "${count}"
+        },
+        {
+          "type": "columns-toggler",
+          "align": "left"
+        },
+        "reload",
+        "bulkActions"
+      ],
+      "loadDataOnce": true,
+      "syncLocation": false,
+      "perPage": 10,
+      "api": "get:/params/cluster/all",
+      "columns": [
+        {
+          "type": "operation",
+          "label": "操作",
+          "width": 300,
+          "buttons": [
+            {
+              "type": "button",
+              "icon": "fas fa-link  text-primary",
+              "label": "连接",
+              "actionType": "ajax",
+              "api": "post:/mgm/cluster/${cluster_md}/reconnect"
+            },
+            {
+              "type": "button",
+              "icon": "fas fa-unlink text-primary",
+              "label": "断开",
+              "actionType": "ajax",
+              "api": "post:/admin/cluster/${cluster_md}/disconnect"
+            },
+            {
+              "type": "button",
+              "label": "授权",
+              "icon": "fas fa-user-shield  text-primary",
+              "actionType": "drawer",
+              "drawer": {
+                "closeOnEsc": true,
+                "closeOnOutside": true,
+                "title": "集群权限管理",
+                "size": "xl",
+                "body": [
+                  {
+                    "type": "alert",
+                    "level": "success",
+                    "body": "<div class='alert alert-info'><p><strong>普通用户需要授权，不授权看不到任何集群。请小心设置权限，避免交叉。授权规则如下：</strong></p><p><strong>集群管理员：</strong>可以管理和操作所有集群资源，包括创建、修改、删除、Exec等操作。</p><p><strong>集群只读：</strong>仅可查看集群资源信息，无法进行修改操作。</p><p><strong>Exec权限：</strong>具有进入容器内，执行命令的权限</p><p><strong>白名单命名空间：</strong>置空表示不限制，可访问该集群下所有的命名空间。如果填写了，那么用户就只能访问指定的命名空间了。</p><p><strong>黑名单命名空间：</strong>置空表示不限制，如果填写了，那么用户将不能访问该命名空间。黑名单可否定白名单。黑名单权限最高。</p><p><strong>授权类型：</strong>可以为用户、用户组分别授权，当为用户组时，对组内所有用户生效操作。</p></div>"
+                  },
+                  {
+                    "type": "tabs",
+                    "tabs": [
+                      {
+                        "title": "集群只读",
+                        "body": [
+                          {
+                            "type": "crud",
+                            "api": "get:/admin/cluster_permissions/cluster/${cluster_md}/role/cluster_readonly/user/list",
+                            "autoFillHeight": true,
+                            "autoGenerateFilter": {
+                              "columnsNum": 4,
+                              "showBtnToolbar": false
+                            },
+                            "headerToolbar": [
+                              {
+                                "type": "button",
+                                "label": "添加用户",
+                                "level": "primary",
+                                "actionType": "dialog",
+                                "dialog": {
+                                  "closeOnEsc": true,
+                                  "closeOnOutside": true,
+                                  "size": "lg",
+                                  "title": "添加只读用户",
+                                  "body": {
+                                    "type": "form",
+                                    "api": "post:/admin/cluster_permissions/cluster/${cluster_md}/role/cluster_readonly/user/save",
+                                    "body": [
+                                      {
+                                        "type": "transfer",
+                                        "name": "users",
+                                        "label": "选择用户",
+                                        "source": "get:/admin/user/option_list",
+                                        "searchable": true,
+                                        "selectMode": "list"
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "type": "button",
+                                "label": "添加用户组",
+                                "level": "primary",
+                                "actionType": "dialog",
+                                "dialog": {
+                                  "closeOnEsc": true,
+                                  "closeOnOutside": true,
+                                  "size": "lg",
+                                  "title": "添加用户组为只读权限",
+                                  "body": {
+                                    "type": "form",
+                                    "api": "post:/admin/cluster_permissions/cluster/${cluster_md}/role/cluster_readonly/user_group/save",
+                                    "body": [
+                                      {
+                                        "type": "transfer",
+                                        "name": "users",
+                                        "label": "选择用户组",
+                                        "source": "get:/admin/user_group/option_list",
+                                        "searchable": true,
+                                        "selectMode": "list"
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "type": "columns-toggler",
+                                "align": "right",
+                                "draggable": true,
+                                "icon": "fas fa-cog",
+                                "overlay": true,
+                                "footerBtnSize": "sm"
+                              },
+                              {
+                                "type": "tpl",
+                                "tpl": "共${count}条",
+                                "align": "right",
+                                "visibleOn": "${count}"
+                              },
+                              {
+                                "type": "columns-toggler",
+                                "align": "left"
+                              },
+                              "reload",
+                              "bulkActions"
+                            ],
+                            "loadDataOnce": true,
+                            "syncLocation": false,
+                            "initFetch": true,
+                            "perPage": 5,
+                            "bulkActions": [
+                              {
+                                "label": "批量删除",
+                                "actionType": "ajax",
+                                "confirmText": "确定要批量删除?",
+                                "api": "post:/admin/cluster_permissions/delete/${ids}"
+                              }
+                            ],
+                            "columns": [
+                              {
+                                "name": "username",
+                                "label": "用户名"
+                              },
+                              {
+                                "name": "role",
+                                "label": "角色",
+                                "type": "mapping",
+                                "map": {
+                                  "cluster_admin": "集群管理员",
+                                  "cluster_readonly": "集群只读",
+                                  "cluster_pod_exec": "Exec权限"
+                                }
+                              },
+                              {
+                                "name": "cluster",
+                                "label": "集群"
+                              },
+                              {
+                                "name": "namespaces",
+                                "label": "命名空间白名单",
+                                "type": "tpl",
+                                "tpl": "${namespaces | split:',')}",
+                                "placeholder": "-"
+                              },
+                              {
+                                "type": "button",
+                                "label": "命名空间白名单",
+                                "actionType": "dialog",
+                                "dialog": {
+                                  "closeOnEsc": true,
+                                  "closeOnOutside": true,
+                                  "size": "lg",
+                                  "title": "选择限制命名空间",
+                                  "body": {
+                                    "type": "form",
+                                    "api": "post:/admin/cluster_permissions/update_namespaces/$id",
+                                    "body": [
+                                      {
+                                        "type": "transfer",
+                                        "name": "namespaces",
+                                        "source": "get:/admin/cluster_permissions/cluster/${cluster_md}/ns/list",
+                                        "searchable": true,
+                                        "selectMode": "list"
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "name": "blacklist_namespaces",
+                                "label": "命名空间黑名单",
+                                "type": "tpl",
+                                "tpl": "${blacklist_namespaces | split:',')}",
+                                "placeholder": "-"
+                              },
+                              {
+                                "type": "button",
+                                "label": "命名空间黑名单",
+                                "actionType": "dialog",
+                                "dialog": {
+                                  "closeOnEsc": true,
+                                  "closeOnOutside": true,
+                                  "size": "lg",
+                                  "title": "选择命名空间黑名单",
+                                  "body": {
+                                    "type": "form",
+                                    "api": "post:/admin/cluster_permissions/update_blacklist_namespaces/$id",
+                                    "body": [
+                                      {
+                                        "type": "transfer",
+                                        "name": "blacklist_namespaces",
+                                        "source": "get:/admin/cluster_permissions/cluster/${cluster_md}/ns/list",
+                                        "searchable": true,
+                                        "selectMode": "list"
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "name": "authorization_type",
+                                "label": "授权类型",
+                                "type": "mapping",
+                                "map": {
+                                  "user": "<span class='label label-success'>用户</span>",
+                                  "user_group": "<span class='label label-warning'>用户组</span>",
+                                  "*": "<span class='label label-success'>用户</span>"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "title": "Exec权限",
+                        "body": [
+                          {
+                            "type": "crud",
+                            "api": "get:/admin/cluster_permissions/cluster/${cluster_md}/role/cluster_pod_exec/user/list",
+                            "autoFillHeight": true,
+                            "autoGenerateFilter": {
+                              "columnsNum": 4,
+                              "showBtnToolbar": false
+                            },
+                            "headerToolbar": [
+                              {
+                                "type": "button",
+                                "label": "添加用户",
+                                "level": "primary",
+                                "actionType": "dialog",
+                                "dialog": {
+                                  "closeOnEsc": true,
+                                  "closeOnOutside": true,
+                                  "size": "lg",
+                                  "title": "添加管理员",
+                                  "body": {
+                                    "type": "form",
+                                    "api": "post:/admin/cluster_permissions/cluster/${cluster_md}/role/cluster_pod_exec/user/save",
+                                    "body": [
+                                      {
+                                        "type": "transfer",
+                                        "name": "users",
+                                        "label": "选择用户",
+                                        "source": "get:/admin/user/option_list",
+                                        "searchable": true,
+                                        "selectMode": "list"
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "type": "button",
+                                "label": "添加用户组",
+                                "level": "primary",
+                                "actionType": "dialog",
+                                "dialog": {
+                                  "closeOnEsc": true,
+                                  "closeOnOutside": true,
+                                  "size": "lg",
+                                  "title": "添加用户组为只读权限",
+                                  "body": {
+                                    "type": "form",
+                                    "api": "post:/admin/cluster_permissions/cluster/${cluster_md}/role/cluster_pod_exec/user_group/save",
+                                    "body": [
+                                      {
+                                        "type": "transfer",
+                                        "name": "users",
+                                        "label": "选择用户组",
+                                        "source": "get:/admin/user_group/option_list",
+                                        "searchable": true,
+                                        "selectMode": "list"
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "type": "columns-toggler",
+                                "align": "right",
+                                "draggable": true,
+                                "icon": "fas fa-cog",
+                                "overlay": true,
+                                "footerBtnSize": "sm"
+                              },
+                              {
+                                "type": "tpl",
+                                "tpl": "共${count}条",
+                                "align": "right",
+                                "visibleOn": "${count}"
+                              },
+                              {
+                                "type": "columns-toggler",
+                                "align": "left"
+                              },
+                              "reload",
+                              "bulkActions"
+                            ],
+                            "loadDataOnce": true,
+                            "syncLocation": false,
+                            "initFetch": true,
+                            "perPage": 10,
+                            "bulkActions": [
+                              {
+                                "label": "批量删除",
+                                "actionType": "ajax",
+                                "confirmText": "确定要批量删除?",
+                                "api": "post:/admin/cluster_permissions/delete/${ids}"
+                              }
+                            ],
+                            "columns": [
+                              {
+                                "name": "username",
+                                "label": "用户名"
+                              },
+                              {
+                                "name": "role",
+                                "label": "角色",
+                                "type": "mapping",
+                                "map": {
+                                  "cluster_admin": "集群管理员",
+                                  "cluster_readonly": "集群只读",
+                                  "cluster_pod_exec": "Exec权限"
+                                }
+                              },
+                              {
+                                "name": "cluster",
+                                "label": "集群"
+                              },
+                              {
+                                "name": "namespaces",
+                                "label": "命名空间白名单",
+                                "type": "tpl",
+                                "tpl": "${namespaces | split:',')}",
+                                "placeholder": "-"
+                              },
+                              {
+                                "type": "button",
+                                "label": "命名空间白名单",
+                                "actionType": "dialog",
+                                "dialog": {
+                                  "closeOnEsc": true,
+                                  "closeOnOutside": true,
+                                  "size": "lg",
+                                  "title": "选择限制命名空间",
+                                  "body": {
+                                    "type": "form",
+                                    "api": "post:/admin/cluster_permissions/update_namespaces/$id",
+                                    "body": [
+                                      {
+                                        "type": "transfer",
+                                        "name": "namespaces",
+                                        "source": "get:/admin/cluster_permissions/cluster/${cluster_md}/ns/list",
+                                        "searchable": true,
+                                        "selectMode": "list"
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "name": "blacklist_namespaces",
+                                "label": "命名空间黑名单",
+                                "type": "tpl",
+                                "tpl": "${blacklist_namespaces | split:',')}",
+                                "placeholder": "-"
+                              },
+                              {
+                                "type": "button",
+                                "label": "命名空间黑名单",
+                                "actionType": "dialog",
+                                "dialog": {
+                                  "closeOnEsc": true,
+                                  "closeOnOutside": true,
+                                  "size": "lg",
+                                  "title": "选择命名空间黑名单",
+                                  "body": {
+                                    "type": "form",
+                                    "api": "post:/admin/cluster_permissions/update_blacklist_namespaces/$id",
+                                    "body": [
+                                      {
+                                        "type": "transfer",
+                                        "name": "blacklist_namespaces",
+                                        "source": "get:/admin/cluster_permissions/cluster/${cluster_md}/ns/list",
+                                        "searchable": true,
+                                        "selectMode": "list"
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "name": "authorization_type",
+                                "label": "授权类型",
+                                "type": "mapping",
+                                "map": {
+                                  "user": "<span class='label label-success'>用户</span>",
+                                  "user_group": "<span class='label label-warning'>用户组</span>",
+                                  "*": "<span class='label label-success'>用户</span>"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "title": "集群管理员",
+                        "body": [
+                          {
+                            "type": "crud",
+                            "api": "get:/admin/cluster_permissions/cluster/${cluster_md}/role/cluster_admin/user/list",
+                            "autoFillHeight": true,
+                            "autoGenerateFilter": {
+                              "columnsNum": 4,
+                              "showBtnToolbar": false
+                            },
+                            "headerToolbar": [
+                              {
+                                "type": "button",
+                                "label": "添加用户",
+                                "level": "primary",
+                                "actionType": "dialog",
+                                "dialog": {
+                                  "closeOnEsc": true,
+                                  "closeOnOutside": true,
+                                  "size": "lg",
+                                  "title": "添加管理员",
+                                  "body": {
+                                    "type": "form",
+                                    "api": "post:/admin/cluster_permissions/cluster/${cluster_md}/role/cluster_admin/user/save",
+                                    "body": [
+                                      {
+                                        "type": "transfer",
+                                        "name": "users",
+                                        "label": "选择用户",
+                                        "source": "get:/admin/user/option_list",
+                                        "searchable": true,
+                                        "selectMode": "list"
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "type": "button",
+                                "label": "添加用户组",
+                                "level": "primary",
+                                "actionType": "dialog",
+                                "dialog": {
+                                  "closeOnEsc": true,
+                                  "closeOnOutside": true,
+                                  "size": "lg",
+                                  "title": "添加用户组为只读权限",
+                                  "body": {
+                                    "type": "form",
+                                    "api": "post:/admin/cluster_permissions/cluster/${cluster_md}/role/cluster_admin/user_group/save",
+                                    "body": [
+                                      {
+                                        "type": "transfer",
+                                        "name": "users",
+                                        "label": "选择用户组",
+                                        "source": "get:/admin/user_group/option_list",
+                                        "searchable": true,
+                                        "selectMode": "list"
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "type": "columns-toggler",
+                                "align": "right",
+                                "draggable": true,
+                                "icon": "fas fa-cog",
+                                "overlay": true,
+                                "footerBtnSize": "sm"
+                              },
+                              {
+                                "type": "tpl",
+                                "tpl": "共${count}条",
+                                "align": "right",
+                                "visibleOn": "${count}"
+                              },
+                              {
+                                "type": "columns-toggler",
+                                "align": "left"
+                              },
+                              "reload",
+                              "bulkActions"
+                            ],
+                            "loadDataOnce": true,
+                            "syncLocation": false,
+                            "initFetch": true,
+                            "perPage": 10,
+                            "bulkActions": [
+                              {
+                                "label": "批量删除",
+                                "actionType": "ajax",
+                                "confirmText": "确定要批量删除?",
+                                "api": "post:/admin/cluster_permissions/delete/${ids}"
+                              }
+                            ],
+                            "columns": [
+                              {
+                                "name": "username",
+                                "label": "用户名"
+                              },
+                              {
+                                "name": "role",
+                                "label": "角色",
+                                "type": "mapping",
+                                "map": {
+                                  "cluster_admin": "集群管理员",
+                                  "cluster_readonly": "集群只读",
+                                  "cluster_pod_exec": "Exec权限"
+                                }
+                              },
+                              {
+                                "name": "cluster",
+                                "label": "集群"
+                              },
+                              {
+                                "name": "namespaces",
+                                "label": "命名空间白名单",
+                                "type": "tpl",
+                                "tpl": "${namespaces | split:',')}",
+                                "placeholder": "-"
+                              },
+                              {
+                                "type": "button",
+                                "label": "命名空间白名单",
+                                "actionType": "dialog",
+                                "dialog": {
+                                  "closeOnEsc": true,
+                                  "closeOnOutside": true,
+                                  "size": "lg",
+                                  "title": "选择限制命名空间",
+                                  "body": {
+                                    "type": "form",
+                                    "api": "post:/admin/cluster_permissions/update_namespaces/$id",
+                                    "body": [
+                                      {
+                                        "type": "transfer",
+                                        "name": "namespaces",
+                                        "source": "get:/admin/cluster_permissions/cluster/${cluster_md}/ns/list",
+                                        "searchable": true,
+                                        "selectMode": "list"
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "name": "blacklist_namespaces",
+                                "label": "命名空间黑名单",
+                                "type": "tpl",
+                                "tpl": "${blacklist_namespaces | split:',')}",
+                                "placeholder": "-"
+                              },
+                              {
+                                "type": "button",
+                                "label": "命名空间黑名单",
+                                "actionType": "dialog",
+                                "dialog": {
+                                  "closeOnEsc": true,
+                                  "closeOnOutside": true,
+                                  "size": "lg",
+                                  "title": "选择命名空间黑名单",
+                                  "body": {
+                                    "type": "form",
+                                    "api": "post:/admin/cluster_permissions/update_blacklist_namespaces/$id",
+                                    "body": [
+                                      {
+                                        "type": "transfer",
+                                        "name": "blacklist_namespaces",
+                                        "source": "get:/admin/cluster_permissions/cluster/${cluster_md}/ns/list",
+                                        "searchable": true,
+                                        "selectMode": "list"
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "name": "authorization_type",
+                                "label": "授权类型",
+                                "type": "mapping",
+                                "map": {
+                                  "user": "<span class='label label-success'>用户</span>",
+                                  "user_group": "<span class='label label-warning'>用户组</span>",
+                                  "*": "<span class='label label-success'>用户</span>"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "type": "dropdown-button",
+              "level": "link",
+              "tooltip": "更多操作",
+              "buttons": [
+                {
+                  "type": "button",
+                  "label": "已授权用户",
+                  "icon": "fas fa-user-shield  text-primary",
+                  "actionType": "drawer",
+                  "drawer": {
+                    "closeOnEsc": true,
+                    "closeOnOutside": true,
+                    "title": "$clusterName 已授权用户列表  (ESC 关闭)",
+                    "size": "xl",
+                    "body": [
+                      {
+                        "type": "alert",
+                        "level": "success",
+                        "body": "<div class='alert alert-info'><p>本页面可查看、批量删除该集群下已分配权限的用户。</p><p>如需给用户添加授权，请点击平台设置-多集群设置-授权按钮</p></div>"
+                      },
+                      {
+                        "type": "crud",
+                        "api": "get:/admin/cluster_permissions/cluster/${cluster_md}/list",
+                        "autoFillHeight": true,
+                        "autoGenerateFilter": {
+                          "columnsNum": 4,
+                          "showBtnToolbar": false
+                        },
+                        "headerToolbar": [
+                          {
+                            "type": "columns-toggler",
+                            "align": "right",
+                            "draggable": true,
+                            "icon": "fas fa-cog",
+                            "overlay": true,
+                            "footerBtnSize": "sm"
+                          },
+                          {
+                            "type": "tpl",
+                            "tpl": "共${count}条",
+                            "align": "right",
+                            "visibleOn": "${count}"
+                          },
+                          {
+                            "type": "columns-toggler",
+                            "align": "left"
+                          },
+                          "reload",
+                          "bulkActions"
+                        ],
+                        "loadDataOnce": true,
+                        "syncLocation": false,
+                        "initFetch": true,
+                        "perPage": 10,
+                        "bulkActions": [
+                          {
+                            "label": "批量删除",
+                            "actionType": "ajax",
+                            "confirmText": "确定要批量删除?",
+                            "api": "post:/admin/cluster_permissions/delete/${ids}"
+                          }
+                        ],
+                        "columns": [
+                          {
+                            "name": "username",
+                            "label": "用户名"
+                          },
+                          {
+                            "name": "cluster",
+                            "label": "集群"
+                          },
+                          {
+                            "name": "role",
+                            "label": "角色",
+                            "type": "mapping",
+                            "map": {
+                              "cluster_admin": "集群管理员",
+                              "cluster_readonly": "集群只读",
+                              "cluster_pod_exec": "Exec权限"
+                            }
+                          },
+                          {
+                            "name": "namespaces",
+                            "label": "白名单命名空间",
+                            "type": "tpl",
+                            "tpl": "${namespaces | split:',')}",
+                            "placeholder": "-"
+                          },
+                          {
+                            "name": "blacklist_namespaces",
+                            "label": "黑名单命名空间",
+                            "type": "tpl",
+                            "tpl": "${blacklist_namespaces | split:',')}",
+                            "placeholder": "-"
+                          },
+                          {
+                            "name": "authorization_type",
+                            "label": "授权类型",
+                            "type": "mapping",
+                            "map": {
+                              "user": "<span class='label label-success'>用户</span>",
+                              "user_group": "<span class='label label-warning'>用户组</span>",
+                              "*": "<span class='label label-success'>用户</span>"
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "button",
+                  "label": "解除纳管",
+                  "icon": "fas fa-unlink  text-primary",
+                  "actionType": "ajax",
+                  "visibleOn": " source==='DB' || source==='AWS' ",
+                  "confirmText": "确定要解除纳管?",
+                  "api": {
+                    "url": "/admin/cluster/kubeconfig/remove",
+                    "method": "post",
+                    "data": {
+                      "server": "${server }",
+                      "user": "${userName }",
+                      "cluster": "${clusterName}"
+                    }
+                  }
+                },
+                {
+                  "type": "button",
+                  "label": "kubectl终端",
+                  "icon": "fas fa-terminal  text-primary",
+                  "actionType": "url",
+                  "url": "/#/k/${''|selectedClusterMd5}/NodeExec?type=KubectlShell",
+                  "blank": true
+                },
+                {
+                  "type": "button",
+                  "label": "shell日志",
+                  "icon": "fas fa-file-code text-primary",
+                  "actionType": "url",
+                  "blank": false,
+                  "url": "/#/k/${''|selectedClusterMd5}/log/shell?cluster=${source === 'InCluster' ? 'InCluster' : `${fileName}/${contextName}`}"
+                },
+                {
+                  "type": "button",
+                  "label": "操作日志",
+                  "icon": "fas fa-history  text-primary",
+                  "actionType": "url",
+                  "blank": false,
+                  "url": "/#/k/${''|selectedClusterMd5}/log/operation?cluster=${source === 'InCluster' ? 'InCluster' : `${fileName}/${contextName}`}"
+                },
+                {
+                  "type": "button",
+                  "label": "参数配置",
+                  "icon": "fas fa-cogs text-primary",
+                  "actionType": "dialog",
+                  "visibleOn": "source==='DB'",
+                  "dialog": {
+                    "closeOnEsc": true,
+                    "closeOnOutside": true,
+                    "title": "集群参数配置 - ${clusterName}",
+                    "size": "lg",
+                    "body": {
+                      "type": "form",
+                      "api": "post:/admin/cluster/config/save",
+                      "initApi": "get:/admin/cluster/config/${id}",
+                      "body": [
+                        {
+                          "type": "alert",
+                          "level": "info",
+                          "body": "配置集群的kom相关参数，这些参数将影响集群的连接和性能表现。"
+                        },
+                        {
+                          "type": "hidden",
+                          "name": "id",
+                          "value": "${id}"
+                        },
+                        {
+                          "type": "input-text",
+                          "name": "proxyURL",
+                          "label": "代理地址 (ProxyURL)",
+                          "placeholder": "http://proxy.example.com:8080",
+                          "description": "集群连接使用的代理服务器地址，格式：http://host:port"
+                        },
+                        {
+                          "type": "input-number",
+                          "name": "timeout",
+                          "label": "超时时间 (Timeout)",
+                          "placeholder": "30",
+                          "min": 0,
+                          "max": 300,
+                          "description": "集群连接的超时时间，单位：秒。0表示无限制。"
+                        },
+                        {
+                          "type": "input-number",
+                          "name": "qps",
+                          "label": "QPS限制",
+                          "placeholder": "200",
+                          "min": 0,
+                          "max": 1000,
+                          "description": "每秒查询次数限制，控制对集群API的访问频率。0表示无限制。"
+                        },
+                        {
+                          "type": "input-number",
+                          "name": "burst",
+                          "label": "突发限制 (Burst)",
+                          "placeholder": "2000",
+                          "min": 0,
+                          "max": 2000,
+                          "description": "突发请求的最大数量，通常设置为QPS的2倍。0表示无限制。"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "toggled": true
+        },
+        {
+          "name": "fileName",
+          "label": "名称",
+          "type": "text",
+          "sortable": true,
+          "searchable": {
+            "type": "select",
+            "searchable": true,
+            "source": "/admin/cluster/file/option_list"
+          }
+        },
+        {
+          "name": "userName",
+          "label": "用户名",
+          "type": "text",
+          "sortable": true,
+          "searchable": {
+            "type": "input-text",
+            "name": "userName",
+            "label": "用户名",
+            "placeholder": "输入用户名"
+          }
+        },
+        {
+          "name": "namespace",
+          "label": "命名空间",
+          "type": "text"
+        },
+        {
+          "name": "clusterName",
+          "label": "集群名称",
+          "type": "text",
+          "sortable": true,
+          "searchable": {
+            "type": "input-text",
+            "name": "clusterName",
+            "label": "集群名称",
+            "placeholder": "输入集群名称"
+          }
+        },
+        {
+          "name": "clusterConnectStatus",
+          "label": "可访问性",
+          "type": "mapping",
+          "map": {
+            "connected": "<span class='label label-success'>已连接</span>",
+            "disconnected": "<span class='label label-danger'>未连接</span>",
+            "failed": "<span class='label label-danger'>连接失败</span>",
+            "connecting": "<span class='label label-warning'>连接中</span>",
+            "*": "<span class='label label-default'>${clusterConnectStatus}</span>"
+          },
+          "popOver": {
+            "trigger": "hover",
+            "showIcon": false,
+            "body": {
+              "mode": "dialog",
+              "type": "tpl",
+              "tpl": "<span class='text-gray-500 text-sm'>${err} </span>"
+            }
+          },
+          "popOverEnableOn": "this.err"
+        },
+        {
+          "name": "server",
+          "label": "集群地址",
+          "type": "text",
+          "width": "180px",
+          "sortable": true
+        },
+        {
+          "name": "serverVersion",
+          "label": "集群版本",
+          "type": "text",
+          "sortable": true
+        },
+        {
+          "name": "source",
+          "label": "来源",
+          "type": "mapping",
+          "map": {
+            "InCluster": "集群内",
+            "DB": "数据库",
+            "File": "文件",
+            "AWS": "AWS"
+          }
+        },
+        {
+          "name": "not_after",
+          "label": "证书有效期",
+          "type": "text",
+          "sortable": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1110 @@
+#!/usr/bin/env python3
+
+import argparse
+import ast
+import datetime
+import json
+import logging
+import mimetypes
+import os
+import re
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+from dotenv import load_dotenv
+from githubkit import GitHub
+from githubkit.exception import RequestFailed
+from githubkit.versions.latest.models import FullRepository
+
+from .functions import (
+    should_scan_repository_for_GHAS_alerts,
+    should_scan_repository_for_MCP_Composition,
+    get_repository_properties,
+    log_separator
+)
+from .github import (
+    get_github_client,
+    list_all_repositories_for_org,
+    list_all_repository_properties_for_org,
+    update_repository_properties,
+    show_rate_limit,
+    handle_github_api_error,
+    clone_repository,
+    create_issue,
+)
+from .constants import Constants
+
+# Configuration
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logging.getLogger("githubkit").setLevel(logging.DEBUG)
+load_dotenv()
+
+
+def get_code_scanning_alerts(gh: Any, owner: str, repo: str) -> Dict[str, int]:
+    """
+    Gets the count of code scanning alerts for a repository, categorized by severity.
+
+    Args:
+        gh: Authenticated GitHub client instance.
+        owner: Owner of the repository.
+        repo: Repository name.
+
+    Returns:
+        Dictionary with counts of open code scanning alerts by severity.
+    """
+    # Initialize result dictionary with all severity counts set to 0
+    result = {
+        "total": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+    }
+
+    try:
+        # Get code scanning alerts with state=open
+        alerts = list(gh.rest.paginate(
+            gh.rest.code_scanning.list_alerts_for_repo,
+            owner=owner,
+            repo=repo,
+            state='open'
+        ))
+
+        result["total"] = len(alerts)
+
+        # Count alerts by severity
+        for alert in alerts:
+            # Convert severity to lowercase for case-insensitive comparison
+            severity = alert.rule.severity.lower() if alert.rule and alert.rule.severity else "unknown"
+
+            if severity == "critical":
+                result["critical"] += 1
+            elif severity == "high":
+                result["high"] += 1
+            elif severity == "medium":
+                result["medium"] += 1
+            elif severity == "low":
+                result["low"] += 1
+            # Map additional severity levels: warning, note -> low, error -> medium (as it needs attention)
+            elif severity == "warning" or severity == "note":
+                result["low"] += 1
+            elif severity == "error":
+                result["medium"] += 1
+
+        logging.info(f"Found [{result['total']}] open code scanning alerts for [{owner}/{repo}], " +  # noqa: W504
+                     f"by severity: Critical: {result['critical']}, High: {result['high']}, " +  # noqa: W504
+                     f"Medium: {result['medium']} (includes 'medium' and 'error'), " +  # noqa: W504
+                     f"Low: {result['low']} (includes 'low', 'warning', and 'note').")
+
+        return result
+
+    except RequestFailed as e:
+        if e.response.status_code == 404:
+            logging.info(f"Code scanning not enabled or no alerts found for [{owner}/{repo}]")
+            return result
+        else:
+            handle_github_api_error(e, f"getting code scanning alerts for [{owner}/{repo}]")
+            return result
+    except Exception as e:
+        logging.error(f"Unexpected error getting code scanning alerts for [{owner}/{repo}]: {e}")
+        return result
+
+
+def get_secret_scanning_alerts(gh: Any, owner: str, repo: str) -> Dict[str, int]:
+    """
+    Gets the count of secret scanning alerts for a repository, categorized by type.
+
+    Args:
+        gh: Authenticated GitHub client instance.
+        owner: Owner of the repository.
+        repo: Repository name.
+
+    Returns:
+        Dictionary with count of open secret scanning alerts, both total and by type.
+    """
+    # Initialize result dictionary
+    result = {
+        "total": 0,
+        "types": {}
+    }
+
+    try:
+        # Get secret scanning alerts with state=open
+        alerts = list(gh.rest.paginate(
+            gh.rest.secret_scanning.list_alerts_for_repo,
+            owner=owner,
+            repo=repo,
+            state='open'
+        ))
+
+        result["total"] = len(alerts)
+
+        # Count alerts by secret type
+        for alert in alerts:
+            secret_type = getattr(alert, 'secret_type_display_name', None) or getattr(alert, 'secret_type', None) or "Unknown"
+            if secret_type in result["types"]:
+                result["types"][secret_type] += 1
+            else:
+                result["types"][secret_type] = 1
+
+        logging.info(f"Found [{result['total']}] open secret scanning alerts for [{owner}/{repo}]")
+        if result["total"] > 0:
+            type_counts = ", ".join([f"{t}: {c}" for t, c in result["types"].items()])
+            logging.info(f"Secret types for [{owner}/{repo}]: {type_counts}")
+        return result
+
+    except RequestFailed as e:
+        if e.response.status_code == 404:
+            logging.info(f"Secret scanning not enabled or no alerts found for [{owner}/{repo}]")
+            return result
+        else:
+            handle_github_api_error(e, f"getting secret scanning alerts for [{owner}/{repo}]")
+            return result
+    except Exception as e:
+        logging.error(f"Unexpected error getting secret scanning alerts for [{owner}/{repo}]: {e}")
+        return result
+
+
+def get_dependency_alerts(gh: Any, owner: str, repo: str) -> Dict[str, int]:
+    """
+    Gets the count of dependency vulnerability alerts for a repository, categorized by severity.
+
+    Args:
+        gh: Authenticated GitHub client instance.
+        owner: Owner of the repository.
+        repo: Repository name.
+
+    Returns:
+        Dictionary with counts of open dependency vulnerability alerts by severity.
+    """
+    # Initialize result dictionary with all severity counts set to 0
+    result = {
+        "total": 0,
+        "critical": 0,
+        "high": 0,
+        "moderate": 0,
+        "low": 0,
+    }
+
+    try:
+        # Get dependency vulnerability alerts
+        alerts = list(gh.rest.paginate(
+            gh.rest.dependabot.list_alerts_for_repo,
+            owner=owner,
+            repo=repo,
+            state='open'
+        ))
+
+        result["total"] = len(alerts)
+
+        # Count alerts by severity
+        for alert in alerts:
+            # Get the severity from the vulnerability, normalized to lowercase
+            severity = alert.security_vulnerability.severity.lower() if alert.security_vulnerability and alert.security_vulnerability.severity else "unknown"
+
+            if severity == "critical":
+                result["critical"] += 1
+            elif severity == "high":
+                result["high"] += 1
+            elif severity == "moderate" or severity == "medium":
+                result["moderate"] += 1
+            elif severity == "low":
+                result["low"] += 1
+
+        logging.info(f"Found [{result['total']}] open dependency alerts for [{owner}/{repo}], " +  # noqa: W504
+                     f"by severity: Critical: {result['critical']}, High: {result['high']}, " +  # noqa: W504
+                     f"Moderate: {result['moderate']}, Low: {result['low']}")
+
+        return result
+
+    except RequestFailed as e:
+        if e.response.status_code == 404:
+            logging.info(f"Dependency scanning not enabled or no alerts found for [{owner}/{repo}]")
+            return result
+        else:
+            handle_github_api_error(e, f"getting dependency alerts for [{owner}/{repo}]")
+            return result
+    except Exception as e:
+        logging.error(f"Unexpected error getting dependency alerts for [{owner}/{repo}]: {e}")
+        return result
+
+
+def scan_repository_for_alerts(gh: Any, repo: FullRepository, properties: List[Dict], runtime_info: Optional[Dict] = None) -> Tuple[bool, Dict[str, int], Dict[str, int], Dict[str, int]]:
+    """
+    Scans a single repository for GHAS alerts and updates its properties.
+
+    Args:
+        gh: Authenticated GitHub client instance.
+        repo: Repository object to scan.
+        existing_repos_properties: List of all repository properties in the org.
+        runtime_info: Optional dictionary containing MCP server runtime information.
+
+    Returns:
+        A tuple (success, code_alerts, secret_alerts, dependency_alerts):
+        - success: True if scanning and updating were successful, False otherwise
+        - code_alerts: Dictionary with code scanning alerts by severity
+        - secret_alerts: Dictionary with secret scanning alerts count
+        - dependency_alerts: Dictionary with dependency vulnerability alerts by severity
+    """
+    owner = repo.owner.login if repo.owner else Constants.Org.TARGET_ORG
+    repo_name = repo.name
+
+    # Initialize alert counts with empty dictionaries
+    code_alerts = {
+        "total": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+    }
+
+    secret_alerts = {"total": 0}
+
+    dependency_alerts = {
+        "total": 0,
+        "critical": 0,
+        "high": 0,
+        "moderate": 0,
+        "low": 0,
+    }
+
+    try:
+        # Check if this is a fork - we only want to scan forks
+        if not repo.fork:
+            logging.info(f"Repository {owner}/{repo_name} is not a fork. Skipping.")
+            return False, code_alerts, secret_alerts, dependency_alerts
+
+        # Check if we should scan this repository based on timestamp
+        if not should_scan_repository_for_GHAS_alerts(properties, Constants.ScanSettings.GHAS_STATUS_UPDATED, Constants.ScanSettings.SCAN_FREQUENCY_DAYS):
+            return False, code_alerts, secret_alerts, dependency_alerts
+
+        logging.info(f"Scanning repository {owner}/{repo_name} for GHAS alerts...")
+
+        # Get alert counts with severity breakdowns
+        code_alerts = get_code_scanning_alerts(gh, owner, repo_name)
+        secret_alerts = get_secret_scanning_alerts(gh, owner, repo_name)
+        dependency_alerts = get_dependency_alerts(gh, owner, repo_name)
+
+        # Update repository properties with counts and timestamp
+        properties_to_update = {
+            # Total counts for backward compatibility
+            Constants.AlertProperties.CODE_ALERTS: code_alerts["total"],
+            Constants.AlertProperties.DEPENDENCY_ALERTS: dependency_alerts["total"],
+
+            # Code scanning alerts by severity
+            Constants.AlertProperties.CODE_ALERTS_CRITICAL: code_alerts["critical"],
+            Constants.AlertProperties.CODE_ALERTS_HIGH: code_alerts["high"],
+            Constants.AlertProperties.CODE_ALERTS_MEDIUM: code_alerts["medium"],
+            Constants.AlertProperties.CODE_ALERTS_LOW: code_alerts["low"],
+
+            # Secret scanning alerts (only total for now)
+            Constants.AlertProperties.SECRET_ALERTS_TOTAL: secret_alerts["total"],
+            # Store secret types as a simple key:value,key:value format to avoid JSON quote issues with GitHub API
+            Constants.AlertProperties.SECRET_ALERTS_BY_TYPE: _format_secret_types_for_storage(secret_alerts["types"]),
+
+            # Dependency scanning alerts by severity
+            Constants.AlertProperties.DEPENDENCY_ALERTS_CRITICAL: dependency_alerts["critical"],
+            Constants.AlertProperties.DEPENDENCY_ALERTS_HIGH: dependency_alerts["high"],
+            Constants.AlertProperties.DEPENDENCY_ALERTS_MODERATE: dependency_alerts["moderate"],
+            Constants.AlertProperties.DEPENDENCY_ALERTS_LOW: dependency_alerts["low"],
+
+            # MCP Server runtime information
+            Constants.AlertProperties.MCP_SERVER_RUNTIME: runtime_info.get("server_type", "unknown") if runtime_info else "unknown",
+
+            # Update timestamp
+            Constants.ScanSettings.GHAS_STATUS_UPDATED: datetime.datetime.now().isoformat()
+        }
+
+        update_repository_properties(gh, owner, repo_name, properties_to_update)
+        logging.info(f"Successfully updated GHAS alert counts for [{owner}/{repo_name}]")
+
+        return True, code_alerts, secret_alerts, dependency_alerts
+
+    except Exception as e:
+        logging.error(f"Failed to scan repository [{owner}/{repo_name}]: {e}")
+        return False, code_alerts, secret_alerts, dependency_alerts
+
+
+def preprocess_json_string(json_str: str) -> str:
+    """
+    Preprocesses a JSON string to fix common issues with MCP composition files.
+
+    Fixes:
+    - Comments using // or # syntax
+    - Trailing commas before closing braces (e.g., "key": "value",})
+    - Missing commas between consecutive quoted strings (e.g., "value""key": or ]"key":)
+    - Empty values after a colon (e.g., "key":,)
+    - Unquoted values like XXXXXX (placeholder values)
+    - Empty entries with missing values (e.g., "key")
+    - Parenthetical comments used as placeholders (e.g., (... and so on))
+    - Hash comments at the start of an array (e.g., [#comment"value")
+    - Spread-like placeholders at the start of an object (e.g., {...someothermcpservers...,"key":value})
+
+    Args:
+        json_str: The JSON string to preprocess
+
+    Returns:
+        A preprocessed JSON string that should be valid JSON
+    """
+    # Handle inline comments more carefully
+    # For // comments, we need to be careful not to remove JSON that follows
+    # Look for patterns where comments are between JSON elements
+
+    # First, let's try to identify and remove inline comments that are clearly not part of JSON values
+    # Pattern: //[text that is clearly a comment]" followed by JSON
+    # Use negative lookbehind for ':' to avoid matching '://' in URLs like http://
+    fixed_str = re.sub(r'(?<!:)//[^"]*?"', '"', json_str)
+
+    # Handle inline # comments more carefully
+    # Pattern 1: ,#comment"key": -> ,"key":
+    fixed_str = re.sub(r',#[^"]*"', ',"', fixed_str)
+
+    # Pattern 2: "value"#comment} -> "value"} OR "value"#comment] -> "value"]
+    fixed_str = re.sub(r'"#[^,\]}\n]*([,\]}])', lambda m: '"' + m.group(1), fixed_str)
+
+    # Pattern 3: {#comment"key": -> {"key":
+    fixed_str = re.sub(r'{#[^"]*"', '{"', fixed_str)
+
+    # Handle inline // comments that appear before closing braces/brackets on the same line
+    # (e.g., "value"//comment}}}} -> "value"}}}}). This must run before the multiline // removal
+    # below, which would otherwise greedily eat the structural characters that follow.
+    fixed_str = re.sub(r'(?<!:)//[^\n]*?([{}\[\]])', r'\1', fixed_str)
+
+    # Pattern 4: [#comment"value" -> ["value"
+    # e.g., args:[#yourpath，e.g.："C:\\path\\server.py"] -> args:["C:\\path\\server.py"]
+    fixed_str = re.sub(r'\[#[^"]*"', '["', fixed_str)
+
+    # Remove standalone // comments to end of line (for multi-line JSON)
+    # Use negative lookbehind for ':' to avoid matching '://' in URLs like http://
+    fixed_str = re.sub(r'(?<!:)//.*$', '', fixed_str, flags=re.MULTILINE)
+
+    # Remove # comments to end of line (for multi-line JSON)
+    fixed_str = re.sub(r'#.*$', '', fixed_str, flags=re.MULTILINE)
+
+    # Remove parenthetical comments that appear after a JSON value in arrays
+    # (e.g., "last-value"(... and so on)] -> "last-value"])
+    # Lookbehind ensures we only match parens that come after structural JSON characters,
+    # not in the middle of a string value (e.g., "path/(optional)" is NOT matched).
+    fixed_str = re.sub(r'(?<=[",\[{])\([^)]*\)', '', fixed_str)
+
+    # Remove ellipsis placeholder comments (e.g., ,...其它MCPServer配置 or ,...other configs)
+    # These appear in README files as shorthand for "and other configurations"
+    fixed_str = re.sub(r',\s*\.\.\.[^,}\]"\n]*', '', fixed_str)
+
+    # Remove spread-like placeholder at the start of an object followed by a comma
+    # (e.g., {...someothermcpservers...,"key":value} -> {"key":value})
+    # These appear in README files as shorthand for "and other MCP server configurations"
+    fixed_str = re.sub(r'({\s*)\.\.\.[^,}\]"\n]*,\s*', r'\1', fixed_str)
+
+    # Fix invalid JSON escape sequences (e.g., Windows paths like C:\Users\repos\)
+    # In JSON, valid escape sequences are: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
+    # However, in MCP config files, backslashes before letters like \r, \n, \t, \b, \f
+    # almost always represent Windows path separators (e.g., C:\repos\, C:\node\),
+    # NOT intentional JSON control-character escapes.  We therefore double ALL single
+    # backslashes except those that form \\ (already-escaped), \" (escaped quote),
+    # \/ (escaped slash), or \uXXXX (Unicode escape), which are always intentional.
+    # Use negative lookbehind (?<!\\) to avoid processing the second backslash in an
+    # already-valid \\ escape sequence (e.g., C:\\mssql should not become C:\\\mssql).
+    fixed_str = re.sub(r'(?<!\\)\\(?!["\\\/]|u[0-9a-fA-F]{4})', r'\\\\', fixed_str)
+
+    # After comment removal, try parsing immediately. If the JSON is already valid,
+    # return early to avoid later steps (e.g. missing-comma insertion) from
+    # corrupting structurally-correct JSON that contains empty string values.
+    try:
+        json.loads(fixed_str)
+        logging.debug("JSON valid after comment removal; returning without further preprocessing")
+        return fixed_str
+    except json.JSONDecodeError:
+        pass
+
+    # Fix trailing commas before closing braces/brackets (e.g., "key": "value",})
+    fixed_str = re.sub(r',(\s*[}\]])', r'\1', fixed_str)
+
+    # Fix missing comma after a closing array bracket followed by a property key
+    # e.g., ]"env": -> ],"env":
+    fixed_str = re.sub(r'(\])"', r'\1,"', fixed_str)
+
+    # Fix missing commas between consecutive quoted strings (both object properties and array values)
+    # e.g., "value""key": -> "value","key":  and  "val1""val2" -> "val1","val2"
+    # Uses (?:[^"\\]|\\.)* to correctly handle escaped characters (e.g., Windows paths with \\).
+    fixed_str = re.sub(r'("(?:[^"\\]|\\.)*")("(?:[^"\\]|\\.)*")', r'\1,\2', fixed_str)
+
+    # Fix empty values after a colon (e.g., "key":,)
+    fixed_str = re.sub(r'":,', '":"",', fixed_str)
+    fixed_str = re.sub(r'": ,', '":"",', fixed_str)
+
+    # Fix entries with nothing after the colon at the end of a line
+    fixed_str = re.sub(r'":(\s*})', '":""\\1', fixed_str)
+    fixed_str = re.sub(r'": (\s*})', '":""\\1', fixed_str)
+
+    # Replace Python/JavaScript-style boolean and null literals with valid JSON equivalents
+    py_literals = {'True': 'true', 'False': 'false', 'None': 'null', 'undefined': 'null'}
+    fixed_str = re.sub(
+        r'(?<=[:\[,])(True|False|None|undefined)(?=[,\]}])',
+        lambda m: py_literals[m.group()],
+        fixed_str
+    )
+
+    # Fix unquoted placeholder values like XXXXXX or python_path (not followed by a comma or closing brace)
+    # Exclude valid JSON literals (true, false, null) already handled above
+    fixed_str = re.sub(r': *(?!true\b|false\b|null\b)([A-Za-z0-9_]+)([,}])', r':"\1"\2', fixed_str)
+
+    # Fix unquoted identifier values inside arrays (e.g., [server_script_path] or [path1,path2])
+    # Exclude valid JSON literals (true, false, null) already handled above
+    fixed_str = re.sub(
+        r'(?<=[\[,])(?!true\b|false\b|null\b)([A-Za-z][A-Za-z0-9_]*)(?=[,\]])',
+        r'"\1"',
+        fixed_str
+    )
+
+    # Fix unquoted shell variable references used as array elements or object values
+    # (e.g., [$path] -> ["$path"] or [$path,other] -> ["$path",other],
+    #  or "key":$path -> "key":"$path", or "key":${VAR} -> "key":"${VAR}")
+    _shell_var_pattern = r'\$\{[^}]+\}|\$[A-Za-z_][A-Za-z0-9_]*'
+    fixed_str = re.sub(
+        r'(?<=[\[,])(' + _shell_var_pattern + r')(?=[,\]])',
+        r'"\1"',
+        fixed_str
+    )
+    fixed_str = re.sub(
+        r'(?<=:)(' + _shell_var_pattern + r')(?=[,}])',
+        r'"\1"',
+        fixed_str
+    )
+
+    # Fix entries with no values at all (e.g., "OAUTH_AUTHORIZE_PATH")
+
+    # This should only match quoted strings that are NOT part of a key: value pair
+    # and are NOT inside arrays (followed by ] rather than })
+    # Look for pattern: "string" followed by comma/closing brace but NOT preceded by : " and NOT followed by ]
+    fixed_str = re.sub(r'(?<!: )"([^"]+)"(\s*,\s*})', r'"\1":""\2', fixed_str)
+    return fixed_str
+
+
+def scan_repo_for_mcp_composition(local_repo_path: Path) -> tuple[Optional[Dict], Optional[Dict]]:
+    """
+    Scans a repository for MCP composition configuration.
+
+    Args:
+        local_repo_path: Path to the local repository.
+
+    Returns:
+        A tuple containing:
+        - The parsed MCP composition as a Dict or None if not found
+        - A Dict with error details if an error occurred, or None if successful
+          Error details include: repo_path, filename, json_config, error_message
+    """
+    # scan the repo to find a txt file that defines "mcpServers": {
+
+    # find any file that has either '"mcpServers":{' or '"mcp":{"servers":{' in it.
+    # search without spaces in the file content
+    mcp_composition = None
+    error_details = None
+
+    for root, dirs, files in os.walk(local_repo_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+
+            # Guess the MIME type of the file
+            mime_type, _ = mimetypes.guess_type(file_path)
+
+            # Only process text files and files with JSON MIME type
+            # Also, explicitly allow files with no discernible MIME type (e.g. files without extensions, like 'LICENSE')
+            # as they are often text-based. The subsequent read attempt will handle actual binary content.
+            if mime_type is not None and not (mime_type.startswith('text/') or mime_type == 'application/json'):
+                logging.debug(f"Skipping non-text file [{file_path}] with MIME type [{mime_type}]")
+                continue
+
+            try:
+                # Try reading with UTF-8 first
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+            except UnicodeDecodeError:
+                try:
+                    # If UTF-8 fails, try 'latin-1', which is more permissive
+                    logging.warning(f"UTF-8 decoding failed for [{file_path}]. Trying 'latin-1'.")
+                    with open(file_path, 'r', encoding='latin-1') as f:
+                        content = f.read()
+                except Exception as e_latin1:
+                    # If both fail, log and skip the file
+                    logging.error(f"Could not read file [{file_path}] with UTF-8 or latin-1: {e_latin1}")
+                    continue  # Skip to the next file
+            except Exception as e:
+                logging.error(f"Error reading file [{file_path}]: {e}")
+                continue  # Skip to the next file
+
+            # strip all spaces/tabs/newlines from the content for searching
+            stripped_content = content.replace(" ", "").replace("\n", "").replace("\t", "")
+            if '"mcpServers":{' in stripped_content or '"mcp":{"servers":{' in stripped_content:
+                # grab the json string that contains the mcpServers information
+                # search for the first '{' and the last '}' from where we found the search string
+                start = stripped_content.find('"mcpServers":{')
+                if start == -1:
+                    start = stripped_content.find('"mcp":{"servers":{')
+                if start != -1:
+                    # check if there was an opening bracket before the search string
+                    if stripped_content[start - 1] == '{':
+                        # if there was an opening bracket, find the start of the json string
+                        start -= 1
+
+                        # Look for code block ending after the start position to limit our search scope
+                        code_block_end = stripped_content.find('```', start)
+                        if code_block_end != -1:
+                            # We found a code block ending, so limit our search to that area
+                            search_end_limit = code_block_end
+                            logging.debug(f"Found code block ending at position {code_block_end}, limiting search scope")
+                        else:
+                            # No code block ending found, search to end of content
+                            search_end_limit = len(stripped_content)
+
+                        # find the end of the json string by counting all the next opening { and finding as much } chars
+                        # Track string context to avoid counting brackets inside JSON string values
+                        end = start
+                        open_brackets = 1
+                        close_brackets = 0
+                        in_string = False
+                        escape_next = False
+                        while open_brackets != close_brackets:
+                            end += 1
+                            # Check if we've reached the search limit (code block end or content end)
+                            if end >= search_end_limit:
+                                # Calculate missing closing brackets
+                                missing_brackets = open_brackets - close_brackets
+                                logging.warning(f"Malformed JSON: Missing [{missing_brackets}] closing brackets in file [{file_path}]. "
+                                                f"Attempting to fix...")
+
+                                # Try to fix the JSON by adding missing closing brackets
+                                # Use the content up to where we stopped (code block end or content end)
+                                json_str = stripped_content[start:end] + ('}' * missing_brackets)
+                                logging.info("Attempting to parse JSON with added closing brackets")
+
+                                try:
+                                    # Try to parse the fixed JSON
+                                    mcp_composition = json.loads(json_str)
+                                    logging.info(f"Successfully parsed fixed JSON in file [{file_path}]")
+                                    break  # Success, exit the bracket counting loop
+                                except json.JSONDecodeError as e:
+                                    # If fixing doesn't work, fall back to original error behavior
+                                    error_msg = "Malformed JSON: Unclosed brackets in file"
+                                    logging.error(f"Failed to parse even after adding closing brackets: {e}")
+                                    error_details = {
+                                        "repo_path": str(local_repo_path),
+                                        "filename": file_path,
+                                        "json_config": stripped_content[start:end],  # Include content up to where we stopped
+                                        "error_message": error_msg
+                                    }
+                                    mcp_composition = None
+                                    break
+                            char = stripped_content[end]
+                            if escape_next:
+                                escape_next = False
+                                continue
+                            if char == '\\' and in_string:
+                                escape_next = True
+                                continue
+                            if char == '"':
+                                in_string = not in_string
+                                continue
+                            if in_string:
+                                continue
+                            if char == '{':
+                                open_brackets += 1
+                            elif char == '}':
+                                close_brackets += 1
+
+                        # If we didn't break out due to error and haven't already parsed the composition
+                        if error_details is None and mcp_composition is None:
+                            # extract the json string
+                            json_str = stripped_content[start:end + 1]
+                            logging.info(f"Found MCP composition in file [{file_path}]")
+                            logging.debug(f"MCP composition: {json_str}")
+
+                            # read the object from the json string
+                            try:
+                                # Try to load the cleaned JSON string
+                                mcp_composition = json.loads(json_str)
+                            except json.JSONDecodeError as e:
+                                # First, try preprocessing the JSON to fix common issues
+                                try:
+                                    mcp_composition = None
+                                    preprocessed_json = preprocess_json_string(json_str)
+                                    mcp_composition = json.loads(preprocessed_json)
+                                    logging.info(f"Successfully parsed JSON after preprocessing for [{file_path}]")
+                                except json.JSONDecodeError:
+                                    # If preprocessing fails, try parsing as a raw string literal
+                                    logging.debug(f"Failed to parse JSON with preprocessing: {e}")
+                                    try:
+                                        # Try to evaluate as a raw string (useful for escaped sequences)
+                                        raw_str = ast.literal_eval(f"'''{json_str}'''")
+                                        mcp_composition = json.loads(raw_str)
+                                    except Exception as e:
+                                        # If all attempts fail, try one more approach: remove env object completely
+                                        try:
+                                            # Find "env": { ... } and replace it with "env": {}
+                                            simplified_json = re.sub(r'"env"\s*:\s*\{[^}]*\}', '"env": {}', json_str)
+                                            mcp_composition = json.loads(simplified_json)
+                                            logging.info(f"Successfully parsed JSON after removing env object for [{file_path}]")
+                                        except Exception:
+                                            error_msg = f"Failed to parse MCP composition JSON: {e}"
+                                            logging.error(error_msg)
+                                            error_details = {
+                                                "repo_path": str(local_repo_path),
+                                                "filename": file_path,
+                                                "json_config": json_str,  # Use only the extracted JSON configuration
+                                                "error_message": error_msg
+                                            }
+                                            mcp_composition = None
+                            except Exception as e:
+                                error_msg = f"Failed to parse MCP composition JSON: {e}"
+                                logging.error(error_msg)
+                                error_details = {
+                                    "repo_path": str(local_repo_path),
+                                    "filename": file_path,
+                                    "json_config": json_str,  # Use only the extracted JSON configuration
+                                    "error_message": error_msg
+                                }
+                                mcp_composition = None
+                            break  # We found a composition file, so break the file loop
+
+        # If we found a composition or hit an error, break the directory loop
+        if mcp_composition is not None or error_details is not None:
+            break
+
+    return mcp_composition, error_details
+
+
+def get_composition_info(composition: Dict) -> tuple[Dict, Optional[Dict]]:
+    """
+    Extracts runtime command info from the MCP composition dict.
+    Returns a tuple containing:
+    - A dict with the first server's command and args, or empty if not found.
+    - A dict with error details if an error occurred, or None if successful
+    """
+    error_details = None
+
+    try:
+        if not composition:
+            error_details = {
+                "error_message": "Empty composition provided"
+            }
+            return {}, error_details
+
+        if "mcpServers" not in composition:
+            error_details = {
+                "error_message": "Missing 'mcpServers' key in composition",
+                "json_config": json.dumps(composition, indent=2)
+            }
+            return {}, error_details
+
+        servers = composition["mcpServers"]
+        for server_name, server_info in servers.items():
+            command = server_info.get("command", "")
+            # Initialize server_type with a default value
+            server_type = "unknown"
+            # Check for different command types
+            if command.endswith("uv"):
+                server_type = "uv"
+            elif command == "npx":
+                server_type = "npx"
+            elif Path(command).name == "node":
+                server_type = "node"
+
+            args = server_info.get("args", [])
+            # Return info for the first server found
+            return {"server": server_name, "server_type": server_type, "command": command, "args": args}, None
+
+        # If we get here, there were no servers in the mcpServers object
+        error_details = {
+            "error_message": "No servers found in 'mcpServers' object",
+            "json_config": json.dumps(composition, indent=2)
+        }
+        return {}, error_details
+    except Exception as e:
+        error_details = {
+            "error_message": f"Exception analyzing composition: {str(e)}",
+            "json_config": json.dumps(composition, indent=2) if composition else "None"
+        }
+        return {}, error_details
+
+
+def detect_runtime_from_package_files(local_repo_path: Path) -> Dict:
+    """
+    Attempts to detect the MCP server runtime by analyzing package files when
+    no MCP composition config is found in the repository.
+
+    Checks for Node.js package.json files containing @modelcontextprotocol/sdk,
+    and Python package files (pyproject.toml, requirements.txt) containing the mcp package.
+
+    Args:
+        local_repo_path: Path to the local repository.
+
+    Returns:
+        A dict with server_type and related fields if detected, or empty dict if not detected.
+    """
+    package_json_path = local_repo_path / "package.json"
+    if package_json_path.exists():
+        try:
+            with open(package_json_path, 'r', encoding='utf-8') as f:
+                package_data = json.load(f)
+            dependencies = package_data.get("dependencies", {})
+            dev_dependencies = package_data.get("devDependencies", {})
+            all_deps = {**dependencies, **dev_dependencies}
+            if "@modelcontextprotocol/sdk" in all_deps:
+                logging.info(f"Detected [node] runtime from package.json in [{local_repo_path}]")
+                return {"server": "", "server_type": "node", "command": "node", "args": []}
+        except Exception as e:
+            logging.warning(f"Error reading package.json from [{local_repo_path}]: [{e}]")
+
+    python_patterns = {
+        "requirements.txt": r'(?m)^\s*mcp\s*(?:[><=!~,\[]|#|$)',
+        "pyproject.toml": r'["\']mcp["\'><=!~]',
+        "setup.py": r'["\']mcp["\'><=!~]',
+    }
+    for python_file, pattern in python_patterns.items():
+        python_path = local_repo_path / python_file
+        if python_path.exists():
+            try:
+                with open(python_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                if re.search(pattern, content):
+                    logging.info(f"Detected [uv] runtime from [{python_file}] in [{local_repo_path}]")
+                    return {"server": "", "server_type": "uv", "command": "uv", "args": []}
+            except Exception as e:
+                logging.warning(f"Error reading [{python_file}] from [{local_repo_path}]: [{e}]")
+
+    return {}
+
+
+def _format_secret_types_for_storage(secret_types_dict):
+    """
+    Format secret types dictionary for safe storage in GitHub custom properties.
+    Converts {"type1": 5, "type2": 3} to "type1:5,type2:3" to avoid JSON quote issues.
+
+    Args:
+        secret_types_dict (dict): Dictionary of secret types and their counts
+
+    Returns:
+        str: Formatted string safe for GitHub API
+    """
+    if not secret_types_dict:
+        return ""
+
+    formatted_pairs = []
+    for secret_type, count in secret_types_dict.items():
+        # Escape any colons or commas in the type name to avoid parsing issues
+        safe_type = str(secret_type).replace(":", "_COLON_").replace(",", "_COMMA_")
+        formatted_pairs.append(f"{safe_type}:{count}")
+
+    return ",".join(formatted_pairs)
+
+
+def _parse_secret_types_from_storage(stored_value):
+    """
+    Parse secret types from stored format back to dictionary.
+    Converts "type1:5,type2:3" back to {"type1": 5, "type2": 3}.
+    Also handles legacy JSON format for backward compatibility.
+
+    Args:
+        stored_value (str): Stored secret types string
+
+    Returns:
+        dict: Dictionary of secret types and their counts
+    """
+    if not stored_value or stored_value == "":
+        return {}
+
+    # Handle legacy JSON format for backward compatibility
+    if stored_value.startswith("{") and stored_value.endswith("}"):
+        try:
+            import json
+            return json.loads(stored_value)
+        except json.JSONDecodeError:
+            logging.warning(f"Failed to parse legacy JSON secret types: [{stored_value}]")
+            return {}
+
+    # Parse new format: "type1:5,type2:3"
+    result = {}
+    try:
+        pairs = stored_value.split(",")
+        for pair in pairs:
+            if ":" in pair:
+                type_name, count_str = pair.split(":", 1)
+                # Unescape any escaped characters
+                type_name = type_name.replace("_COLON_", ":").replace("_COMMA_", ",")
+                result[type_name] = int(count_str)
+    except (ValueError, AttributeError) as e:
+        logging.warning(f"Failed to parse secret types from storage format: [{stored_value}], error: [{e}]")
+        return {}
+
+    return result
+
+
+def main():
+    """Main execution function."""
+    start_time = datetime.datetime.now()
+
+    parser = argparse.ArgumentParser(description="Scan repositories for GHAS alerts and store in repository properties.")
+    parser.add_argument("--target-org", default=Constants.Org.TARGET_ORG,
+                        help=f"Target GitHub organization to scan (default: [{Constants.Org.TARGET_ORG}])")
+    parser.add_argument("--num-repos", type=int, default=10,
+                        help="Maximum number of repositories to scan (default: 10)")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Enable verbose logging")
+
+    args = parser.parse_args()
+
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logging.getLogger("githubkit").setLevel(logging.INFO)
+
+    # Load credentials from environment variables
+    app_id = os.getenv("GH_APP_ID")
+    private_key = os.getenv("GH_APP_PRIVATE_KEY")
+
+    if not app_id:
+        logging.error("GH_APP_ID environment variable not set.")
+        sys.exit(1)
+
+    if not private_key:
+        logging.error("GH_APP_PRIVATE_KEY environment variable not set.")
+        sys.exit(1)
+
+    try:
+        # --- Authentication ---
+        gh = get_github_client(app_id, private_key)
+
+        # --- Load repositories and properties ---
+        logging.info(f"Loading repositories and properties for organization [{args.target_org}]...")
+        existing_repos = list_all_repositories_for_org(gh, args.target_org)
+        existing_repos_properties = list_all_repository_properties_for_org(gh, args.target_org)
+
+        # Initialize counters
+        total_repos = len(existing_repos)
+        scanned_repos = 0
+        skipped_repos = 0
+
+        # Initialize alert counters for total counts
+        total_code_alerts = 0
+        total_secret_alerts = 0
+        total_dependency_alerts = 0
+
+        # Initialize alert counters for severity breakdowns
+        total_code_alerts_by_severity = {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+        }
+
+        total_dependency_alerts_by_severity = {
+            "critical": 0,
+            "high": 0,
+            "moderate": 0,
+            "low": 0,
+        }
+
+        # Track repositories where get_composition_info fails
+        failed_analysis_repos = []
+
+        logging.info(f"Found [{total_repos}] repositories in organization [{args.target_org}]")
+
+        github_token = os.getenv("GITHUB_TOKEN")
+        token_auth_gh = None
+        if github_token:
+            # Create a GitHub client authenticated with the token for issue creation
+            token_auth_gh = GitHub(github_token)
+            logging.info("Created GitHub client with token for issue creation if needed")
+        else:
+            logging.warning("GITHUB_TOKEN environment variable not set. Cannot create issues for analysis failures if needed.")
+
+        log_separator()
+
+        # Process repositories
+        for idx, repo in enumerate(existing_repos):
+            if scanned_repos >= args.num_repos:
+                logging.info(f"Reached scan limit of [{args.num_repos}] repositories.")
+                break
+
+            logging.info(f"Processing repository {scanned_repos + 1}/{min(total_repos, args.num_repos)}: {repo.name}")
+
+            # First, extract runtime information if possible
+            runtime = {}
+
+            # Get the default branch and GitHub token for cloning
+            fork_default_branch = repo.default_branch if repo else "main"
+            repo_properties = get_repository_properties(existing_repos_properties, repo, gh)
+
+            # todo: convert Constants.ScanSettings.GHAS_STATUS_UPDATED to a new field "LastUpdated" that reflects the last time the fork was updated
+            if should_scan_repository_for_MCP_Composition(repo_properties, Constants.ScanSettings.GHAS_STATUS_UPDATED, Constants.ScanSettings.SCAN_FREQUENCY_DAYS):
+                # clone the repo to a temp directory to check for MCP composition
+                local_repo_path = Path(f"tmp/{repo.name}")
+                clone_repository(gh, repo.owner.login, repo.name, fork_default_branch, local_repo_path)
+
+                # Scan repository for MCP composition
+                composition, scan_error = scan_repo_for_mcp_composition(local_repo_path)
+
+                # Extract runtime information if composition was found
+                if composition and not scan_error:
+                    logging.info(f"Found MCP composition in repository [{repo.name}]")
+                    try:
+                        runtime, analysis_error = get_composition_info(composition)
+                        if analysis_error or not runtime:
+                            error_msg = analysis_error.get("error_message", "Unknown error") if analysis_error else "Empty result from get_composition_info"
+                            logging.warning(f"Failed to analyze MCP composition for [{repo.name}]: {error_msg}")
+                            runtime = {}  # Set to empty dict if analysis failed
+                        else:
+                            scanned_repos += 1
+                            logging.info(f"MCP runtime info for [{repo.name}]: {runtime}")
+                    except Exception as e:
+                        logging.error(f"Error analyzing MCP composition for [{repo.name}]: {e}")
+                        runtime = {}  # Set to empty dict if exception occurred
+                elif scan_error:
+                    logging.error(f"Failed to scan MCP composition in repository [{repo.name}]: {scan_error.get('error_message', 'Unknown error')}")
+                    runtime = {}
+                else:
+                    logging.info(f"No MCP composition found in repository [{repo.name}]")
+                    runtime = detect_runtime_from_package_files(local_repo_path)
+                    if runtime:
+                        logging.info(f"Detected runtime from package files for [{repo.name}]: [{runtime}]")
+                    else:
+                        logging.info(f"Could not detect runtime for [{repo.name}]")
+
+                # Handle composition analysis failures for issue creation
+                if scan_error:
+                    error_msg = scan_error.get("error_message", "Unknown error")
+                    # Add to failed analysis repos list
+                    failed_analysis_repos.append({
+                        "name": repo.name,
+                        "reason": error_msg,
+                        "file": os.path.basename(scan_error.get("filename", "unknown"))
+                    })
+
+                    # Create a GitHub issue for the failure if token is available
+                    if token_auth_gh:
+                        issue_title = f"Failed analysis: {error_msg}"
+                        issue_body = f"""
+# MCP Composition Analysis Failure
+
+- **Repository**: {repo.name}
+- **File**: {os.path.basename(scan_error.get("filename", "unknown"))}
+- **Error**: {error_msg}
+
+## JSON Configuration
+```json
+{scan_error.get("json_config", "Not available")}
+```
+                        """
+
+                        create_issue(token_auth_gh, args.target_org, "mcp-security-scans",
+                                     issue_title, issue_body, ["analysis-failure"])
+
+            # Now scan repository for GHAS alerts with runtime information
+            success, code_alerts, secret_alerts, dependency_alerts = scan_repository_for_alerts(gh, repo, repo_properties, runtime)
+
+            if success:
+                scanned_repos += 1
+
+                # Add alerts to totals if scan was successful
+                total_code_alerts += code_alerts["total"]
+                total_secret_alerts += secret_alerts["total"]
+                total_dependency_alerts += dependency_alerts["total"]
+
+                # Add alerts by severity
+                for severity in total_code_alerts_by_severity:
+                    total_code_alerts_by_severity[severity] += code_alerts.get(severity, 0)
+
+                for severity in total_dependency_alerts_by_severity:
+                    total_dependency_alerts_by_severity[severity] += dependency_alerts.get(severity, 0)
+            else:
+                skipped_repos += 1
+
+            log_separator()
+
+        # --- Generate summary ---
+        end_time = datetime.datetime.now()
+        duration = end_time - start_time
+
+        summary_lines = [
+            "**GHAS Alert Scanning Summary**",
+            "Security Scan Results",
+            f"- Organization: `{args.target_org}`",
+            f"- Total MCP server configs: `{total_repos}`",
+            f"- Total MCP servers found: `{total_repos}`",
+            f"- Scan limit (--num-repos): `{args.num_repos}`",
+            f"- Total repositories in organization: `{total_repos}`",
+            f"- Repositories processed: `{scanned_repos + skipped_repos}`",
+            f"- Repositories scanned: `{scanned_repos}`",
+            f"- Repositories skipped (not forks or recently scanned): `{skipped_repos}`",
+            f"- Total code scanning alerts found: `{total_code_alerts}`",
+            f"- Total secret scanning alerts found: `{total_secret_alerts}`",
+            f"- Total dependency vulnerability alerts found: `{total_dependency_alerts}`",
+            f"- Total GHAS alerts across all scanned repos: `{total_code_alerts + total_secret_alerts + total_dependency_alerts}`",
+            "",
+            "**Code Scanning Alerts by Severity**",
+            f"- Critical: `{total_code_alerts_by_severity['critical']}`",
+            f"- High: `{total_code_alerts_by_severity['high']}`",
+            f"- Medium: `{total_code_alerts_by_severity['medium']}`",
+            f"- Low: `{total_code_alerts_by_severity['low']}`",
+            "",
+            "**Dependency Scanning Alerts by Severity**",
+            f"- Critical: `{total_dependency_alerts_by_severity['critical']}`",
+            f"- High: `{total_dependency_alerts_by_severity['high']}`",
+            f"- Moderate: `{total_dependency_alerts_by_severity['moderate']}`",
+            f"- Low: `{total_dependency_alerts_by_severity['low']}`",
+            "",
+            "**Overall stats**",
+            f"- Total execution time: `{duration}`",
+            f"- Failed analysis repositories: `{len(failed_analysis_repos)}`"
+        ]
+
+        # Add a table with failed analysis repositories if any
+        if failed_analysis_repos:
+            summary_lines.append("")  # Add empty line for proper markdown rendering
+            summary_lines.append("**Failed Analysis Repositories**")
+            summary_lines.append("")
+            summary_lines.append("| Repository | File | Reason |")
+            summary_lines.append("| ---------- | ---- | ------ |")
+            for repo in failed_analysis_repos:
+                file_name = repo.get('file', '')
+                file_col = f" {file_name} " if file_name else " - "
+                summary_lines.append(f"| {repo['name']} |{file_col}| {repo['reason']} |")
+            summary_lines.append("\n")
+
+        # Log summary to console
+        logging.info("Scanning Summary")
+        for line in summary_lines[1:]:  # Skip the markdown title for console
+            logging.info(line.replace('`', '').replace('*', ''))  # Clean markdown for console
+
+        # Log failed analysis repositories in a more readable format in console
+        if failed_analysis_repos:
+            logging.info("Failed Analysis Repositories:")
+            for repo in failed_analysis_repos:
+                file_str = f" (file: {repo.get('file')})" if 'file' in repo else ""
+                logging.info(f"1. {repo['name']}{file_str}: {repo['reason']}")
+
+        show_rate_limit(gh)
+
+        # Write summary to GITHUB_STEP_SUMMARY if available
+        summary_file_path = os.getenv("GITHUB_STEP_SUMMARY")
+        if summary_file_path:
+            try:
+                with open(summary_file_path, "a") as summary_file:  # Append mode
+                    summary_file.write("\n".join(summary_lines) + "\n\n")
+                logging.info(
+                    "Successfully appended summary to GITHUB_STEP_SUMMARY file"
+                )
+            except Exception as e:
+                logging.error(f"Failed to write to GITHUB_STEP_SUMMARY file: {e}")
+        else:
+            logging.info("GITHUB_STEP_SUMMARY environment variable not set. Skipping summary file output.")
+
+    except Exception as e:
+        logging.error(f"Script failed with an error: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

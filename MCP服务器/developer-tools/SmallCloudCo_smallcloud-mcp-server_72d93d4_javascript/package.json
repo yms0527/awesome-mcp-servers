@@ -1,0 +1,19 @@
+{
+  "name": "smallcloud-mcp-server",
+  "version": "0.1.0",
+  "description": "Mock MCP Server for testing",
+  "type": "module",
+  "bin": {
+    "mcp-server": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test test/server.test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest"
+  },
+  "devDependencies": {
+    "node:test": "^0.0.0"
+  }
+}

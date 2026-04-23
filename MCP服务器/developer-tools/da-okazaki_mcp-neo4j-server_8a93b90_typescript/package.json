@@ -1,0 +1,46 @@
+{
+  "name": "@alanse/mcp-neo4j-server",
+  "version": "0.2.0",
+  "description": "Neo4j MCP server for integrating Neo4j graph database with Claude Desktop through natural language interactions",
+  "type": "module",
+  "bin": {
+    "mcp-neo4j": "./build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "prepare": "npm run build",
+    "watch": "tsc --watch",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.24.0",
+    "neo4j-driver": "^5.27.0",
+    "uuid": "^11.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "keywords": [
+    "mcp",
+    "neo4j",
+    "graph-database",
+    "claude",
+    "natural-language",
+    "database"
+  ],
+  "author": "Daichi Okazaki",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/da-okazaki/mcp-neo4j-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/da-okazaki/mcp-neo4j-server/issues"
+  },
+  "homepage": "https://github.com/da-okazaki/mcp-neo4j-server#readme"
+}

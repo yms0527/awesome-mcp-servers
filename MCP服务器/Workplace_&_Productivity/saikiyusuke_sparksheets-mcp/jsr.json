@@ -1,0 +1,9 @@
+{
+  "name": "@sparksheets/mcp",
+  "version": "1.0.3",
+  "license": "MIT",
+  "exports": "./server.js",
+  "publish": {
+    "include": ["server.js", "lib/", "tools/", "README.md"]
+  }
+}

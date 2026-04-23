@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "shipi": {
+      "command": "npx",
+      "args": ["shipi-mcp-server"],
+      "env": {
+        "SHIPI_INTEGRATION_KEY": "your_integration_key_here"
+      }
+    }
+  }
+}

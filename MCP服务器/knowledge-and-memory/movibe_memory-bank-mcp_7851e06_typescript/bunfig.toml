@@ -1,0 +1,14 @@
+[install]
+# Use the latest compatible versions
+optional = true
+exact = false
+
+# Build settings
+[build]
+target = "node"
+minify = true
+sourcemap = true
+
+# Development settings
+[dev]
+hot = true

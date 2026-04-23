@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Vite
+.vite/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+.mcpregistry_*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Chrome Extension unpacked artifacts
+*.crx
+*.pem
+*.zip
+
+
+experiments/*/results
+*.mov
+docs/

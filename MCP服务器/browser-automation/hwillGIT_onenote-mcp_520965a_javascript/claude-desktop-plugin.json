@@ -1,0 +1,24 @@
+{
+  "name": "onenote-mcp",
+  "version": "1.0.0",
+  "description": "OneNote Model Context Protocol integration for Claude Desktop",
+  "main": "mcp-server.js",
+  "type": "module",
+  "api": {
+    "baseUrl": "http://localhost:3030",
+    "endpoints": {
+      "connect": "/notebook/connect",
+      "structure": "/notebook/structure",
+      "readSection": "/section/read",
+      "listSections": "/sections",
+      "readPage": "/page/read",
+      "listPages": "/pages",
+      "health": "/health",
+      "shutdown": "/shutdown"
+    }
+  },
+  "permissions": [
+    "network",
+    "filesystem"
+  ]
+}

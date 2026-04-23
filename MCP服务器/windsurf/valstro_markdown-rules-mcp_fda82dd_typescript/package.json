@@ -1,0 +1,66 @@
+{
+  "name": "@valstro/markdown-rules-mcp",
+  "version": "0.4.6",
+  "description": "MCP server that provides a portable and enhanced alternative to editor-specific documentation rules (like Cursor Rules). It allows you to define project documentation and context in standard Markdown files, making them usable across any MCP-compatible AI coding tool.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/valstro/markdown-rules-mcp.git"
+  },
+  "bin": {
+    "markdown-rules-mcp": "build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "keywords": [
+    "mcp",
+    "model context protocol",
+    "markdown",
+    "rules",
+    "documentation",
+    "docs",
+    "cursor",
+    "windsurf",
+    "copilot",
+    "ai"
+  ],
+  "author": "Danny @ Valstro",
+  "scripts": {
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "prepare": "husky",
+    "watch": "tsc --watch",
+    "inspector": "npm run build && LOG_LEVEL=debug MARKDOWN_INCLUDE=./docs/**/*.md npx @modelcontextprotocol/inspector node build/index.js",
+    "prepublishOnly": "npm run build",
+    "release-dry-run": "release-please release-pr --dry-run --repo-url=valstro/markdown-rules-mcp --target-branch=main"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "dotenv": "^16.4.5",
+    "glob": "^11.0.2",
+    "gray-matter": "^4.0.3",
+    "micromatch": "^4.0.8",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.0",
+    "@commitlint/config-conventional": "^19.8.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/micromatch": "^4.0.9",
+    "@types/node": "^20.11.24",
+    "@types/yargs": "^17.0.33",
+    "husky": "^9.1.7",
+    "prettier": "^3.4.2",
+    "release-please": "^16.3.1",
+    "typescript": "^5.3.3",
+    "vitest": "^3.1.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

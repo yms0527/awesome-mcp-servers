@@ -1,0 +1,13 @@
+set -e
+
+echo "Updating README with tools documentation..."
+pnpm run update-readme
+git add README.md
+
+echo "Running lint-staged..."
+npx lint-staged
+
+echo "Running gitleaks to check for secrets..."
+gitleaks protect --verbose --staged
+
+echo "✅ No secrets detected"

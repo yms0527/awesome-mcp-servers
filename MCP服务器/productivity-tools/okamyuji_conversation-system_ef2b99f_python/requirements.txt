@@ -1,0 +1,26 @@
+# Core dependencies
+redis>=6.2.0
+fastapi>=0.115.12
+uvicorn[standard]>=0.34.3
+pydantic>=2.11.5
+python-multipart
+
+# Data processing
+pandas
+numpy
+python-dateutil
+
+# Text processing and NLP
+regex
+
+# Utilities
+python-dotenv
+click
+typer
+schedule
+
+# Async support
+aioredis>=2.0.1
+
+# Security
+cryptography>=45.0.3

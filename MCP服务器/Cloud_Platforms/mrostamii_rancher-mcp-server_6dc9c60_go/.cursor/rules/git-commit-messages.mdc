@@ -1,0 +1,66 @@
+---
+description: Use Conventional Commits for all git commit messages
+alwaysApply: true
+---
+
+# Git Commit Messages
+
+Use the **Conventional Commits** specification for every commit message in this project.
+
+## Format
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+## Types
+
+- **feat**: New feature (MINOR in SemVer)
+- **fix**: Bug fix (PATCH in SemVer)
+- **BREAKING CHANGE** or **type!**: Breaking API change (MAJOR in SemVer)
+- Other allowed types: `build:`, `chore:`, `ci:`, `docs:`, `style:`, `refactor:`, `perf:`, `test:`
+
+## Release automation
+
+This project uses **release-please**. Commit types control what happens:
+
+- `feat:` → triggers a **minor** release (0.6.0 → 0.7.0)
+- `fix:` → triggers a **patch** release (0.6.0 → 0.6.1)
+- `feat!:` / `BREAKING CHANGE:` → triggers a **major** release (0.6.0 → 1.0.0)
+- `chore:`, `docs:`, `ci:`, etc. → included in changelog but **do not** trigger a release on their own
+
+Choose the commit type carefully — it determines whether a release PR is opened.
+
+## Rules
+
+- Prefix with a type followed by colon and space
+- Scope is optional, in parentheses after type (e.g. `feat(parser):`)
+- Description is a short summary right after the colon
+- Body and footers follow after a blank line
+- For breaking changes: use `BREAKING CHANGE:` in the footer or append `!` after type/scope
+
+## Examples
+
+```
+feat(harvester): add VM list tool
+```
+
+```
+fix(steve): handle pagination for large collections
+```
+
+```
+docs: update API client rules in cursorrules
+```
+
+```
+feat(config)!: require cluster in all tool params
+
+BREAKING CHANGE: cluster is now required for kubernetes_* and harvester_* tools.
+```
+
+When suggesting or editing commit messages, always use this format.

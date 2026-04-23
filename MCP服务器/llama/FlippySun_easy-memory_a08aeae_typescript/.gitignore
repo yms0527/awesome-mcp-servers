@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Secrets (敏感凭证，绝对禁止提交)
+secrets.json
+.npmrc
+
+# Whitepapers & Internal Docs (仅保留 README.md 和 CHANGELOG.md)
+AUDIT-LOGGING-WHITEPAPER.md
+CORE_SCHEMA.md
+FEASIBILITY-ANALYSIS.md
+INTEGRATION_GUIDE.md
+RELEASE_CHECKLIST.md
+shell-interfaces-constraints.md
+test.md
+
+# Test coverage
+coverage/
+
+# Lock files (keep pnpm-lock.yaml)
+
+# Planning (ephemeral)
+.planning/
+.continue-here.md
+.remaining-tasks.md
+.playwright-mcp/

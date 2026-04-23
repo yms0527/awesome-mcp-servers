@@ -1,0 +1,137 @@
+# docker-compose.yml
+
+services:
+  task-manager:
+    build:
+      context: .
+      dockerfile: agents/task_manager/Dockerfile
+    volumes:
+      - ./agents/task_manager:/app
+      - ./protocols:/app/protocols
+      - ./config.py:/app/config.py
+      - ./tools:/app/tools
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GOOGLE_API_KEY
+      - ANTHROPIC_API_KEY
+    networks:
+      - agent_network
+    env_file:
+      - .env
+
+  streamlit-ui:
+    build:
+      context: ./ui/streamlit 
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501" 
+    volumes:
+      - ./ui/streamlit:/app 
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TASK_MANAGER_HOST=task-manager
+      - TASK_MANAGER_PORT=80
+      - ANTHROPIC_API_KEY
+
+    networks:
+      - agent_network
+    depends_on: 
+      - task-manager
+
+  researcher:
+    build:
+      context: .
+      dockerfile: agents/researcher/Dockerfile
+    ports:
+      - "8001:80" 
+    volumes:
+      - ./agents/researcher:/app
+      - ./protocols:/app/protocols
+      - ./config.py:/app/config.py
+      - ./tools:/app/tools
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ANTHROPIC_API_KEY
+    networks:
+      - agent_network
+    env_file:
+      - .env
+
+  web-search-mcp:
+    build:
+      context: .
+      dockerfile: mcp_servers/web_search/Dockerfile
+    ports:
+      - "8002:80" 
+    volumes:
+      - ./mcp_servers/web_search:/app
+      - ./protocols:/app/protocols
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GOOGLE_API_KEY
+      - ANTHROPIC_API_KEY
+    networks:
+      - agent_network
+    env_file:
+      - .env
+
+  article-draft-agent:
+    build:
+      context: .
+      dockerfile: agents/article_draft/Dockerfile
+    ports:
+      - "8004:80" 
+    volumes:
+      - ./agents/article_draft:/app
+      - ./protocols:/app/protocols
+      - ./config.py:/app/config.py
+      - ./tools:/app/tools
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GOOGLE_API_KEY
+      - ANTHROPIC_API_KEY
+    networks:
+      - agent_network
+    env_file:
+      - .env
+
+  creative-llm-mcp:
+    build:
+      context: .
+      dockerfile: mcp_servers/creative_llm/Dockerfile
+    ports:
+      - "8005:80" 
+    volumes:
+      - ./mcp_servers/creative_llm:/app
+      - ./protocols:/app/protocols
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ANTHROPIC_API_KEY
+    networks:
+      - agent_network
+    env_file:
+      - .env
+
+  cloud-storage-mcp:
+    build:
+      context: .
+      dockerfile: mcp_servers/cloud_storage/Dockerfile
+    ports:
+      - "8006:80" 
+    volumes:
+      - ./mcp_servers/cloud_storage:/app
+      - ./protocols:/app/protocols
+      - ./config.py:/app/config.py 
+      - ./google_credentials.json:/app/google_credentials.json
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/google_credentials.json
+      - GOOGLE_CLOUD_PROJECT
+    networks:
+      - agent_network
+    env_file:
+      - .env
+
+networks:
+  agent_network:
+    driver: bridge

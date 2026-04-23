@@ -1,0 +1,21 @@
+# GitHub
+.secrets
+.unity-license
+*.ulf
+
+# AI configurations
+**/.claude/settings.local.json
+.gemini
+.aider*
+.roo
+
+# Commands and env files
+commands/TestResults
+commands/.env
+!commands/.env.example
+
+# Documentation
+.CONVENTIONS.md
+
+# Wiki project
+Unity-MCP.wiki

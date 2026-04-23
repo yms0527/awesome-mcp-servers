@@ -1,0 +1,7 @@
+{
+	"name": "@mcp-browser-kit/ext-e2e",
+	"scripts": {
+		"test": "NODE_OPTIONS='--require @swc-node/register --enable-source-maps' playwright test",
+		"test:debug": "NODE_OPTIONS='--require @swc-node/register --enable-source-maps' PWDEBUG=1 playwright test --headed"
+	}
+}

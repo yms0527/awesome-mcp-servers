@@ -1,0 +1,41 @@
+"""Backward-compat shim — import from pagemap.server.browser_session instead."""
+
+from pagemap.server.browser_session import (  # noqa: F401
+    _DOM_SETTLE_JS,
+    _MAX_DIALOG_BUFFER,
+    _SCROLL_POSITION_JS,
+    BLOCKED_URL_SCHEMES,
+    BOT_USER_AGENT,
+    DEFAULT_LOCALE,
+    DEFAULT_USER_AGENT,
+    DEFAULT_VIEWPORT,
+    BrowserConfig,
+    BrowserSession,
+    DialogInfo,
+    NavigationResult,
+    _auto_install_chromium,
+    _cdp_ax_nodes_to_tree,
+    _is_browser_dead_error,
+    chromium_launch_args,
+    create_session,
+)
+
+__all__ = [
+    "BLOCKED_URL_SCHEMES",
+    "BOT_USER_AGENT",
+    "BrowserConfig",
+    "BrowserSession",
+    "DEFAULT_LOCALE",
+    "DEFAULT_USER_AGENT",
+    "DEFAULT_VIEWPORT",
+    "DialogInfo",
+    "NavigationResult",
+    "_DOM_SETTLE_JS",
+    "_MAX_DIALOG_BUFFER",
+    "_SCROLL_POSITION_JS",
+    "_auto_install_chromium",
+    "_cdp_ax_nodes_to_tree",
+    "_is_browser_dead_error",
+    "chromium_launch_args",
+    "create_session",
+]

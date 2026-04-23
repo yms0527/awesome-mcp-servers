@@ -1,0 +1,838 @@
+parameters:
+  billingAccountId:
+    name: accountId
+    in: path
+    required: true
+    description: The account's ID.
+    schema:
+      type: string
+      example: '123456'
+  billingAccountStatus:
+    name: status
+    in: query
+    required: true
+    description: The account's status.
+    schema:
+      type: string
+      enum:
+        - PAID
+      example: PAID
+  workspaceIdQueryTrue:
+    name: workspaceId
+    in: query
+    required: true
+    description: The workspace's ID.
+    schema:
+      $ref: '#/components/schemas/workspaceId'
+  v10Accept:
+    name: Accept
+    in: header
+    required: true
+    description: The `application/vnd.api.v10+json` request header required to use the endpoint.
+    schema:
+      type: string
+      enum:
+        - application/vnd.api.v10+json
+      example: application/vnd.api.v10+json
+  createdBy:
+    name: createdBy
+    in: query
+    description: Return only results created by the given user ID.
+    schema:
+      type: integer
+      example: 12345678
+  cursor:
+    name: cursor
+    in: query
+    description: The pointer to the first record of the set of paginated results. To view the next response, use the `nextCursor` value for this parameter.
+    schema:
+      $ref: '#/components/schemas/cursor'
+  apiDescription:
+    name: description
+    in: query
+    description: Return only APIs whose description includes the given value. Matching is not case-sensitive.
+    schema:
+      type: string
+      example: This is an API for testing purposes
+  limit:
+    name: limit
+    in: query
+    description: The maximum number of rows to return in the response.
+    schema:
+      $ref: '#/components/schemas/limit'
+  apiId:
+    name: apiId
+    in: path
+    required: true
+    description: The API's ID.
+    schema:
+      type: string
+      example: 90ca9f5a-c4c4-11ed-afa1-0242ac120002
+  apiInclude:
+    name: include
+    in: query
+    description: |
+      An array that contains additional resources to include in the response. Use this parameter to query for element links to the API, such as  collections and schemas:
+      - `collections` — Query for linked Postman collections.
+      - `versions` — Query for linked versions.
+      - `schemas` — Query for linked schemas.
+      - `gitInfo` — Query for information about the API's git-linked repository. This query only returns the linked repository and folder locations of the files. It does not return `collections` or `schemas` information.
+
+      **Note:**
+
+      API viewers can only use the `versions` option.
+    schema:
+      type: array
+      items:
+        type: string
+        enum:
+          - collections
+          - versions
+          - schemas
+          - gitInfo
+      example:
+        - schemas
+  collectionIdApi:
+    name: collectionId
+    in: path
+    required: true
+    description: The collection's unique ID.
+    schema:
+      type: string
+      format: uid
+      example: 12345678-61867bcc-c4c1-11ed-afa1-0242ac120002
+  apiVersionQuery:
+    name: versionId
+    in: query
+    description: The API's version ID.
+    schema:
+      $ref: '#/components/schemas/apiVersionId'
+  commentId:
+    name: commentId
+    in: path
+    required: true
+    description: The comment's ID.
+    schema:
+      type: integer
+      example: 46814
+  apiSchemaId:
+    name: schemaId
+    in: path
+    required: true
+    description: The API schema's ID.
+    schema:
+      type: string
+      example: 5381f010-c4c1-11ed-afa1-0242ac120002
+  apiSchemaOutput:
+    name: bundled
+    in: query
+    description: If true, return the schema in a bundled format.
+    schema:
+      type: boolean
+      default: false
+      example: true
+  file-path:
+    name: file-path
+    in: path
+    required: true
+    description: The path to the schema file.
+    schema:
+      type: string
+      example: postman/collection/c1.json
+  apiTaskId:
+    name: taskId
+    in: path
+    required: true
+    description: The task's ID.
+    schema:
+      type: string
+      example: 90ca9f5a-c4c4-21ed-afa1-0242ac120002
+  apiVersionId:
+    name: versionId
+    in: path
+    required: true
+    description: The API's version ID.
+    schema:
+      $ref: '#/components/schemas/apiVersionId'
+  auditLogsSinceQuery:
+    name: since
+    in: query
+    description: Return logs created after the given time, in `YYYY-MM-DD` format.
+    schema:
+      $ref: '#/components/schemas/sinceDateQuery'
+  auditLogsUntilQuery:
+    name: until
+    in: query
+    description: Return logs created before the given time, in `YYYY-MM-DD` format.
+    schema:
+      $ref: '#/components/schemas/untilDateQuery'
+  auditLogsLimitQuery:
+    name: limit
+    in: query
+    description: The maximum number of audit events to return at once.
+    schema:
+      $ref: '#/components/schemas/auditLogsLimitQuery'
+  auditLogsOrderBy:
+    name: order_by
+    in: query
+    description: Return the records in ascending (`asc`) or descending (`desc`) order.
+    schema:
+      $ref: '#/components/schemas/ascDescDefaultDesc'
+  collectionUidQuery:
+    name: collectionId
+    in: query
+    description: Filter the results by a collection's unique ID.
+    schema:
+      type: string
+      format: uid
+      example: 12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2
+  collectionAccessKeyId:
+    name: keyId
+    in: path
+    required: true
+    description: The collection access key's ID.
+    schema:
+      type: string
+      example: Njg5OjU3MDQ1NjYtYmQxZDU3NzktMWVkNS00ZDhjLWI0ZmQtZWRhOGY2Mzg1NTY0
+  collectionForkTaskId:
+    name: taskId
+    in: path
+    required: true
+    description: The task's ID.
+    schema:
+      $ref: '#/components/schemas/collectionForkTaskId'
+  workspaceQuery:
+    name: workspace
+    in: query
+    description: The workspace's ID.
+    schema:
+      $ref: '#/components/schemas/workspaceId'
+  collectionNameQuery:
+    name: name
+    in: query
+    description: Filter results by collections that match the given name.
+    schema:
+      type: string
+      example: Test Collection
+  limitNoDefault:
+    name: limit
+    in: query
+    description: The maximum number of rows to return in the response.
+    schema:
+      $ref: '#/components/schemas/limitNoDefault'
+  offsetNoDefault:
+    name: offset
+    in: query
+    description: The zero-based offset of the first item to return.
+    schema:
+      $ref: '#/components/schemas/offsetNoDefault'
+  createdAtSort:
+    name: direction
+    in: query
+    description: Sort the results by creation date in ascending (`asc`) or descending (`desc`) order.
+    schema:
+      $ref: '#/components/schemas/ascDesc'
+  collectionId:
+    name: collectionId
+    in: path
+    required: true
+    description: The collection's ID.
+    schema:
+      type: string
+      example: 12ece9e1-2abf-4edc-8e34-de66e74114d2
+  forkWorkspaceQuery:
+    name: workspace
+    in: query
+    required: true
+    description: The workspace ID in which to create the fork.
+    schema:
+      $ref: '#/components/schemas/workspaceId'
+  collectionAccessKeyQuery:
+    name: access_key
+    in: query
+    description: A collection's read-only access key. Using this query parameter does not require an API key to call the endpoint.
+    schema:
+      type: string
+      example: PMAT-XXXXXXXXXXXXXXXXXXXXXXXXXX
+  collectionModelQuery:
+    name: model
+    in: query
+    description: Return a list of only the collection's root-level request (`rootLevelRequests`) and folder (`rootLevelFolders`) IDs instead of the full collection element data.
+    schema:
+      type: string
+      enum:
+        - minimal
+      example: minimal
+  collectionUid:
+    name: collectionId
+    in: path
+    required: true
+    description: The collection's unique ID.
+    schema:
+      type: string
+      format: uid
+      example: 12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2
+  collectionFolderUid:
+    name: folderId
+    in: path
+    required: true
+    description: The folder's unique ID.
+    schema:
+      type: string
+      format: uid
+      example: 12345678-65a99e60-8e0a-4b6e-b79c-7d8264cc5caa
+  collectionRequestFolderIdQuery:
+    name: folderId
+    in: query
+    description: The folder ID in which to create the request. By default, the system will create the request at the collection level.
+    schema:
+      $ref: '#/components/schemas/collectionFolderId'
+  collectionRequestUid:
+    name: requestId
+    in: path
+    required: true
+    description: The request's unique ID.
+    schema:
+      type: string
+      format: uid
+      example: 12345678-c82dd02c-4870-4907-8fcb-593a876cf05b
+  collectionResponseParentRequestId:
+    name: requestId
+    in: query
+    required: true
+    description: The parent request's ID.
+    schema:
+      $ref: '#/components/schemas/collectionRequestId'
+  collectionResponseUid:
+    name: responseId
+    in: path
+    required: true
+    description: The response's unique ID.
+    schema:
+      type: string
+      format: uid
+      example: 12345678-cc364734-7dfd-4bfc-897d-be763dcdbb07
+  collectionFolderId:
+    name: folderId
+    in: path
+    required: true
+    description: The folder's ID.
+    schema:
+      $ref: '#/components/schemas/collectionFolderId'
+  collectionItemsIdQuery:
+    name: ids
+    in: query
+    description: If true, returns only properties that contain ID values in the response.
+    schema:
+      $ref: '#/components/schemas/booleanQuery'
+  collectionItemsUidFormatQuery:
+    name: uid
+    in: query
+    description: If true, returns all IDs in UID format (`userId`-`id`).
+    schema:
+      $ref: '#/components/schemas/booleanQuery'
+  collectionItemsPopulateQuery:
+    name: populate
+    in: query
+    description: If true, returns all of the collection item's contents.
+    schema:
+      $ref: '#/components/schemas/booleanQuery'
+  collectionRequestId:
+    name: requestId
+    in: path
+    required: true
+    description: The request's ID.
+    schema:
+      $ref: '#/components/schemas/collectionRequestId'
+  collectionResponseId:
+    name: responseId
+    in: path
+    required: true
+    description: The response's ID.
+    schema:
+      type: string
+      example: cc364734-7dfd-4bfc-897d-be763dcdbb07
+  collectionTransformFormat:
+    name: format
+    in: query
+    description: Return the OpenAPI definition in the given format.
+    schema:
+      type: string
+      default: json
+      enum:
+        - json
+        - yaml
+      example: json
+  threadId:
+    name: threadId
+    in: path
+    required: true
+    description: The comment's thread ID.
+    schema:
+      type: integer
+      example: 34567
+  include:
+    name: include
+    in: query
+    description: |
+      The additional fields to be included as a part of the request:
+      - `meta.total` — Include the total records found in the `meta` response object.
+    schema:
+      $ref: '#/components/schemas/include'
+  since:
+    name: since
+    in: query
+    description: Return only results created since the given time, in [ISO 8601](https://datatracker.ietf.org/doc/html/rfc3339#section-5.6) format. This value cannot be later than the `until` value.
+    schema:
+      $ref: '#/components/schemas/sinceDateTime'
+  until:
+    name: until
+    in: query
+    description: Return only results created until this given time, in [ISO 8601](https://datatracker.ietf.org/doc/html/rfc3339#section-5.6) format. This value cannot be earlier than the `since` value.
+    schema:
+      $ref: '#/components/schemas/untilDateTime'
+  secretId:
+    name: secretId
+    in: path
+    required: true
+    description: The secret's ID.
+    schema:
+      $ref: '#/components/schemas/secretId'
+  resourceType:
+    name: resourceType
+    in: query
+    description: Return only results that match the given resource type.
+    schema:
+      $ref: '#/components/schemas/resourceType'
+  environmentId:
+    name: environmentId
+    in: path
+    required: true
+    description: The environment's ID.
+    schema:
+      type: string
+      example: 5daabc50-8451-43f6-922d-96b403b4f28e
+  environmentUid:
+    name: environmentId
+    in: path
+    required: true
+    description: The environment's unique ID.
+    schema:
+      type: string
+      format: uid
+      example: 12345678-12ece9e1-2abf-4edc-8e34-de66e74114d2
+  directionQuery:
+    name: direction
+    in: query
+    description: Sort results in ascending (`asc`) or descending (`desc`) order.
+    schema:
+      $ref: '#/components/schemas/ascDesc'
+  sortByCreatedAt:
+    name: sort
+    in: query
+    description: Sort the results by the date and time of creation.
+    schema:
+      type: string
+      enum:
+        - createdAt
+      example: createdAt
+  teamIdResultsQuery:
+    name: teamId
+    in: query
+    description: Return only results that belong to the given team ID.
+    schema:
+      type: string
+      example: 1b96f65f-8d23-4e1d-b5e2-055992c3b8cbd2567dfa09a9
+  workspaceResultsQuery:
+    name: workspace
+    in: query
+    description: Return only results found in the given workspace.
+    schema:
+      $ref: '#/components/schemas/workspaceId'
+  workspaceIdQuery:
+    name: workspaceId
+    in: query
+    description: The workspace's ID.
+    schema:
+      $ref: '#/components/schemas/workspaceId'
+  mockId:
+    name: mockId
+    in: path
+    required: true
+    description: The mock's ID.
+    schema:
+      type: string
+      example: e3d951bf-873f-49ac-a658-b2dcb91d3289
+  limitDefault100:
+    name: limit
+    in: query
+    description: The maximum number of rows to return in the response.
+    schema:
+      type: number
+      default: 100
+      example: 3
+  mockResponseStatusCode:
+    name: responseStatusCode
+    in: query
+    description: Return only call logs that match the given HTTP response status code.
+    schema:
+      type: number
+      example: 500
+  mockResponseType:
+    name: responseType
+    in: query
+    description: Return only call logs that match the given response type. Matching is not case-sensitive.
+    schema:
+      type: string
+      example: success
+  mockRequestMethod:
+    name: requestMethod
+    in: query
+    description: Return only call logs that match the given HTTP method. Matching is not case-sensitive.
+    schema:
+      type: string
+      example: post
+  mockRequestPath:
+    name: requestPath
+    in: query
+    description: Return only call logs that match the given request path. Matching is not case-sensitive.
+    schema:
+      type: string
+      example: /animals?type=Dog
+  mockSortServedAt:
+    name: sort
+    in: query
+    description: Sort the results by the given value. If you use this query parameter, you must also use the `direction` parameter.
+    schema:
+      type: string
+      enum:
+        - servedAt
+      example: servedAt
+  direction:
+    name: direction
+    in: query
+    description: Sort in ascending (`asc`) or descending (`desc`) order. Matching is not case-sensitive. If you use this query parameter, you must also use the `sort` parameter.
+    schema:
+      $ref: '#/components/schemas/ascDesc'
+  mockInclude:
+    name: include
+    in: query
+    description: Include call log records with header and body data. This query parameter accepts the `request.headers`, `request.body`, `response.headers`, and `response.body` values. For multiple include types, comma-separate each value.
+    schema:
+      type: string
+      example: request.headers,request.body,response.headers,response.body
+  serverResponseId:
+    name: serverResponseId
+    in: path
+    required: true
+    description: The server response's ID.
+    schema:
+      type: string
+      example: 965cdd16-fe22-4d96-a161-3d05490ac421
+  monitorId:
+    name: monitorId
+    in: path
+    required: true
+    description: The monitor's ID.
+    schema:
+      type: string
+      example: 1e6b6cc1-c760-48e0-968f-4bfaeeae9af1
+  async:
+    name: async
+    in: query
+    description: If true, runs the monitor asynchronously from the created monitor run task. By default, the server will not respond until the task finishes (`false`).
+    schema:
+      type: boolean
+      default: false
+      example: false
+  panAddedBy:
+    name: addedBy
+    in: query
+    description: Return only elements published by the given user ID.
+    schema:
+      type: integer
+      example: 12345678
+  panElementName:
+    name: name
+    in: query
+    description: Return only elements whose name includes the given value. Matching is not case-sensitive.
+    schema:
+      type: string
+      example: billing
+  panSummary:
+    name: summary
+    in: query
+    description: Return only elements whose summary includes the given value. Matching is not case-sensitive.
+    schema:
+      type: string
+      example: payments
+  panElementDescription:
+    name: description
+    in: query
+    description: Return only elements whose description includes the given value. Matching is not case-sensitive.
+    schema:
+      type: string
+      example: payments
+  sortCreatedUpdatedAt:
+    name: sort
+    in: query
+    description: Sort the results by the given value. If you use this query parameter, you must also use the `direction` parameter.
+    schema:
+      type: string
+      enum:
+        - createdAt
+        - updatedAt
+      example: updatedAt
+  offset:
+    name: offset
+    in: query
+    description: The zero-based offset of the first item to return.
+    schema:
+      type: integer
+      default: 0
+      example: 5
+  limitDefault1000:
+    name: limit
+    in: query
+    description: The maximum number of elements to return. If the value exceeds the maximum value of `1000`, then the system uses the `1000` value.
+    schema:
+      type: integer
+      default: 1000
+      example: 10
+  panParentFolderId:
+    name: parentFolderId
+    in: query
+    description: Return the folders and elements in a specific folder. If this value is `0`, then the endpoint only returns the root folder's elements.
+    schema:
+      type: integer
+      example: 1
+      default: 0
+  elementTypeQuery:
+    name: type
+    in: query
+    description: Filter by the element type.
+    schema:
+      type: string
+      enum:
+        - api
+        - folder
+        - collection
+        - workspace
+      example: api
+  elementId:
+    name: elementId
+    in: path
+    required: true
+    description: The element's ID or UUID. For Postman Collections you must pass the collection's UID (`userId`-`collectionId`) value.
+    schema:
+      type: string
+      example: 5360b75f-447e-467c-9299-12fd6c92450d
+  elementType:
+    name: elementType
+    in: path
+    required: true
+    description: The element type.
+    schema:
+      type: string
+      enum:
+        - api
+        - folder
+        - collection
+        - workspace
+      example: api
+  panRequestedBy:
+    name: requestedBy
+    in: query
+    description: Return a user's element requests by their user ID.
+    schema:
+      type: integer
+      example: 12345678
+  panRequestStatus:
+    name: status
+    in: query
+    description: Filter by the request status.
+    schema:
+      type: string
+      enum:
+        - pending
+        - denied
+      example: pending
+  panRequestId:
+    name: requestId
+    in: path
+    required: true
+    description: The element request's ID.
+    schema:
+      type: integer
+      example: 232
+  pullRequestId:
+    name: pullRequestId
+    in: path
+    required: true
+    description: The pull request's ID.
+    schema:
+      type: string
+      example: 4e1a6609-1a29-4037-a411-89ecc14c6cd8
+  tagsSlug:
+    name: slug
+    in: path
+    required: true
+    description: The tag's ID within a team or individual (non-team) user scope.
+    schema:
+      type: string
+      pattern: ^[a-z][a-z0-9-]*[a-z0-9]+$
+      maxLength: 64
+      minLength: 2
+      example: needs-review
+  tagsEntitiesLimit:
+    name: limit
+    in: query
+    description: The maximum number of tagged elements to return in a single call.
+    schema:
+      type: integer
+      default: 10
+      maximum: 50
+      example: 2
+  tagsEntitiesDirection:
+    name: direction
+    in: query
+    description: The ascending (`asc`) or descending (`desc`) order to sort the results by, based on the time of the entity's tagging.
+    schema:
+      $ref: '#/components/schemas/ascDescDefaultDesc'
+  tagsCursor:
+    name: cursor
+    in: query
+    description: The cursor to get the next set of results in the paginated response. If you pass an invalid value, the API only returns the first set of results.
+    schema:
+      type: string
+      format: base64
+      example: eyJpZCI6ODYsImVudGl0eVR5cGUiOiJhcGkifQ==
+  tagsEntityType:
+    name: entityType
+    in: query
+    description: Filter results for the given entity type.
+    schema:
+      type: string
+      enum:
+        - api
+        - collection
+        - workspace
+      example: collection
+  startIndex:
+    name: startIndex
+    in: query
+    description: The index entry by which to begin the list of returned results. Must be a value of `1` or greater.
+    schema:
+      type: number
+      minimum: 1
+      default: 1
+      example: 1
+  count:
+    name: count
+    in: query
+    description: Limit the number of results returned in a single response.
+    schema:
+      type: number
+      default: 100
+      example: 2
+  scimGroupFilter:
+    name: filter
+    in: query
+    description: |
+      Filter results by a specific word or phrase. This query parameter only supports the `displayName` filter and has the following requirements:
+      - Filter values are case-sensitive.
+      - Special characters and spaces must be URL encoded.
+    schema:
+      type: string
+      example: displayName eq "Test-API"
+  scimGroupId:
+    name: groupId
+    in: path
+    required: true
+    description: The group's ID.
+    schema:
+      $ref: '#/components/schemas/scimId'
+  scimUserFilter:
+    name: filter
+    in: query
+    description: |
+      Filter results by a specific word or phrase. This query parameter accepts the following:
+      - `userName` — Filter values are case-sensitive, and special characters and spaces must be URL encoded.
+      - `active` — Return only users who are active (`true`) or inactive (`false`).
+    schema:
+      type: string
+      example: userName eq "taylor-lee%40example.com"
+    examples:
+      Filter:
+        value: userName eq "taylor-lee%40example.com"
+      Filter with Encoding:
+        value: userName eq "taylor-lee%2Btest%40example.com"
+      Filter Active Users:
+        value: active eq "true"
+      Filter Inactive Users:
+        value: active eq "false"
+  scimUserId:
+    name: userId
+    in: path
+    required: true
+    description: The user's SCIM ID.
+    schema:
+      $ref: '#/components/schemas/scimId'
+  workspaceTypeQuery:
+    name: type
+    in: query
+    description: The type of workspace to filter the response by.
+    schema:
+      type: string
+      example: team
+      enum:
+        - personal
+        - team
+        - private
+        - public
+        - partner
+  workspaceCreatedBy:
+    name: createdBy
+    in: query
+    description: Return only workspaces created by a specific user ID. For multiple users, pass this value as a comma-separated list of user IDs. The response only returns workspaces that you have access to.
+    schema:
+      type: integer
+      example: 12345678
+  workspaceIncludeQuery:
+    name: include
+    in: query
+    description: |
+      Include the following information in the endpoint's response:
+      - `mocks:deactivated` — Include all deactivated mock servers in the response.
+      - `scim` — Return the SCIM user IDs of the workspace creator and who last modified it.
+    schema:
+      type: string
+      example: mocks:deactivated
+      enum:
+        - mocks:deactivated
+        - scim
+  workspaceId:
+    name: workspaceId
+    in: path
+    required: true
+    description: The workspace's ID.
+    schema:
+      $ref: '#/components/schemas/workspaceId'
+  workspaceIncludeScimQuery:
+    name: include
+    in: query
+    description: |
+      Include the following information in the endpoint's response:
+      - `scim` — Return IDs as SCIM user and group IDs.
+    schema:
+      type: string
+      example: scim
+      enum:
+        - scim
+  identifierType:
+    name: identifierType
+    in: header
+    description: Use SCIM user IDs instead of Postman user IDs.
+    schema:
+      type: string
+      example: scim

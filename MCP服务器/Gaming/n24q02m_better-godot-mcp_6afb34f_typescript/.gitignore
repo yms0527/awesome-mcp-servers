@@ -1,0 +1,21 @@
+node_modules/
+build/
+dist
+bin/
+
+.cache
+.yarn/cache
+
+.cursor
+
+.DS_Store
+.env
+logs_*/
+*.log
+.jules/
+.venv/
+temp/
+coverage/
+
+# AI Agent
+JULES.md

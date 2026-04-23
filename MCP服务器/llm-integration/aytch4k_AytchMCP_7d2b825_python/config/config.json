@@ -1,0 +1,4 @@
+{
+  "tools_enabled": ["echo", "weather", "calculator"],
+  "resources_enabled": ["system_info", "documentation"]
+}

@@ -1,0 +1,11 @@
+[project]
+name = "time-fastmcp-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "datetime>=5.5",
+    "mcp>=1.6.0",
+    "tzdata>=2025.2",
+]

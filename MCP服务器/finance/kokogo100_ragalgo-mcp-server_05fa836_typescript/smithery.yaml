@@ -1,0 +1,15 @@
+runtime: container
+build:
+  dockerfile: Dockerfile
+  dockerBuildPath: .
+startCommand:
+  type: http
+  command: ["node", "dist/index.js"]
+  port: 8080
+  configSchema:
+    type: object
+    properties:
+      RAGALGO_API_KEY:
+        type: string
+        description: Your API key for the RagAlgo service
+    required: ["RAGALGO_API_KEY"]

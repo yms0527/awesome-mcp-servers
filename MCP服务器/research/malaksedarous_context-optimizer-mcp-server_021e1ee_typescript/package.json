@@ -1,0 +1,80 @@
+{
+  "name": "context-optimizer-mcp-server",
+  "version": "1.0.7",
+  "description": "Context optimization tools MCP server for AI coding assistants - compatible with GitHub Copilot, Cursor AI, and other MCP-supporting assistants",
+  "main": "dist/server.js",
+  "bin": {
+    "context-optimizer-mcp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node src/server.ts",
+    "watch": "nodemon --exec ts-node src/server.ts",
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run clean && npm run build && npm test",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:silent": "jest --silent",
+    "package": "npm pack",
+    "prepack": "npm run clean && npm run build",
+    "version:patch": "npm version patch",
+    "version:minor": "npm version minor",
+    "version:major": "npm version major",
+    "validate": "npm run build && npm run test:silent && npm run package",
+    "check-dist": "npm run build && ls -la dist/"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai-assistant",
+    "copilot",
+    "cursor",
+    "claude",
+    "context-optimization",
+    "terminal-extractor",
+    "file-analysis",
+    "research-tools"
+  ],
+  "author": "Malak Sedarous",
+  "license": "MIT",
+  "icon": "./icon.png",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/malaksedarous/context-optimizer-mcp-server.git"
+  },
+  "homepage": "https://github.com/malaksedarous/context-optimizer-mcp-server#readme",
+  "bugs": {
+    "url": "https://github.com/malaksedarous/context-optimizer-mcp-server/issues"
+  },
+  "files": [
+    "dist/**/*",
+    "icon.png",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.3",
+    "@google/generative-ai": "^0.21.0",
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "exa-js": "1.9.1",
+    "execa": "^5.1.1",
+    "openai": "^4.68.4"
+  },
+  "overrides": {
+    "exa-js": "1.9.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.7.9",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.7",
+    "rimraf": "^6.0.1",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

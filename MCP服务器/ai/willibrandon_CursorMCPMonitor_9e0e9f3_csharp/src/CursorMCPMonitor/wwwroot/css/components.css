@@ -1,0 +1,556 @@
+/* App container */
+#app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
+}
+
+/* Terminal content area */
+#terminal {
+    flex: 1;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding: 0.5rem 1rem;
+}
+
+/* Terminal line styles */
+.line {
+    padding: 0.25rem 0;
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+
+.line:hover {
+    background: var(--bg-highlight);
+}
+
+.timestamp {
+    color: var(--dim);
+    min-width: 16ch;
+    white-space: nowrap;
+    font-size: 0.9em;
+}
+
+.client-id {
+    color: var(--cyan);
+    min-width: 8ch;
+    white-space: nowrap;
+}
+
+.type {
+    min-width: 8ch;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.message {
+    flex: 1;
+    color: var(--text);
+    word-break: break-word;
+}
+
+/* Event type colors */
+.create { color: var(--success); }
+.list { color: var(--info); }
+.error { color: var(--error); }
+.close { color: var(--dim); }
+.connect { color: var(--purple); }
+.warning { color: var(--warning); }
+
+/* Top controls header */
+#top-controls {
+    background: var(--bg);
+    padding: 1rem;
+    border-bottom: 1px solid var(--dim);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    z-index: 900;
+}
+
+/* Controls row layout */
+.controls-row {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* Status indicators */
+#status-indicators {
+    display: flex;
+    gap: 1rem;
+    margin-right: auto;
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 11px;
+    color: var(--dim);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--dim);
+}
+
+#ws-status {
+    background: var(--error);
+}
+
+#ws-status.connected {
+    background: var(--success);
+}
+
+#client-count, #event-rate {
+    width: auto;
+    height: auto;
+    border-radius: 2px;
+    padding: 0.125rem 0.25rem;
+    font-size: 10px;
+    background: var(--bg-highlight);
+    border: 1px solid var(--dim);
+}
+
+/* Search container */
+#search-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-highlight);
+    border: 1px solid var(--dim);
+    border-radius: 4px;
+    padding: 0.5rem;
+    width: 450px;
+}
+
+#search-input {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: inherit;
+    width: calc(100% - 2rem);
+    padding: 0.25rem;
+    outline: none;
+}
+
+#search-input::placeholder {
+    color: var(--dim);
+}
+
+#search-count {
+    color: var(--dim);
+    font-size: 11px;
+    user-select: none;
+    white-space: nowrap;
+}
+
+/* Highlight search matches */
+.search-match {
+    background: var(--dim);
+    color: var(--bg);
+}
+
+/* Event Filters */
+#event-filters {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--bg-highlight);
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    border: 1px solid var(--dim);
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+/* Filter controls container */
+.filter-controls {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    min-width: 120px;
+}
+
+/* Client ID Filter */
+#client-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-highlight);
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    border: 1px solid var(--dim);
+    width: 380px;
+    flex-wrap: nowrap;
+}
+
+#client-id-filter {
+    background: var(--bg);
+    border: 1px solid var(--dim);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 0.25rem 0.5rem;
+    border-radius: 2px;
+    outline: none;
+    flex: 1;
+    min-width: 100px;
+    max-width: 140px;
+}
+
+#client-id-filter:focus {
+    border-color: var(--text);
+}
+
+#client-id-filter::placeholder {
+    color: var(--dim);
+}
+
+/* Time Filter */
+#time-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--bg-highlight);
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    border: 1px solid var(--dim);
+    flex: 1;
+    position: relative;
+}
+
+.time-filter-inputs {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.time-separator {
+    color: var(--dim);
+    font-size: 11px;
+}
+
+#start-time-filter,
+#end-time-filter {
+    width: 180px;
+    background: var(--bg);
+    border: 1px solid var(--dim);
+    color: var(--text);
+    font-family: monospace;
+    font-size: 11px;
+    padding: 0.25rem 0.5rem;
+    border-radius: 2px;
+    outline: none;
+    -webkit-user-select: text !important;
+    user-select: text !important;
+    -webkit-app-region: no-drag !important;
+    -webkit-touch-callout: default !important;
+    -webkit-user-modify: read-write !important;
+}
+
+/* Filter buttons */
+#clear-client-filter,
+#apply-client-filter,
+#apply-time-filter,
+#clear-time-filter,
+#filter-all, 
+#filter-none {
+    background: var(--bg);
+    border: 1px solid var(--dim);
+    color: var(--dim);
+    font-size: 11px;
+    padding: 0.125rem 0.375rem;
+    border-radius: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+    min-width: 40px;
+    text-align: center;
+}
+
+#clear-client-filter:hover,
+#apply-client-filter:hover,
+#apply-time-filter:hover,
+#clear-time-filter:hover,
+#filter-all:hover, 
+#filter-none:hover {
+    color: var(--text);
+    border-color: var(--text);
+}
+
+/* Labels */
+.filter-label {
+    color: var(--dim);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+/* Filter options */
+.filter-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.filter-option {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    cursor: pointer;
+}
+
+.filter-option input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--bg);
+    border: 1px solid var(--dim);
+    border-radius: 2px;
+    position: relative;
+    cursor: pointer;
+}
+
+.filter-option input[type="checkbox"]:checked {
+    background: var(--bg-highlight);
+}
+
+.filter-option input[type="checkbox"]:checked::after {
+    content: '✓';
+    position: absolute;
+    top: -1px;
+    left: 2px;
+    font-size: 11px;
+    color: var(--text);
+}
+
+.filter-type {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 0.125rem 0.25rem;
+    border-radius: 2px;
+}
+
+/* Hidden items */
+.line.hidden {
+    display: none;
+}
+
+/* Time filter active state */
+#time-filter.filter-active {
+    border-color: var(--success);
+    box-shadow: 0 0 0 1px var(--success);
+}
+
+#time-filter.filter-active .filter-label {
+    color: var(--success);
+}
+
+#time-filter.filter-active #apply-time-filter {
+    color: var(--success);
+    border-color: var(--success);
+}
+
+/* Time filter keyboard shortcut tooltip */
+#time-filter::after {
+    content: "Alt+1-7: Quick ranges | Alt+n: Now | Alt+t: Today start | Alt+e: Today end | Alt+a: Apply";
+    display: block;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    font-size: 9px;
+    color: var(--dim);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    padding: 2px 4px;
+    margin-top: 2px;
+    background: var(--bg);
+    z-index: 960;
+    border-radius: 2px;
+    border: 1px solid var(--dim);
+}
+
+#time-filter:hover::after {
+    opacity: 1;
+}
+
+/* Command Palette */
+#command-palette {
+    position: fixed;
+    top: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 500px;
+    background: var(--bg);
+    border: 1px solid var(--dim);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    display: none;
+    flex-direction: column;
+    z-index: 1100;
+}
+
+#command-palette.visible {
+    display: flex;
+}
+
+#command-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: var(--bg-highlight);
+    border: none;
+    border-bottom: 1px solid var(--dim);
+    color: var(--text);
+    font-family: inherit;
+    font-size: inherit;
+    outline: none;
+}
+
+#command-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.command-item {
+    padding: 0.5rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+}
+
+.command-item:hover,
+.command-item.selected {
+    background: var(--bg-highlight);
+}
+
+.command-title {
+    color: var(--text);
+}
+
+.command-shortcut {
+    color: var(--dim);
+    font-size: 11px;
+    padding: 0.125rem 0.375rem;
+    background: var(--bg-highlight);
+    border-radius: 2px;
+    border: 1px solid var(--dim);
+}
+
+/* Theme indicator */
+#theme-indicator {
+    position: fixed;
+    bottom: 0.5rem;
+    right: calc(1rem + 12px);
+    font-size: 11px;
+    color: var(--dim);
+    cursor: pointer;
+    user-select: none;
+    z-index: 1000;
+    opacity: 0.7;
+}
+
+#theme-indicator:hover {
+    color: var(--text);
+    opacity: 1;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 1200px) {
+    .controls-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    #search-container {
+        width: 100%;
+    }
+    
+    #client-filter {
+        width: 100%;
+    }
+    
+    #event-filters,
+    #time-filter {
+        width: 100%;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    .filter-options {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    #time-filter::after {
+        position: static;
+        margin-top: 5px;
+        font-size: 9px;
+        line-height: 1.3;
+        display: block;
+        opacity: 0.7;
+        background: transparent;
+    }
+    
+    .timestamp {
+        min-width: 12ch;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .time-filter-inputs {
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+    }
+    
+    #start-time-filter,
+    #end-time-filter {
+        width: 100%;
+    }
+    
+    .time-separator {
+        align-self: center;
+        margin: 0.25rem 0;
+    }
+    
+    .line {
+        flex-direction: column;
+        gap: 0.25rem;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--dim);
+    }
+    
+    .timestamp, .client-id, .type {
+        min-width: 100%;
+    }
+}
+
+/* Client filter active state */
+#client-filter.filter-active {
+    border-color: var(--success);
+    box-shadow: 0 0 0 1px var(--success);
+}
+
+#client-filter.filter-active .filter-label {
+    color: var(--success);
+}
+
+#client-filter.filter-active #apply-client-filter {
+    color: var(--success);
+    border-color: var(--success);
+}

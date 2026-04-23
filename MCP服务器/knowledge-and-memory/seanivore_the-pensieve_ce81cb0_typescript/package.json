@@ -1,0 +1,29 @@
+{
+  "name": "the-pensieve",
+  "version": "0.1.0",
+  "description": "MCP server for examining and understanding stored memories",
+  "type": "module",
+  "bin": {
+    "the-pensieve": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "prepare": "npm run build",
+    "inspector": "npx @modelcontextprotocol/inspector dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "@qdrant/js-client-rest": "^1.7.0",
+    "content-type": "^1.0.5",
+    "dotenv": "^16.4.1",
+    "gray-matter": "^4.0.3",
+    "openai": "^4.0.0",
+    "raw-body": "^3.0.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3"
+  }
+}

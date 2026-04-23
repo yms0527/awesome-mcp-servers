@@ -1,0 +1,14 @@
+# .npmrc 파일은 민감한 정보를 포함하므로 절대 커밋하지 마세요!
+.npmrc
+
+# Local Tools
+mcp-publisher.exe
+
+# Auth Tokens
+.mcpregistry_github_token
+.mcpregistry_registry_token
+
+# Build Artifacts
+dist/
+node_modules/
+server.json.backup

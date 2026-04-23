@@ -1,0 +1,24 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.tencent-lexiang/lexiang-mcp-server",
+  "title": "Tencent Lexiang MCP Server",
+  "description": "Tencent Lexiang AI knowledge base MCP server for searching, managing entries, and editing docs.",
+  "version": "1.0.1",
+  "repository": {
+    "url": "https://github.com/tencent-lexiang/lexiang-mcp-server",
+    "source": "github"
+  },
+  "websiteUrl": "https://lexiang.tencent.com/?event_type=link_exchange&event_channel=mcp&event_detail=modelcontextprotocol.io",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.lexiang-app.com/mcp?company_from={company_code}&source=registry",
+      "variables": {
+        "company_code": {
+          "description": "Your enterprise's Lexiang code (obtain from https://lexiangla.com/mcp after login)",
+          "required": true
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+language: typescript
+toolchain:
+  default: node
+
+tags:
+  - tsup
+  - mcp
+
+tasks:
+  build:
+    deps:
+      - tsup-build
+
+dependsOn:
+  - core-server
+  - core-utils
+  - driven-logger-factory
+  - server-driven-trpc-channel-provider
+  - server-driving-mcp-server

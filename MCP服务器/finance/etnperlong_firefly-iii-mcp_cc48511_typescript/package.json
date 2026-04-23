@@ -1,0 +1,33 @@
+{
+  "name": "firefly-iii-mcp",
+  "version": "1.3.3",
+  "description": "MCP Server for Firefly III: a free, open-source personal finance manager.",
+  "type": "module",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "clean": "turbo run clean",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "publish-packages": "turbo run build && changeset publish",
+    "version-packages": "changeset version",
+    "build:core": "turbo run build --filter=@firefly-iii-mcp/core",
+    "build:local": "turbo run build --filter=@firefly-iii-mcp/local",
+    "publish:core": "npm publish --access public -w @firefly-iii-mcp/core",
+    "publish:local": "npm publish --access public -w @firefly-iii-mcp/local",
+    "publish:server": "npm publish --access public -w @firefly-iii-mcp/server",
+    "publish:all": "npm run build && npm run publish:core && npm run publish:local && npm run publish:server",
+    "prepublish:check": "npm run build && node -e \"console.log('Checking packages for publishing...')\" && npm pack -w @firefly-iii-mcp/core && npm pack -w @firefly-iii-mcp/local && npm pack -w @firefly-iii-mcp/server"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.4",
+    "eslint": "^9.28.0",
+    "turbo": "latest",
+    "typescript-eslint": "^8.34.0"
+  },
+  "packageManager": "bun@1.2.14"
+}

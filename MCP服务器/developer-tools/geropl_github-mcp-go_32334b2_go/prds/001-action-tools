@@ -1,0 +1,337 @@
+# Project Requirements Document: GitHub Actions Tools
+
+## Overview
+
+This document outlines the requirements for adding GitHub Actions workflow tools to the GitHub MCP Server. These tools will allow LLM agents to interact with GitHub Actions workflows, providing read-only access to workflow runs, jobs, and logs.
+
+## Background
+
+The GitHub MCP Server currently provides tools for interacting with various GitHub resources such as repositories, files, issues, pull requests, branches, commits, and search functionality. Adding support for GitHub Actions workflows will extend the server's capabilities to allow LLM agents to monitor and analyze CI/CD processes.
+
+## Requirements
+
+### Tool Set
+
+The following read-only tools will be implemented:
+
+```mermaid
+flowchart TD
+    A[GitHub Workflow Tools] --> B[list_workflows]
+    A --> C[get_workflow]
+    A --> D[list_workflow_runs]
+    A --> E[get_workflow_run]
+    A --> F[download_workflow_run_logs]
+    A --> G[list_workflow_jobs]
+    A --> H[get_workflow_job]
+```
+
+### Tool Specifications
+
+#### 1. `list_workflows`
+
+Lists all workflows in a repository.
+
+**Parameters:**
+- `owner` (required): Repository owner (username or organization)
+- `repo` (required): Repository name
+- `page` (optional): Page number for pagination (default: 1)
+- `perPage` (optional): Number of results per page (default: 30, max: 100)
+
+**Result Fields:**
+- `total_count`: Total number of workflows
+- `workflows`: Array of workflow objects, each containing:
+  - `id`: Workflow ID
+  - `name`: Workflow name
+  - `path`: Path to the workflow file in the repository
+  - `state`: State of the workflow (active, disabled, etc.)
+  - `created_at`: Creation timestamp
+  - `updated_at`: Last update timestamp
+
+#### 2. `get_workflow`
+
+Gets detailed information about a specific workflow.
+
+**Parameters:**
+- `owner` (required): Repository owner (username or organization)
+- `repo` (required): Repository name
+- `workflow_id` (required): The ID or filename of the workflow
+
+**Result Fields:**
+- `id`: Workflow ID
+- `name`: Workflow name
+- `path`: Path to the workflow file in the repository
+- `state`: State of the workflow (active, disabled, etc.)
+- `created_at`: Creation timestamp
+- `updated_at`: Last update timestamp
+- `content`: The content of the workflow file (YAML)
+
+#### 3. `list_workflow_runs`
+
+Lists workflow runs for a repository or a specific workflow.
+
+**Parameters:**
+- `owner` (required): Repository owner (username or organization)
+- `repo` (required): Repository name
+- `workflow_id` (optional): The ID or filename of the workflow to filter runs by
+- `branch` (optional): Filter by branch name
+- `status` (optional): Filter by workflow run status (completed, action_required, cancelled, failure, neutral, skipped, stale, success, timed_out, in_progress, queued, requested, waiting)
+- `event` (optional): Filter by event type (push, pull_request, etc.)
+- `page` (optional): Page number for pagination (default: 1)
+- `perPage` (optional): Number of results per page (default: 30, max: 100)
+
+**Result Fields:**
+- `total_count`: Total number of workflow runs matching the criteria
+- `workflow_runs`: Array of workflow run objects, each containing:
+  - `id`: Run ID
+  - `name`: Name of the workflow
+  - `workflow_id`: ID of the workflow
+  - `head_branch`: Branch the workflow ran on
+  - `head_sha`: Commit SHA the workflow ran on
+  - `run_number`: Run number for the workflow
+  - `event`: Event that triggered the workflow (push, pull_request, etc.)
+  - `status`: Current status (queued, in_progress, completed)
+  - `conclusion`: Result of the run (success, failure, cancelled, etc.)
+  - `created_at`: Creation timestamp
+  - `updated_at`: Last update timestamp
+  - `actor`: User who triggered the workflow run
+  - `run_attempt`: Number of times this workflow run has been retried
+  - `run_started_at`: Timestamp when the run started executing
+
+#### 4. `get_workflow_run`
+
+Gets detailed information about a specific workflow run.
+
+**Parameters:**
+- `owner` (required): Repository owner (username or organization)
+- `repo` (required): Repository name
+- `run_id` (required): The ID of the workflow run
+
+**Result Fields:**
+- `id`: Run ID
+- `name`: Name of the workflow
+- `workflow_id`: ID of the workflow
+- `head_branch`: Branch the workflow ran on
+- `head_sha`: Commit SHA the workflow ran on
+- `run_number`: Run number for the workflow
+- `event`: Event that triggered the workflow (push, pull_request, etc.)
+- `status`: Current status (queued, in_progress, completed)
+- `conclusion`: Result of the run (success, failure, cancelled, etc.)
+- `created_at`: Creation timestamp
+- `updated_at`: Last update timestamp
+- `actor`: User who triggered the workflow run
+- `run_attempt`: Number of times this workflow run has been retried
+- `run_started_at`: Timestamp when the run started executing
+- `triggering_actor`: User who triggered the workflow run
+- `jobs_count`: Number of jobs in the workflow run
+- `pull_requests`: Array of associated pull requests (if applicable)
+- `referenced_workflows`: Array of referenced workflows (if applicable)
+
+#### 5. `download_workflow_run_logs`
+
+Downloads and processes the logs for a workflow run.
+
+**Parameters:**
+- `owner` (required): Repository owner (username or organization)
+- `repo` (required): Repository name
+- `run_id` (required): The ID of the workflow run
+
+**Result Fields:**
+- `log_path`: Absolute path to the downloaded log file
+- `size`: Size of the log file in bytes
+- `run_id`: ID of the workflow run
+- `workflow_name`: Name of the workflow
+- `download_time`: Timestamp when the logs were downloaded
+- `format`: Format of the log file (zip)
+
+**Implementation Notes:**
+- The tool will create a temporary directory
+- Download the zip file containing logs
+- Return the absolute path to the log file
+- The temporary directory should be cleaned up after a reasonable time period or on server restart
+
+#### 6. `list_workflow_jobs`
+
+Lists jobs for a workflow run.
+
+**Parameters:**
+- `owner` (required): Repository owner (username or organization)
+- `repo` (required): Repository name
+- `run_id` (required): The ID of the workflow run
+- `filter` (optional): Filter jobs by their status (completed, in_progress, queued)
+- `page` (optional): Page number for pagination (default: 1)
+- `perPage` (optional): Number of results per page (default: 30, max: 100)
+
+**Result Fields:**
+- `total_count`: Total number of jobs
+- `jobs`: Array of job objects, each containing:
+  - `id`: Job ID
+  - `name`: Job name
+  - `status`: Current status (queued, in_progress, completed)
+  - `conclusion`: Result of the job (success, failure, cancelled, etc.)
+  - `started_at`: Timestamp when the job started
+  - `completed_at`: Timestamp when the job completed
+  - `steps`: Array of steps in the job, each containing:
+    - `name`: Step name
+    - `status`: Step status
+    - `conclusion`: Step conclusion
+    - `number`: Step number
+    - `started_at`: Timestamp when the step started
+    - `completed_at`: Timestamp when the step completed
+  - `runner_name`: Name of the runner that executed the job
+  - `runner_group_name`: Name of the runner group
+  - `run_id`: ID of the workflow run this job belongs to
+  - `workflow_name`: Name of the workflow
+  - `head_sha`: Commit SHA the job ran on
+  - `labels`: Array of labels for the job's runner
+
+#### 7. `get_workflow_job`
+
+Gets detailed information about a specific job.
+
+**Parameters:**
+- `owner` (required): Repository owner (username or organization)
+- `repo` (required): Repository name
+- `job_id` (required): The ID of the job
+
+**Result Fields:**
+- `id`: Job ID
+- `name`: Job name
+- `status`: Current status (queued, in_progress, completed)
+- `conclusion`: Result of the job (success, failure, cancelled, etc.)
+- `started_at`: Timestamp when the job started
+- `completed_at`: Timestamp when the job completed
+- `steps`: Array of steps in the job, each containing:
+  - `name`: Step name
+  - `status`: Step status
+  - `conclusion`: Step conclusion
+  - `number`: Step number
+  - `started_at`: Timestamp when the step started
+  - `completed_at`: Timestamp when the step completed
+- `runner_id`: ID of the runner that executed the job
+- `runner_name`: Name of the runner that executed the job
+- `runner_group_id`: ID of the runner group
+- `runner_group_name`: Name of the runner group
+- `run_id`: ID of the workflow run this job belongs to
+- `workflow_name`: Name of the workflow
+- `head_sha`: Commit SHA the job ran on
+- `labels`: Array of labels for the job's runner
+
+## Implementation Status
+
+| Tool | Status | Progress |
+|------|--------|----------|
+| list_workflows | Completed | 100% |
+| get_workflow | Completed | 100% |
+| list_workflow_runs | Completed | 100% |
+| get_workflow_run | Completed | 100% |
+| download_workflow_run_logs | Completed | 100% |
+| list_workflow_jobs | Completed | 100% |
+| get_workflow_job | Completed | 100% |
+| **Overall Progress** | **Completed** | **100%** |
+
+### Completed Work
+
+- Created `pkg/github/actions.go` with the `ListWorkflows`, `GetWorkflow`, `ListWorkflowRuns`, `GetWorkflowRun`, `DownloadWorkflowRunLogs`, `ListWorkflowJobs`, and `GetWorkflowJob` operations
+- Created `pkg/tools/actions.go` with the `list_workflows`, `get_workflow`, `list_workflow_runs`, `get_workflow_run`, `download_workflow_run_logs`, `list_workflow_jobs`, and `get_workflow_job` tools
+- Updated `pkg/tools/server.go` to register the actions tools
+- Created `pkg/tools/actions_test.go` with test cases for all implemented tools
+- Added all implemented tools to the read-only tools list
+- Successfully implemented and tested the `list_workflows` tool with both happy path and error cases:
+  - ListWorkflows (happy path)
+  - ListWorkflowsInvalidOwner (error case)
+  - ListWorkflowsInvalidRepo (error case)
+  - ListWorkflowsNonExistentRepo (error case)
+- Successfully implemented and tested the `get_workflow` tool with both happy path and error cases:
+  - GetWorkflowByID (happy path)
+  - GetWorkflowByFileName (happy path)
+  - GetWorkflowInvalidOwner (error case)
+  - GetWorkflowInvalidRepo (error case)
+  - GetWorkflowInvalidID (error case)
+  - GetWorkflowNonExistentID (error case)
+  - GetWorkflowNonExistentFileName (error case)
+- Successfully implemented and tested the `list_workflow_runs` tool with both happy path and error cases:
+  - ListWorkflowRuns (happy path)
+  - ListWorkflowRunsWithWorkflowID (happy path)
+  - ListWorkflowRunsWithFilters (happy path)
+  - ListWorkflowRunsInvalidOwner (error case)
+  - ListWorkflowRunsInvalidRepo (error case)
+  - ListWorkflowRunsNonExistentRepo (error case)
+  - ListWorkflowRunsInvalidWorkflowID (error case)
+- Successfully implemented and tested the `get_workflow_run` tool with both happy path and error cases:
+  - GetWorkflowRun (happy path)
+  - GetWorkflowRunInvalidOwner (error case)
+  - GetWorkflowRunInvalidRepo (error case)
+  - GetWorkflowRunInvalidID (error case)
+  - GetWorkflowRunNonExistentID (error case)
+  - GetWorkflowRunInvalidIDType (error case)
+- Successfully implemented and tested the `download_workflow_run_logs` tool with both happy path and error cases:
+  - DownloadWorkflowRunLogs (happy path)
+  - DownloadWorkflowRunLogsInvalidOwner (error case)
+  - DownloadWorkflowRunLogsInvalidRepo (error case)
+  - DownloadWorkflowRunLogsInvalidID (error case)
+  - DownloadWorkflowRunLogsNonExistentID (error case)
+  - DownloadWorkflowRunLogsInvalidIDType (error case)
+- Successfully implemented and tested the `list_workflow_jobs` tool with both happy path and error cases:
+  - ListWorkflowJobs (happy path)
+  - ListWorkflowJobsWithFilter (happy path)
+  - ListWorkflowJobsInvalidOwner (error case)
+  - ListWorkflowJobsInvalidRepo (error case)
+  - ListWorkflowJobsInvalidID (error case)
+  - ListWorkflowJobsNonExistentID (error case)
+  - ListWorkflowJobsInvalidIDType (error case)
+- Successfully implemented and tested the `get_workflow_job` tool with both happy path and error cases:
+  - GetWorkflowJob (happy path)
+  - GetWorkflowJobInvalidOwner (error case)
+  - GetWorkflowJobInvalidRepo (error case)
+  - GetWorkflowJobInvalidID (error case)
+  - GetWorkflowJobNonExistentID (error case)
+  - GetWorkflowJobInvalidIDType (error case)
+
+## Implementation Details
+
+### Architecture
+
+The implementation will follow the existing patterns in the codebase:
+
+1. Create a new file `pkg/github/actions.go` for the GitHub Actions API operations
+2. Create a new file `pkg/tools/actions.go` for the MCP tool definitions
+3. Add appropriate formatters for the response data in markdown format
+4. Follow the existing testing patterns with go-vcr and golden files
+
+### Special Considerations for `download_workflow_run_logs`
+
+The `download_workflow_run_logs` tool requires special handling:
+
+1. Create a temporary directory using `os.MkdirTemp`
+2. Download the zip file from the GitHub API
+3. Save it to the temporary directory with a meaningful name (e.g., `{owner}_{repo}_run_{run_id}_logs.zip`)
+4. Return the absolute path to the file in the tool result
+5. Implement a cleanup strategy to remove old log files
+
+### Cleanup Strategy for Downloaded Logs
+
+To ensure temporary files don't accumulate:
+
+1. Register a cleanup routine that runs periodically (e.g., every hour)
+2. The routine will scan the temporary directory for log files older than a certain threshold (e.g., 24 hours)
+3. Delete any files that exceed the age threshold
+
+## Testing Strategy
+
+Following the project's testing patterns:
+
+1. Create test cases for each tool in a new file `pkg/tools/actions_test.go`
+2. Use go-vcr to record HTTP interactions
+3. Create golden files for expected results
+4. Follow the iterative approach outlined in the project's testing documentation
+
+## Future Considerations
+
+While the current implementation focuses on read-only tools, future enhancements could include:
+
+1. Write operations such as triggering workflow runs
+2. Cancelling or re-running workflows
+3. Creating and updating workflow files
+4. Managing workflow secrets and variables
+
+These would require careful consideration of security implications and would be implemented with appropriate safeguards.

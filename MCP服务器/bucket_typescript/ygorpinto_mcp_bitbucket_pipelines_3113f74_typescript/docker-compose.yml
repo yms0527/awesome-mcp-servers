@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./.env:/usr/src/app/.env
+    environment:
+      - NODE_ENV=production
+      - BITBUCKET_ACCESS_TOKEN=${BITBUCKET_ACCESS_TOKEN}
+      - BITBUCKET_WORKSPACE=${BITBUCKET_WORKSPACE}
+      - BITBUCKET_REPO_SLUG=${BITBUCKET_REPO_SLUG}
+      - BITBUCKET_API_URL=${BITBUCKET_API_URL:-https://api.bitbucket.org/2.0}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    tty: true
+    stdin_open: true
+    restart: unless-stopped 

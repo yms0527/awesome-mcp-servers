@@ -1,0 +1,14 @@
+{
+  "name": "lipsky-memory",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Multi-project memory MCP",
+  "main": "build/index.js",
+  "scripts": {
+    "start": "node build/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.1.0",
+    "@libsql/client": "^0.5.6"
+  }
+}

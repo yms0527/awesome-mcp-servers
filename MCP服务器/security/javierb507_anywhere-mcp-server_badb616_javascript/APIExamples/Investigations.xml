@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<InvestigationExamples>
+    <Description>
+        USM Anywhere Investigation Management API Examples
+        These examples demonstrate the investigation endpoints for the USM Anywhere API v2.0
+    </Description>
+    
+    <!-- List Investigations -->
+    <Example type="GET" endpoint="/api/2.0/investigations">
+        <Description>Retrieve a list of investigations with filtering options</Description>
+        <Request>
+            <URL>https://your-subdomain.alienvault.cloud/api/2.0/investigations</URL>
+            <Parameters>
+                <Parameter name="account_name" required="true">MyCompany</Parameter>
+                <Parameter name="page" required="false">0</Parameter>
+                <Parameter name="size" required="false">20</Parameter>
+                <Parameter name="status" required="false">open</Parameter>
+                <Parameter name="priority" required="false">high</Parameter>
+                <Parameter name="assignee" required="false">john.doe</Parameter>
+                <Parameter name="created_after" required="false">1704067200000</Parameter>
+            </Parameters>
+        </Request>
+        <Response status="200">
+            <Body>
+                {
+                    "_embedded": {
+                        "investigations": [{
+                            "uuid": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                            "name": "Ransomware Attack Investigation - 2025-01-15",
+                            "description": "Investigating potential ransomware deployment",
+                            "status": "in_progress",
+                            "priority": "critical",
+                            "assignee": "john.doe",
+                            "created_by": "api-client",
+                            "created_at": "2025-01-15T10:30:00Z",
+                            "updated_at": "2025-01-15T14:45:00Z",
+                            "tags": ["ransomware", "critical", "incident-response"],
+                            "alarm_count": 12,
+                            "event_count": 347
+                        }]
+                    },
+                    "page": {
+                        "size": 20,
+                        "totalElements": 1,
+                        "totalPages": 1,
+                        "number": 0
+                    }
+                }
+            </Body>
+        </Response>
+    </Example>
+    
+    <!-- Create Investigation -->
+    <Example type="POST" endpoint="/api/2.0/investigations">
+        <Description>Create a new security investigation</Description>
+        <Request>
+            <URL>https://your-subdomain.alienvault.cloud/api/2.0/investigations</URL>
+            <Headers>
+                <Header name="Content-Type">application/json</Header>
+                <Header name="Authorization">Bearer YOUR_ACCESS_TOKEN</Header>
+            </Headers>
+            <Body>
+                {
+                    "account_name": "MyCompany",
+                    "name": "SQL Injection Attack - Web Server",
+                    "description": "Multiple SQL injection attempts detected targeting customer database",
+                    "priority": "high",
+                    "assignee": "security.team",
+                    "tags": ["sql-injection", "web-security", "database"],
+                    "alarm_ids": ["alarm-123", "alarm-456"],
+                    "event_ids": ["event-789", "event-012"]
+                }
+            </Body>
+        </Request>
+        <Response status="201">
+            <Body>
+                {
+                    "uuid": "a8b9c0d1-e2f3-4567-8901-234567890abc",
+                    "name": "SQL Injection Attack - Web Server",
+                    "description": "Multiple SQL injection attempts detected targeting customer database",
+                    "status": "open",
+                    "priority": "high",
+                    "assignee": "security.team",
+                    "created_by": "api-client",
+                    "created_at": "2025-01-15T16:00:00Z",
+                    "updated_at": "2025-01-15T16:00:00Z",
+                    "tags": ["sql-injection", "web-security", "database"],
+                    "alarm_count": 2,
+                    "event_count": 2
+                }
+            </Body>
+        </Response>
+    </Example>
+    
+    <!-- Update Investigation -->
+    <Example type="PUT" endpoint="/api/2.0/investigations/{id}">
+        <Description>Update an existing investigation</Description>
+        <Request>
+            <URL>https://your-subdomain.alienvault.cloud/api/2.0/investigations/a8b9c0d1-e2f3-4567-8901-234567890abc</URL>
+            <Headers>
+                <Header name="Content-Type">application/json</Header>
+                <Header name="Authorization">Bearer YOUR_ACCESS_TOKEN</Header>
+            </Headers>
+            <Body>
+                {
+                    "status": "in_progress",
+                    "priority": "critical",
+                    "description": "Confirmed SQL injection with data exfiltration attempt. Escalating priority."
+                }
+            </Body>
+        </Request>
+        <Response status="200">
+            <Body>
+                {
+                    "uuid": "a8b9c0d1-e2f3-4567-8901-234567890abc",
+                    "name": "SQL Injection Attack - Web Server",
+                    "description": "Confirmed SQL injection with data exfiltration attempt. Escalating priority.",
+                    "status": "in_progress",
+                    "priority": "critical",
+                    "assignee": "security.team",
+                    "updated_at": "2025-01-15T16:30:00Z"
+                }
+            </Body>
+        </Response>
+    </Example>
+    
+    <!-- Add Investigation Note -->
+    <Example type="POST" endpoint="/api/2.0/investigations/{id}/notes">
+        <Description>Add a note to document investigation progress</Description>
+        <Request>
+            <URL>https://your-subdomain.alienvault.cloud/api/2.0/investigations/a8b9c0d1-e2f3-4567-8901-234567890abc/notes</URL>
+            <Headers>
+                <Header name="Content-Type">application/json</Header>
+                <Header name="Authorization">Bearer YOUR_ACCESS_TOKEN</Header>
+            </Headers>
+            <Body>
+                {
+                    "content": "Containment complete. Blocked attacker IP at perimeter firewall. Web application firewall rules updated to prevent similar attacks. Beginning forensic analysis of database logs."
+                }
+            </Body>
+        </Request>
+        <Response status="200">
+            <Body>
+                {
+                    "uuid": "a8b9c0d1-e2f3-4567-8901-234567890abc",
+                    "notes": [{
+                        "id": "note-001",
+                        "content": "Containment complete. Blocked attacker IP at perimeter firewall. Web application firewall rules updated to prevent similar attacks. Beginning forensic analysis of database logs.",
+                        "author": "john.doe",
+                        "created_at": "2025-01-15T17:00:00Z"
+                    }]
+                }
+            </Body>
+        </Response>
+    </Example>
+    
+    <!-- Error Response Examples -->
+    <ErrorExamples>
+        <Error status="403">
+            <Description>Permission denied - API client lacks investigation permissions</Description>
+            <Body>
+                {
+                    "error": "Access denied. You may not have permission to access investigations.",
+                    "status": 403,
+                    "details": "Ensure your API client has the 'investigations:read' or 'investigations:write' scope"
+                }
+            </Body>
+        </Error>
+        
+        <Error status="404">
+            <Description>Investigation not found or endpoint not available</Description>
+            <Body>
+                {
+                    "error": "Investigation not found",
+                    "status": 404,
+                    "details": "The requested investigation does not exist or has been deleted"
+                }
+            </Body>
+        </Error>
+        
+        <Error status="409">
+            <Description>Invalid status transition</Description>
+            <Body>
+                {
+                    "error": "Investigation status transition not allowed",
+                    "status": 409,
+                    "details": "Cannot change status from 'closed' to 'open'. Investigations must follow the proper workflow."
+                }
+            </Body>
+        </Error>
+    </ErrorExamples>
+    
+    <!-- Authentication -->
+    <Authentication>
+        <Description>
+            All investigation endpoints require OAuth 2.0 authentication using the client credentials flow.
+            Include the access token in the Authorization header: "Bearer YOUR_ACCESS_TOKEN"
+        </Description>
+        <TokenEndpoint>https://your-subdomain.alienvault.cloud/api/2.0/oauth/token</TokenEndpoint>
+    </Authentication>
+</InvestigationExamples>

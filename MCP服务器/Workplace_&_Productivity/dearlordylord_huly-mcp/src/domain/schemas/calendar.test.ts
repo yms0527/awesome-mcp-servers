@@ -1,0 +1,357 @@
+import { Either, Schema } from "effect"
+import { describe, expect, it } from "vitest"
+
+import {
+  CreateEventParamsSchema,
+  CreateRecurringEventParamsSchema,
+  GetEventParamsSchema,
+  ListEventInstancesParamsSchema,
+  ListEventsParamsSchema,
+  RecurringRuleSchema,
+  UpdateEventParamsSchema,
+  VisibilitySchema
+} from "./calendar.js"
+
+describe("Calendar Schemas", () => {
+  describe("VisibilitySchema", () => {
+    // test-revizorro: approved
+    it("accepts valid visibility values", () => {
+      const values = ["public", "freeBusy", "private"]
+      for (const value of values) {
+        const result = Schema.decodeUnknownEither(VisibilitySchema)(value)
+        expect(Either.isRight(result)).toBe(true)
+      }
+    })
+
+    // test-revizorro: approved
+    it("rejects invalid visibility", () => {
+      const result = Schema.decodeUnknownEither(VisibilitySchema)("hidden")
+      expect(Either.isLeft(result)).toBe(true)
+    })
+  })
+
+  describe("RecurringRuleSchema", () => {
+    // test-revizorro: approved
+    it("accepts minimal rule with only freq", () => {
+      const result = Schema.decodeUnknownEither(RecurringRuleSchema)({ freq: "DAILY" })
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("accepts full rule with all options", () => {
+      const rule = {
+        freq: "WEEKLY",
+        endDate: 1704067200000,
+        count: 10,
+        interval: 2,
+        byDay: ["MO", "WE", "FR"],
+        byMonthDay: [1, 15],
+        byMonth: [1, 6, 12],
+        bySetPos: [-1],
+        wkst: "MO"
+      }
+      const result = Schema.decodeUnknownEither(RecurringRuleSchema)(rule)
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects invalid frequency", () => {
+      const result = Schema.decodeUnknownEither(RecurringRuleSchema)({ freq: "CONSTANTLY" })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects invalid weekday in wkst", () => {
+      const result = Schema.decodeUnknownEither(RecurringRuleSchema)({
+        freq: "WEEKLY",
+        wkst: "MONDAY"
+      })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects negative count", () => {
+      const result = Schema.decodeUnknownEither(RecurringRuleSchema)({
+        freq: "DAILY",
+        count: -5
+      })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects invalid month values", () => {
+      const result = Schema.decodeUnknownEither(RecurringRuleSchema)({
+        freq: "YEARLY",
+        byMonth: [0, 13]
+      })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+  })
+
+  describe("ListEventsParamsSchema", () => {
+    // test-revizorro: approved
+    it("accepts empty params", () => {
+      const result = Schema.decodeUnknownEither(ListEventsParamsSchema)({})
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("accepts from/to timestamps", () => {
+      const result = Schema.decodeUnknownEither(ListEventsParamsSchema)({
+        from: 1704067200000,
+        to: 1704153600000
+      })
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("accepts limit within bounds", () => {
+      const result = Schema.decodeUnknownEither(ListEventsParamsSchema)({ limit: 100 })
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects limit exceeding 200", () => {
+      const result = Schema.decodeUnknownEither(ListEventsParamsSchema)({ limit: 300 })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects zero limit", () => {
+      const result = Schema.decodeUnknownEither(ListEventsParamsSchema)({ limit: 0 })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects negative timestamp", () => {
+      const result = Schema.decodeUnknownEither(ListEventsParamsSchema)({ from: -1000 })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+  })
+
+  describe("GetEventParamsSchema", () => {
+    // test-revizorro: approved
+    it("accepts valid eventId", () => {
+      const result = Schema.decodeUnknownEither(GetEventParamsSchema)({
+        eventId: "evt-123456"
+      })
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects empty eventId", () => {
+      const result = Schema.decodeUnknownEither(GetEventParamsSchema)({
+        eventId: ""
+      })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects whitespace-only eventId", () => {
+      const result = Schema.decodeUnknownEither(GetEventParamsSchema)({
+        eventId: "   "
+      })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("trims eventId whitespace", () => {
+      const result = Schema.decodeUnknownEither(GetEventParamsSchema)({
+        eventId: "  evt-123  "
+      })
+      expect(Either.isRight(result)).toBe(true)
+      if (Either.isRight(result)) {
+        expect(result.right.eventId).toBe("evt-123")
+      }
+    })
+  })
+
+  describe("CreateEventParamsSchema", () => {
+    // test-revizorro: approved
+    it("accepts minimal valid event", () => {
+      const result = Schema.decodeUnknownEither(CreateEventParamsSchema)({
+        title: "Meeting",
+        date: 1704067200000
+      })
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("accepts full event params", () => {
+      const result = Schema.decodeUnknownEither(CreateEventParamsSchema)({
+        title: "Team Standup",
+        description: "Daily sync meeting",
+        date: 1704067200000,
+        dueDate: 1704070800000,
+        allDay: false,
+        location: "Conference Room A",
+        participants: ["alice@example.com", "bob@example.com"],
+        visibility: "private"
+      })
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects empty title", () => {
+      const result = Schema.decodeUnknownEither(CreateEventParamsSchema)({
+        title: "",
+        date: 1704067200000
+      })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects missing date", () => {
+      const result = Schema.decodeUnknownEither(CreateEventParamsSchema)({
+        title: "Meeting"
+      })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects invalid visibility", () => {
+      const result = Schema.decodeUnknownEither(CreateEventParamsSchema)({
+        title: "Meeting",
+        date: 1704067200000,
+        visibility: "secret"
+      })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+  })
+
+  describe("UpdateEventParamsSchema", () => {
+    // test-revizorro: approved
+    it("accepts only eventId (no changes)", () => {
+      const result = Schema.decodeUnknownEither(UpdateEventParamsSchema)({
+        eventId: "evt-123"
+      })
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("accepts partial updates", () => {
+      const result = Schema.decodeUnknownEither(UpdateEventParamsSchema)({
+        eventId: "evt-123",
+        title: "Updated Title",
+        location: "New Location"
+      })
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects empty eventId", () => {
+      const result = Schema.decodeUnknownEither(UpdateEventParamsSchema)({
+        eventId: "",
+        title: "New Title"
+      })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+  })
+
+  describe("CreateRecurringEventParamsSchema", () => {
+    // test-revizorro: approved
+    it("accepts valid recurring event", () => {
+      const result = Schema.decodeUnknownEither(CreateRecurringEventParamsSchema)({
+        title: "Weekly Standup",
+        startDate: 1704067200000,
+        rules: [{ freq: "WEEKLY", byDay: ["MO"] }]
+      })
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("accepts multiple rules", () => {
+      const result = Schema.decodeUnknownEither(CreateRecurringEventParamsSchema)({
+        title: "Complex Event",
+        startDate: 1704067200000,
+        rules: [
+          { freq: "MONTHLY", byMonthDay: [1] },
+          { freq: "YEARLY", byMonth: [6], byMonthDay: [15] }
+        ]
+      })
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("accepts timeZone", () => {
+      const result = Schema.decodeUnknownEither(CreateRecurringEventParamsSchema)({
+        title: "Meeting",
+        startDate: 1704067200000,
+        rules: [{ freq: "DAILY" }],
+        timeZone: "America/New_York"
+      })
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects empty rules array", () => {
+      const result = Schema.decodeUnknownEither(CreateRecurringEventParamsSchema)({
+        title: "Meeting",
+        startDate: 1704067200000,
+        rules: []
+      })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("rejects missing rules", () => {
+      const result = Schema.decodeUnknownEither(CreateRecurringEventParamsSchema)({
+        title: "Meeting",
+        startDate: 1704067200000
+      })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+  })
+
+  describe("ListEventInstancesParamsSchema", () => {
+    // test-revizorro: approved
+    it("accepts valid params", () => {
+      const result = Schema.decodeUnknownEither(ListEventInstancesParamsSchema)({
+        recurringEventId: "rec-evt-123"
+      })
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("accepts date range", () => {
+      const result = Schema.decodeUnknownEither(ListEventInstancesParamsSchema)({
+        recurringEventId: "rec-evt-123",
+        from: 1704067200000,
+        to: 1706745600000,
+        limit: 20
+      })
+      expect(Either.isRight(result)).toBe(true)
+    })
+
+    // test-revizorro: approved
+    it("accepts includeParticipants flag", () => {
+      const result = Schema.decodeUnknownEither(ListEventInstancesParamsSchema)({
+        recurringEventId: "rec-evt-123",
+        includeParticipants: true
+      })
+      expect(Either.isRight(result)).toBe(true)
+      if (Either.isRight(result)) {
+        expect(result.right.includeParticipants).toBe(true)
+      }
+    })
+
+    // test-revizorro: approved
+    it("defaults includeParticipants to undefined when not provided", () => {
+      const result = Schema.decodeUnknownEither(ListEventInstancesParamsSchema)({
+        recurringEventId: "rec-evt-123"
+      })
+      expect(Either.isRight(result)).toBe(true)
+      if (Either.isRight(result)) {
+        expect(result.right.includeParticipants).toBeUndefined()
+      }
+    })
+
+    // test-revizorro: approved
+    it("rejects empty recurringEventId", () => {
+      const result = Schema.decodeUnknownEither(ListEventInstancesParamsSchema)({
+        recurringEventId: ""
+      })
+      expect(Either.isLeft(result)).toBe(true)
+    })
+  })
+})

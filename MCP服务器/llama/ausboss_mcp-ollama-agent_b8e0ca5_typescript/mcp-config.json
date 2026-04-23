@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-filesystem", "./"]
+    },
+    "webresearch": {
+      "command": "npx",
+      "args": ["-y", "@mzxrai/mcp-webresearch"]
+    }
+  },
+  "ollama": {
+    "host": "http://localhost:11434",
+    "model": "qwen2.5:latest"
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.search-atlas-group/searchatlas",
+  "title": "SearchAtlas",
+  "description": "SearchAtlas AI Agent — SEO, content, PPC, authority building, and site management",
+  "repository": {
+    "url": "https://github.com/Search-Atlas-Group/searchatlas-mcp-server",
+    "source": "github"
+  },
+  "version": "1.3.8",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "searchatlas-mcp-server",
+      "version": "1.3.8",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "SEARCHATLAS_TOKEN",
+          "description": "JWT token for authentication (preferred method)",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "SEARCHATLAS_API_KEY",
+          "description": "API key authentication (alternative to JWT token)",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "SEARCHATLAS_API_URL",
+          "description": "API base URL (defaults to https://mcp.searchatlas.com)",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "name": "searchatlas_orchestrator",
+      "description": "Multi-agent coordinator — routes queries to the best specialized agent"
+    },
+    {
+      "name": "searchatlas_otto_seo",
+      "description": "On-page SEO automation — technical fixes, schema markup, optimizations"
+    },
+    {
+      "name": "searchatlas_ppc",
+      "description": "PPC / Google Ads management — campaigns, bids, performance"
+    },
+    {
+      "name": "searchatlas_content",
+      "description": "AI content generation — blog posts, landing pages, optimized copy"
+    },
+    {
+      "name": "searchatlas_site_explorer",
+      "description": "Site audit and analysis — crawl data, backlinks, competitive intelligence"
+    },
+    {
+      "name": "searchatlas_gbp",
+      "description": "Google Business Profile management — listings, reviews, local SEO"
+    },
+    {
+      "name": "searchatlas_authority_building",
+      "description": "Link building and digital PR — outreach, guest posts, authority signals"
+    },
+    {
+      "name": "searchatlas_llm_visibility",
+      "description": "LLM brand monitoring — tracks AI model references to your brand"
+    },
+    {
+      "name": "searchatlas_keywords",
+      "description": "Keyword research — volume, difficulty, SERP analysis, clustering"
+    },
+    {
+      "name": "searchatlas_website_studio",
+      "description": "Website builder — pages, layouts, site structure"
+    },
+    {
+      "name": "searchatlas_list_projects",
+      "description": "List SearchAtlas projects for the authenticated user"
+    },
+    {
+      "name": "searchatlas_create_project",
+      "description": "Create a new SearchAtlas project"
+    },
+    {
+      "name": "searchatlas_list_conversations",
+      "description": "List conversation sessions, optionally filtered by agent"
+    },
+    {
+      "name": "searchatlas_list_artifacts",
+      "description": "List artifacts (code, content, reports) across sessions"
+    },
+    {
+      "name": "searchatlas_list_playbooks",
+      "description": "List available playbooks (automation recipes)"
+    },
+    {
+      "name": "searchatlas_run_playbook",
+      "description": "Execute a playbook on a project using the appropriate agent"
+    }
+  ]
+}

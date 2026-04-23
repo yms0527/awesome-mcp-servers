@@ -1,0 +1,105 @@
+{
+  "name": "@h1deya/langchain-mcp-tools",
+  "version": "0.4.1",
+  "description": "MCP To LangChain Tools Conversion Utility",
+  "license": "MIT",
+  "keywords": [
+    "modelcontextprotocol",
+    "mcp",
+    "client",
+    "mcp-client",
+    "langchain",
+    "langchain-typescript",
+    "tool",
+    "tool-call",
+    "tool-calling",
+    "typescript",
+    "nodejs"
+  ],
+  "author": "hideya kawahara",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hideya/langchain-mcp-tools-ts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hideya/langchain-mcp-tools-ts/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "_comment_build": "# Build and development scripts",
+    "build": "tsc",
+    "prepare": "npm run build",
+    "watch": "tsc --watch",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "clean": "git clean -fdxn -e .env && read -p '\nOK? ' && git clean -fdx -e .env",
+    "_comment_test": "# Testing scripts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "_comment_examples": "# Basic usage examples",
+    "example:simple": "tsx testfiles/simple-usage.ts",
+    "_comment_sse_ws": "# SSE and WS transport tests",
+    "test:sse-and-ws": "tsx testfiles/sse-and-ws-test.ts",
+    "_comment_streamable": "# Streamable HTTP transport tests",
+    "test:streamable:auth:server": "tsx testfiles/streamable-http-auth-test-server.ts",
+    "test:streamable:auth:client": "tsx testfiles/streamable-http-auth-test-client.ts",
+    "test:streamable:stateless:server": "tsx testfiles/streamable-http-stateless-test-server.ts",
+    "test:streamable:stateless:client": "tsx testfiles/streamable-http-stateless-test-client.ts",
+    "_comment_sse": "# SSE transport tests (with authentication)",
+    "test:sse:server": "tsx testfiles/sse-auth-test-server.ts",
+    "test:sse:client": "tsx testfiles/sse-auth-test-client.ts",
+    "_comment_docs": "# Documentation scripts",
+    "docs:build": "npx typedoc --options typedoc.json",
+    "docs:deploy": "npm run docs:build && ghp-import -n -p -f docs",
+    "_comment_publish": "# Publishing scripts",
+    "publish:test": "npm run clean && npm install && npm publish --access=public --dry-run",
+    "publish:do": "npm run clean && npm install && npm publish --access=public"
+  },
+  "dependencies": {
+    "@h1deya/json-schema-to-zod": "^0.1.1",
+    "@langchain/core": ">=0.3.62",
+    "@modelcontextprotocol/sdk": ">=1.15.0",
+    "zod": "^3.25.74"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@langchain/anthropic": "^1.3.17",
+    "@langchain/cerebras": "^1.0.1",
+    "@langchain/google-genai": "^2.1.18",
+    "@langchain/groq": "^1.1.0",
+    "@langchain/openai": "^1.2.7",
+    "@langchain/xai": "^1.3.3",
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.10.5",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.19.0",
+    "@typescript-eslint/parser": "^8.19.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "eslint": "^9.17.0",
+    "express": "^4.19.2",
+    "langchain": "^1.2.23",
+    "tsx": "^4.19.3",
+    "typedoc": "^0.28.3",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.19.0",
+    "vitest": "^3.2.4",
+    "ws": "^8.18.1"
+  }
+}

@@ -1,0 +1,646 @@
+openapi: 3.0.0
+info:
+  title: GameBrain API
+  description: GameBrain API
+  termsOfService: https://gamebrain.co/api/terms
+  version: 1.0.2
+  contact:
+    name: David Urbansky
+    email: mail@gamebrain.co
+security:
+  - apiKey: []
+  - headerApiKey: []
+servers:
+  - url: 'https://api.gamebrain.co/v1'
+paths:
+  /games:
+    get:
+      summary: "Search Games"
+      description: "Search hundreds of thousands of video games from over 70 platforms. The query can be a game name, a platform, a genre, or any combination"
+      operationId: "search"
+      parameters:
+        - name: "query"
+          in: "query"
+          required: true
+          description: "The search query, e.g., game name, platform, genre, or any combination."
+          schema:
+            type: "string"
+            maxLength: 300
+            pattern: ".*"
+            example: "rpg for PC"
+        - name: "offset"
+          in: "query"
+          required: true
+          description: "The number of results to skip before starting to collect the result set. Between 0 and 1000."
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 0
+        - name: "limit"
+          in: "query"
+          required: true
+          description: "The maximum number of results to return between 1 and 10."
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 10
+        - name: "filters"
+          in: "query"
+          required: true
+          description: "JSON array of filter objects to apply to the search."
+          schema:
+            type: "string"
+            maxLength: 3000
+            pattern: ".*"
+            default: "[]"
+            example: '[{"key":"platform","values":[{"value":"pc"}],"connection":"OR"},{"key":"genre","values":[{"value":"action"}]}]'
+        - name: "sort"
+          in: "query"
+          required: true
+          description: "The field by which to sort the results, either computed_rating, price, or release_date"
+          schema:
+            type: "string"
+            maxLength: 300
+            pattern: ".*"
+            example: "computed_rating"
+        - name: "sort-order"
+          in: "query"
+          required: true
+          description: "The sort order: 'asc' for ascending or 'desc' for descending."
+          schema:
+            type: "string"
+            default: "asc"
+            maxLength: 4
+            pattern: "(asc|desc)"
+            example: "asc"
+        - name: "generate-filter-options"
+          in: "query"
+          required: true
+          description: "Whether to generate filter options in the response."
+          schema:
+            type: "boolean"
+            default: true
+        - name: "api-key"
+          in: "query"
+          required: true
+          description: "Your API key for authentication."
+          schema:
+            type: "string"
+            maxLength: 300
+            pattern: ".*"
+            example: "abc123"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+  /games/suggestions:
+    get:
+      summary: "Get Game Suggestions"
+      description: "Get game suggestions based on (partial) search queries. For example, the query 'gt' will return games like GTA."
+      operationId: "suggest"
+      parameters:
+        - name: "query"
+          in: "query"
+          required: true
+          description: "The partial search query to get suggestions for."
+          schema:
+            type: "string"
+            maxLength: 300
+            pattern: ".*"
+            example: "gt"
+        - name: "limit"
+          in: "query"
+          required: true
+          description: "The maximum number of suggestions to return."
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 10
+        - name: "api-key"
+          in: "query"
+          required: true
+          description: "Your API key for authentication."
+          schema:
+            type: "string"
+            maxLength: 300
+            pattern: ".*"
+            example: "abc123"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchSuggestionResponse"
+  /games/{id}:
+    get:
+      summary: "Get Game Details"
+      description: "Get all the details about a game given its id. Details include screenshots, ratings, release dates, videos, description, tags, and much more."
+      operationId: "detail"
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          description: "The unique identifier of the game."
+          schema:
+            type: "integer"
+            format: "int32"
+        - name: "api-key"
+          in: "query"
+          required: true
+          description: "Your API key for authentication."
+          schema:
+            type: "string"
+            maxLength: 300
+            pattern: ".*"
+            example: "abc123"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameResponse"
+  /games/{id}/similar:
+    get:
+      summary: "Get Similar Games"
+      description: "Get games that are similar to the given one."
+      operationId: "similar"
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int32"
+        - name: "limit"
+          in: "query"
+          required: true
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 10
+        - name: "api-key"
+          in: "query"
+          required: true
+          schema:
+            type: "string"
+            maxLength: 300
+            pattern: ".*"
+            example: "abc123"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimilarGamesResponse"
+  /games/{id}/news:
+    get:
+      summary: "Get Game News"
+      description: "Get news related to the given game."
+      operationId: "news"
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int32"
+        - name: "offset"
+          in: "query"
+          required: true
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 0
+        - name: "limit"
+          in: "query"
+          required: true
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 10
+        - name: "api-key"
+          in: "query"
+          required: true
+          schema:
+            type: "string"
+            maxLength: 300
+            pattern: ".*"
+            example: "abc123"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameNewsResponse"
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: query
+      name: api-key
+    headerApiKey:
+      type: apiKey
+      in: header
+      name: x-api-key
+  schemas:
+    SearchResponse:
+      type: object
+      properties:
+        sorting:
+          type: object
+          properties:
+            key:
+              type: string
+              nullable: true
+            direction:
+              type: string
+              nullable: true
+        active_filter_options:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              connection:
+                type: string
+              values:
+                type: array
+                maxItems: 100
+                items:
+                  type: object
+                  properties:
+                    match:
+                      type: string
+                    value:
+                      type: string
+        query:
+          type: string
+        total_results:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        results:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              year:
+                type: number
+              name:
+                type: string
+              genre:
+                type: string
+              image:
+                type: string
+                format: uri
+              link:
+                type: string
+              rating:
+                type: object
+                properties:
+                  mean:
+                    type: number
+                  count:
+                    type: number
+              adult_only:
+                type: boolean
+              screenshots:
+                type: array
+                maxItems: 100
+                items:
+                  type: string
+                  format: uri
+              micro_trailer:
+                type: string
+                format: uri
+              gameplay:
+                type: string
+                format: uri
+              short_description:
+                type: string
+        filter_options:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              key:
+                type: string
+              values:
+                type: array
+                maxItems: 100
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    key:
+                      type: string
+                    count:
+                      type: number
+        sorting_options:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              sort:
+                type: string
+              key:
+                type: string
+    SearchSuggestionResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              year:
+                type: number
+              name:
+                type: string
+              genre:
+                type: string
+              image:
+                type: string
+                format: uri
+              link:
+                type: string
+              rating:
+                type: object
+                properties:
+                  mean:
+                    type: number
+                  count:
+                    type: number
+              adult_only:
+                type: boolean
+    GameResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        image:
+          type: string
+          format: uri
+        gameplay:
+          type: string
+          format: uri
+        link:
+          type: string
+          format: uri
+        x_url:
+          type: string
+          format: uri
+        rating:
+          type: object
+          properties:
+            mean:
+              type: number
+              format: float
+              nullable: true
+            count:
+              type: integer
+            mean_players:
+              type: number
+              format: float
+              nullable: true
+            count_players:
+              type: integer
+            mean_critics:
+              type: number
+              format: float
+              nullable: true
+            count_critics:
+              type: integer
+        description:
+          type: string
+        short_description:
+          type: string
+        release_date:
+          type: string
+          format: date
+        developer:
+          type: string
+        playtime:
+          type: object
+          properties:
+            percentiles:
+              type: array
+              maxItems: 100
+              items:
+                type: integer
+            min:
+              type: integer
+            median:
+              type: integer
+            max:
+              type: integer
+            mean:
+              type: number
+              format: float
+            mentions:
+              type: integer
+        platforms:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              name:
+                type: string
+        tags:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+        genres:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              name:
+                type: string
+        genre:
+          type: string
+        themes:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              name:
+                type: string
+        adult_only:
+          type: boolean
+        play_modes:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              name:
+                type: string
+        screenshots:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            format: uri
+        videos:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            format: uri
+        offers:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              price:
+                type: object
+                properties:
+                  currency:
+                    type: string
+                  discount_percent:
+                    type: number
+                    format: float
+                  value:
+                    type: number
+                    format: float
+                  initial:
+                    type: number
+                    format: float
+              store_name:
+                type: string
+              platform:
+                type: string
+              title:
+                type: string
+              url:
+                type: string
+                format: uri
+        official_stores:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              source:
+                type: string
+              url:
+                type: string
+                format: uri
+        micro_trailer:
+          type: string
+          format: uri
+    SimilarGamesResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              year:
+                type: number
+              name:
+                type: string
+              genre:
+                type: string
+              image:
+                type: string
+                format: uri
+              link:
+                type: string
+              rating:
+                type: object
+                properties:
+                  mean:
+                    type: number
+                  count:
+                    type: number
+              adult_only:
+                type: boolean
+              screenshots:
+                type: array
+                maxItems: 100
+                items:
+                  type: string
+                  format: uri
+              micro_trailer:
+                type: string
+                format: uri
+              gameplay:
+                type: string
+                format: uri
+              short_description:
+                type: string
+    GameNewsResponse:
+      type: object
+      properties:
+        news:
+          type: array
+          items:
+            $ref: '#/components/schemas/GameNewsItem'
+      required:
+        - news
+    GameNewsItem:
+      type: object
+      properties:
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+        source:
+          type: string
+        image:
+          type: string
+          format: uri
+        published:
+          type: string
+          format: date
+      required:
+        - title
+        - url
+        - source
+        - published

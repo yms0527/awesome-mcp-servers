@@ -1,0 +1,12 @@
+{
+  "name": "pterodactyl-mcp",
+  "main": "src/worker.ts",
+  "compatibility_date": "2025-03-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "kv_namespaces": [
+    {
+      "binding": "PTERODACTYL_CONFIGS",
+      "id": "<your-kv-namespace-id>"
+    }
+  ]
+}

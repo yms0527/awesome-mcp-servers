@@ -1,0 +1,210 @@
+{
+  "generatedAt": "2025-12-29T19:07:07.375Z",
+  "totalTools": 37,
+  "categories": {
+    "auth": {
+      "nameJa": "認証",
+      "nameEn": "Auth",
+      "order": 1,
+      "tools": [
+        {
+          "name": "sparksheets_login",
+          "description": "SparkSheetsにログインします。ブラウザが開き、Googleアカウントで認証後、自動的にトークンが保存されます。"
+        },
+        {
+          "name": "sparksheets_logout",
+          "description": "SparkSheetsからログアウトします。保存されたトークンを削除します。"
+        },
+        {
+          "name": "sparksheets_auth_status",
+          "description": "現在の認証状態を確認します。ログイン中のユーザー情報やトークンの有効期限を表示します。"
+        }
+      ]
+    },
+    "sessions": {
+      "nameJa": "セッション管理",
+      "nameEn": "Sessions",
+      "order": 2,
+      "tools": [
+        {
+          "name": "save_session",
+          "description": "現在のセッション要約をSparkSheetsに保存"
+        },
+        {
+          "name": "list_sessions",
+          "description": "全セッション一覧を取得"
+        },
+        {
+          "name": "search_sessions",
+          "description": "キーワードでセッション検索"
+        },
+        {
+          "name": "create_handover",
+          "description": "引き継ぎシート自動生成（次にやること、注意点などをまとめる）"
+        }
+      ]
+    },
+    "knowledge": {
+      "nameJa": "ナレッジベース",
+      "nameEn": "Knowledge",
+      "order": 3,
+      "tools": [
+        {
+          "name": "save_solution",
+          "description": "エラー解決策を辞典に保存"
+        },
+        {
+          "name": "find_solution",
+          "description": "過去の解決策を検索"
+        },
+        {
+          "name": "save_snippet",
+          "description": "コードスニペットを保存"
+        },
+        {
+          "name": "get_snippet",
+          "description": "スニペットを取得・検索"
+        }
+      ]
+    },
+    "sheets": {
+      "nameJa": "シート操作",
+      "nameEn": "Sheets",
+      "order": 4,
+      "tools": [
+        {
+          "name": "upload_image",
+          "description": "画像をSparkSheetsにアップロード。Base64またはファイルパスを指定。戻り値にMarkdown形式の画像タグを含む"
+        },
+        {
+          "name": "append_to_sheet",
+          "description": "シートの指定カラムの末尾にコンテンツを追記"
+        },
+        {
+          "name": "list_sheets",
+          "description": "シート一覧取得"
+        },
+        {
+          "name": "create_sheet",
+          "description": "新規シート作成"
+        },
+        {
+          "name": "update_sheet",
+          "description": "シート編集"
+        },
+        {
+          "name": "get_sheet_content",
+          "description": "シート内容取得（オプションでコンテキスト制御可能）"
+        },
+        {
+          "name": "search_sheets",
+          "description": "シート検索"
+        },
+        {
+          "name": "delete_sheet",
+          "description": "シート削除"
+        },
+        {
+          "name": "add_column",
+          "description": "シートにカラムを追加（最大3カラムまで）"
+        },
+        {
+          "name": "remove_column",
+          "description": "シートからカラムを削除"
+        },
+        {
+          "name": "get_column_info",
+          "description": "シートのカラム情報を取得"
+        }
+      ]
+    },
+    "stats": {
+      "nameJa": "統計・作業時間",
+      "nameEn": "Stats",
+      "order": 5,
+      "tools": [
+        {
+          "name": "sync_stats",
+          "description": "/statsの内容をSparkSheetsに同期"
+        },
+        {
+          "name": "log_work_time",
+          "description": "作業時間を記録"
+        },
+        {
+          "name": "get_usage_dashboard",
+          "description": "使用量ダッシュボードURL取得"
+        }
+      ]
+    },
+    "tasks": {
+      "nameJa": "タスク管理",
+      "nameEn": "Tasks",
+      "order": 6,
+      "tools": [
+        {
+          "name": "sync_todos",
+          "description": "TodoWriteの内容をSparkSheetsに同期"
+        },
+        {
+          "name": "get_review_queue",
+          "description": "PRレビューキュー取得（GitHub連携）"
+        }
+      ]
+    },
+    "spark": {
+      "nameJa": "Spark連携",
+      "nameEn": "Spark",
+      "order": 7,
+      "tools": [
+        {
+          "name": "run_spark",
+          "description": "Spark（AIボタン）をCLIから実行"
+        },
+        {
+          "name": "list_sparks",
+          "description": "利用可能なSpark一覧"
+        },
+        {
+          "name": "translate_sheet",
+          "description": "シートを多言語翻訳"
+        }
+      ]
+    },
+    "share": {
+      "nameJa": "共有・メンバー管理",
+      "nameEn": "Share & Members",
+      "order": 8,
+      "tools": [
+        {
+          "name": "create_share_link",
+          "description": "シートの共有リンクを発行。既存のアクティブな共有がある場合は再利用される"
+        },
+        {
+          "name": "get_share_settings",
+          "description": "シートの現在の共有設定を取得"
+        },
+        {
+          "name": "disable_share",
+          "description": "共有リンクを無効化"
+        },
+        {
+          "name": "list_members",
+          "description": "シートのメンバー一覧を取得"
+        },
+        {
+          "name": "add_member",
+          "description": "シートにメンバーを追加（招待）。オーナーのみ実行可能"
+        },
+        {
+          "name": "update_member_role",
+          "description": "メンバーの権限を変更。オーナーのみ実行可能"
+        },
+        {
+          "name": "remove_member",
+          "description": "シートからメンバーを削除。オーナーのみ実行可能"
+        }
+      ]
+    }
+  }
+}

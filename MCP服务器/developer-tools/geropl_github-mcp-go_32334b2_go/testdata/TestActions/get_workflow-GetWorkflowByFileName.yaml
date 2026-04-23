@@ -1,0 +1,84 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/geropl/github-mcp-go-test/actions/workflows/test-workflow.yml
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: true
+        body: '{"id":149593961,"node_id":"W_kwDOOEmhcs4I6p9p","name":"Test Data Generation Workflow","path":".github/workflows/test-workflow.yml","state":"active","created_at":"2025-03-13T16:38:47.000Z","updated_at":"2025-03-13T16:38:47.000Z","url":"https://api.github.com/repos/geropl/github-mcp-go-test/actions/workflows/149593961","html_url":"https://github.com/geropl/github-mcp-go-test/blob/main/.github/workflows/test-workflow.yml","badge_url":"https://github.com/geropl/github-mcp-go-test/workflows/Test%20Data%20Generation%20Workflow/badge.svg"}'
+        headers:
+            Accept-Ranges:
+                - bytes
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - public, max-age=60, s-maxage=60
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Fri, 14 Mar 2025 11:46:06 GMT
+            Etag:
+                - W/"80f70541a4bebd4f078950282205c9f3272f8941e915f82e9a4c91b87b6824fc"
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept,Accept-Encoding, Accept, X-Requested-With
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - 7202:1298:659FD70:68E6EC9:67D416FE
+            X-Ratelimit-Limit:
+                - "60"
+            X-Ratelimit-Remaining:
+                - "54"
+            X-Ratelimit-Reset:
+                - "1741954994"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "6"
+            X-Xss-Protection:
+                - "0"
+        status: 200 OK
+        code: 200
+        duration: 131.685911ms

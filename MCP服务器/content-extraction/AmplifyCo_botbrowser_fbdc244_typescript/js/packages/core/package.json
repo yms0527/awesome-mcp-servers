@@ -1,0 +1,40 @@
+{
+  "name": "botbrowser",
+  "version": "0.1.1",
+  "description": "Token-efficient web content extraction for LLM agents",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["web-scraping", "content-extraction", "llm", "ai-agents", "token-optimization", "readability", "markdown"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AmplifyCo/botbrowser"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.5.0",
+    "jsdom": "^25.0.0",
+    "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.7",
+    "@types/turndown": "^5.0.5",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

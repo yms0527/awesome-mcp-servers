@@ -1,0 +1,16 @@
+{
+	"name": "@mcp-browser-kit/scripts",
+	"packageManager": "yarn@4.2.2",
+	"type": "module",
+	"devDependencies": {
+		"@playwright/test": "^1.58.2",
+		"@types/fs-extra": "^11.0.4",
+		"fs-extra": "^11.3.3",
+		"tsx": "^4.21.0",
+		"typescript": "^5.9.3",
+		"zx": "^8.8.5"
+	},
+	"dependencies": {
+		"luxon": "^3.7.2"
+	}
+}

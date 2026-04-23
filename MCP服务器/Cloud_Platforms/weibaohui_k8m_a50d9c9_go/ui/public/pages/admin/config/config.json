@@ -1,0 +1,80 @@
+{
+  "body": [
+    {
+      "type": "form",
+      "mode": "horizontal",
+      "api": "/admin/config/update",
+      "initApi": "get:/admin/config/all",
+      "title": "配置管理",
+      "body": [
+        {
+          "type": "alert",
+          "level": "success",
+          "body": "<div class='alert alert-info'><p><strong>配置加载顺序 启动参数->环境变量->数据库参数设置（界面配置）</strong></p><p>以日志级别为例，启动参数设置2，环境变量设置3，界面配置4，那么最终生效日志级别为4</p></div>"
+        },
+        {
+          "type": "anchor-nav",
+          "links": [
+            {
+              "title": "集群配置",
+              "body": [
+                {
+                  "type": "fieldSet",
+                  "title": "集群配置",
+                  "body": [
+                    {
+                      "name": "resource_cache_timeout",
+                      "type": "input-number",
+                      "suffix": "秒",
+                      "label": "资源缓存时间",
+                      "value": 60,
+                      "desc": "界面展示实时用量、指标、Pod元数据等资源的缓存时间（单位：秒），默认60秒。时间越短，界面变化越快，但是会增加k8s系统负担。"
+                    },
+                    {
+                      "name": "image_pull_timeout",
+                      "type": "input-number",
+                      "suffix": "秒",
+                      "label": "镜像拉取超时时间"
+                    },
+                    {
+                      "name": "node_shell_image",
+                      "type": "input-text",
+                      "label": "节点Shell镜像",
+                      "value": "alpine:latest",
+                      "desc": "NodeShell 镜像。默认为 alpine:latest，必须包含nsenter命令"
+                    },
+                    {
+                      "name": "kubectl_shell_image",
+                      "type": "input-text",
+                      "label": "Kubectl Shell镜像",
+                      "value": "bitnami/kubectl:latest",
+                      "desc": "Kubectl Shell 镜像。默认为 bitnami/kubectl:latest，必须包含kubectl命令"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "显示设置",
+              "body": [
+                {
+                  "type": "fieldSet",
+                  "title": "显示设置",
+                  "body": [
+                    {
+                      "name": "product_name",
+                      "type": "input-text",
+                      "label": "产品名称",
+                      "value": "K8M",
+                      "desc": "设置产品显示名称"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

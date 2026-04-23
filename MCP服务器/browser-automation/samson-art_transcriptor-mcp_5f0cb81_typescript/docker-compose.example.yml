@@ -1,0 +1,58 @@
+version: "3.9"
+
+# Whisper fallback: when YouTube subtitles are missing, the app can transcribe via Whisper.
+# - Local: run the whisper service below and set WHISPER_MODE=local, WHISPER_BASE_URL=http://whisper:9000.
+# - API: set WHISPER_MODE=api, WHISPER_API_KEY=sk-... (and optionally WHISPER_API_BASE_URL).
+# - Off: omit or set WHISPER_MODE=off (default).
+#
+# Optional Redis cache: see docs/caching.md for CACHE_MODE=redis and CACHE_REDIS_URL.
+
+services:
+  transcriptor-mcp-api:
+    image: artsamsonov/transcriptor-mcp-api:latest
+    container_name: transcriptor-mcp-api
+    environment:
+      PORT: "3000"
+      HOST: "0.0.0.0"
+      YT_DLP_TIMEOUT: "60000"
+      SHUTDOWN_TIMEOUT: "60000"
+      YT_DLP_JS_RUNTIMES: "node"
+      COOKIES_FILE_PATH: "/cookies.txt"
+      # Optional: LOG_LEVEL, YT_DLP_SKIP_VERSION_CHECK, YT_DLP_REQUIRED, CACHE_* (see .env.example and docs/configuration.md)
+      # Optional: SENTRY_DSN, SENTRY_ENVIRONMENT, SENTRY_RELEASE (see docs/sentry.md)
+      # Whisper fallback (local container)
+      WHISPER_MODE: "local"
+      WHISPER_BASE_URL: "http://whisper:9000"
+      WHISPER_TIMEOUT: "600000"
+      # Without Whisper: comment out the three lines above or set WHISPER_MODE=off
+      # For OpenAI API instead: WHISPER_MODE=api, WHISPER_API_KEY=sk-...
+    ports:
+      - "3000:3000"
+    volumes:
+      - "./cookies.txt:/cookies.txt"
+    restart: unless-stopped
+
+  transcriptor-mcp:
+    image: artsamsonov/transcriptor-mcp:latest
+    container_name: transcriptor-mcp
+    command: ["npm", "run", "start:mcp:http"]
+    stdin_open: true
+    tty: true
+    environment:
+      MCP_PORT: "4200"
+      MCP_HOST: "0.0.0.0"
+      YT_DLP_TIMEOUT: "60000"
+      SHUTDOWN_TIMEOUT: "60000"
+      YT_DLP_JS_RUNTIMES: "node"
+      COOKIES_FILE_PATH: "/cookies.txt"
+      # Optional: MCP_AUTH_TOKEN, MCP_ALLOWED_HOSTS, MCP_ALLOWED_ORIGINS, LOG_LEVEL, CACHE_* (see .env.example and docs/configuration.md)
+      # Optional: SENTRY_DSN, SENTRY_ENVIRONMENT, SENTRY_RELEASE (see docs/sentry.md)
+      # Whisper fallback (local container)
+      WHISPER_MODE: "local"
+      WHISPER_BASE_URL: "http://whisper:9000"
+      WHISPER_TIMEOUT: "600000"
+    ports:
+      - "4200:4200"
+    volumes:
+      - "./cookies.txt:/cookies.txt"
+    restart: unless-stopped

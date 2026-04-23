@@ -1,0 +1,21 @@
+{
+  "name": "@wyattjoh/calendar-mcp",
+  "version": "1.0.1",
+  "exports": "./mod.ts",
+  "imports": {
+    "@modelcontextprotocol/sdk": "npm:@modelcontextprotocol/sdk@^1.17.0",
+    "zod": "npm:zod@^3.23.8"
+  },
+  "tasks": {
+    "dev": "deno run --allow-read --allow-env --allow-ffi --allow-sys mod.ts",
+    "start": "deno run --allow-read --allow-env --allow-ffi --allow-sys mod.ts",
+    "build": "deno compile --allow-read --allow-write --allow-env --allow-ffi --allow-sys --output=calendar-mcp mod.ts"
+  },
+  "publish": {
+    "include": ["LICENSE", "README.md", "mod.ts", "deno.json"]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wyattjoh/calendar-mcp.git"
+  }
+}

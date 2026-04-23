@@ -1,0 +1,4 @@
+{
+  "output": "",
+  "err": "Validation Error: No commit found for SHA: non-existent-sha"
+}

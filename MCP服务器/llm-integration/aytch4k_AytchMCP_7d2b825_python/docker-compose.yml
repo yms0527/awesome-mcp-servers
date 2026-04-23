@@ -1,0 +1,40 @@
+version: '3.8'
+name: AytchMCP
+services:
+  # Builder service - builds the MCP server
+  mcp-builder:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.build
+    volumes:
+      - ./:/app
+      - mcp_build_output:/app/build
+    container_name: aytchmcp-builder
+    environment:
+      - PYTHONPATH=/app
+      - CONFIG_PATH=/app/config
+
+  # Runner service - runs the MCP server
+  mcp-server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.run
+    ports:
+      - "8808:8000"  # FastMCP server port
+    volumes:
+      - ./config:/app/config
+      - mcp_build_output:/app/build
+    depends_on:
+      - mcp-builder
+    container_name: aytchmcp-server
+    restart: unless-stopped
+    environment:
+      - PYTHONPATH=/app
+      - CONFIG_PATH=/app/config
+      - MCP_PORT=8000
+      - MCP_HOST=0.0.0.0
+      - LOG_LEVEL=INFO
+
+volumes:
+  mcp_build_output:
+    name: aytchmcp-build-output

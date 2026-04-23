@@ -1,0 +1,4 @@
+{
+  "output": "# Issues\n\nFound 1 issues.\n\n## 1. Test Issue with Labels\n\n**Number:** #14  \n**State:** open  \n**Created:** Fri, 07 Mar 2025 12:23:33 UTC  \n**URL:** https://github.com/geropl/github-mcp-go-test/issues/14  \n\nThis is a test issue with labels created by the test suite.\n\n**Labels:** bug, enhancement  \n**Comments:** 0  \n\n",
+  "err": ""
+}

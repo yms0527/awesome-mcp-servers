@@ -1,0 +1,67 @@
+{
+    "name": "tomba-mcp-server",
+    "version": "1.6.0",
+    "description": "MCP Server for Tomba.io API integration",
+    "main": "server/index.js",
+    "type": "module",
+    "scripts": {
+        "build": "tsc",
+        "start": "node server/index.js",
+        "dev": "tsx src/index.ts",
+        "debug": "npm run build && npx @modelcontextprotocol/inspector node server/index.js --transport http",
+        "debug:dev": "tsx --env-file=.env src/index.ts | npx @modelcontextprotocol/inspector",
+        "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
+        "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --watch",
+        "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --coverage",
+        "test:integration": "npm run build && node test/integration.js",
+        "lint": "eslint src/**/*.ts",
+        "lint:fix": "eslint src/**/*.ts --fix",
+        "version": "standard-version git push --follow-tags origin main",
+        "pack": "mcpb pack . tomba-mcp-server-$(npm pkg get version | tr -d '\"').mcpb"
+    },
+    "bin": {
+        "tomba-mcp-server": "server/index.js"
+    },
+    "keywords": [
+        "mcp",
+        "tomba",
+        "email",
+        "verification",
+        "api"
+    ],
+    "homepage": "https://tomba.io",
+    "author": "Mohamed Ben rebia <b.mohamed@tomba.io>",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/tomba-io/tomba-mcp-server"
+    },
+    "bugs": {
+        "url": "https://github.com/tomba-io/tomba-mcp-server/issues"
+    },
+    "license": "MIT",
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.18.2",
+        "cors": "^2.8.5",
+        "express": "^5.1.0",
+        "tomba": "1.0.9",
+        "zod": "^4.1.12"
+    },
+    "devDependencies": {
+        "@anthropic-ai/mcpb": "^2.1.2",
+        "@types/cors": "^2.8.19",
+        "@types/express": "^5.0.3",
+        "@types/jest": "^29.5.5",
+        "@types/node": "^20.6.0",
+        "@typescript-eslint/eslint-plugin": "^6.7.0",
+        "@typescript-eslint/parser": "^6.7.0",
+        "eslint": "^8.49.0",
+        "jest": "^29.7.0",
+        "standard-version": "^9.5.0",
+        "ts-jest": "^29.1.1",
+        "tsx": "^4.6.0",
+        "typescript": "^5.2.2"
+    },
+    "engines": {
+        "node": ">=16.0.0"
+    }
+}

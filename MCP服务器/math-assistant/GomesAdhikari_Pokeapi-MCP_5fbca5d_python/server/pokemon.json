@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pokemon_api": {
+      "command": "python",
+      "args": [
+        "C:/Users/gomes/OneDrive/Desktop/pokeapi-serri.ai/server/server.py"
+      ],
+      "env": {}
+    }
+  }
+}

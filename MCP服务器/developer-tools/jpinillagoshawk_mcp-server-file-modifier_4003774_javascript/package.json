@@ -1,0 +1,17 @@
+{
+  "name": "mcp-server-file-modifier",
+  "version": "1.0.0",
+  "description": "MCP server for file modifications",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": ["mcp", "file-modifier", "claude"],
+  "author": "jpinillagoshawk",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/model-context-protocol": "^0.6.3",
+    "commander": "^11.1.0"
+  }
+}

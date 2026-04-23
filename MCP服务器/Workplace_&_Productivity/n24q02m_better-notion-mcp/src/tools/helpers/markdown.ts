@@ -1,0 +1,1113 @@
+/**
+ * Markdown to Notion Blocks Converter
+ * Converts markdown text to Notion block format
+ * Supports: headings, paragraphs, lists, code, quotes, dividers,
+ *           tables, toggles, callouts, images, bookmarks, embeds,
+ *           equations, columns, table of contents, breadcrumb
+ */
+
+import { isSafeUrl } from './security.js'
+
+export interface NotionBlock {
+  object: 'block'
+  type: string
+  [key: string]: any
+}
+
+export interface RichText {
+  type: 'text' | 'mention'
+  text: {
+    content: string
+    link?: { url: string } | null
+  }
+  mention?: {
+    page?: { id: string }
+    database?: { id: string }
+    [key: string]: any
+  }
+  annotations: {
+    bold: boolean
+    italic: boolean
+    strikethrough: boolean
+    underline: boolean
+    code: boolean
+    color: string
+  }
+  plain_text?: string
+  href?: string | null
+}
+
+/** Create a mention rich text element (no text property - Notion API rejects it on mentions) */
+function createMention(
+  mentionData: RichText['mention'],
+  title: string,
+  formatting: { bold: boolean; italic: boolean; code: boolean; strikethrough: boolean }
+): RichText {
+  return {
+    type: 'mention',
+    mention: mentionData,
+    plain_text: title,
+    annotations: {
+      bold: formatting.bold,
+      italic: formatting.italic,
+      strikethrough: formatting.strikethrough,
+      underline: false,
+      code: formatting.code,
+      color: 'default'
+    }
+  } as RichText
+}
+
+// Regular expressions for block parsing
+const CALLOUT_REGEX = /^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|INFO|SUCCESS|ERROR)\]\s*(.*)/i
+const IMAGE_REGEX = /^!\[([^\]]*)\]\(([^)]+)\)$/
+const BOOKMARK_REGEX = /^\[(bookmark|embed)\]\(([^)]+)\)$/i
+const CHECKED_LIST_REGEX = /^[-*]\s\[([ xX])\]\s/
+const BULLETED_LIST_REGEX = /^[-*]\s/
+const NUMBERED_LIST_REGEX = /^\d+\.\s/
+const DIVIDER_REGEX = /^[-*]{3,}$/
+
+/**
+ * Convert markdown string to Notion blocks
+ */
+class MarkdownParser {
+  private lines: string[]
+  private blocks: NotionBlock[] = []
+  private currentList: NotionBlock[] = []
+  private currentListType: 'bulleted' | 'numbered' | null = null
+
+  constructor(markdown: string) {
+    this.lines = markdown.split('\n')
+  }
+
+  public parse(): NotionBlock[] {
+    for (let i = 0; i < this.lines.length; i++) {
+      i = this.parseBlock(i)
+    }
+
+    // Flush remaining list
+    if (this.currentList.length > 0) {
+      this.blocks.push(...this.currentList)
+    }
+
+    return this.blocks
+  }
+
+  private parseBlock(i: number): number {
+    const line = this.lines[i]
+
+    // Flush list if we're not in a list anymore
+    if (this.currentListType && !isListItem(line)) {
+      this.blocks.push(...this.currentList)
+      this.currentList = []
+      this.currentListType = null
+    }
+
+    // Cache trimmed line for performance to avoid repeated string allocations
+    const trimmedLine = line.trim()
+
+    // Skip empty lines
+    if (!trimmedLine) {
+      return i
+    }
+
+    // Table of Contents [toc]
+    if (trimmedLine === '[toc]' || trimmedLine === '[TOC]') {
+      this.blocks.push(createTableOfContents())
+      return i
+    }
+
+    // Breadcrumb [breadcrumb]
+    if (trimmedLine === '[breadcrumb]' || trimmedLine === '[BREADCRUMB]') {
+      this.blocks.push(createBreadcrumb())
+      return i
+    }
+
+    // Equation block $...$
+    if (trimmedLine.startsWith('$$')) {
+      const eqData = parseEquationBlock(this.lines, i, trimmedLine)
+      this.blocks.push(eqData.block)
+      return eqData.endIndex
+    }
+
+    // Callout > [!TYPE] content or > [!TYPE]\n> content
+    const calloutMatch = line.match(CALLOUT_REGEX)
+    if (calloutMatch) {
+      const calloutData = parseCalloutBlock(this.lines, i, calloutMatch)
+      this.blocks.push(calloutData.block)
+      return calloutData.endIndex
+    }
+
+    // Image ![alt](url)
+    const imageMatch = line.match(IMAGE_REGEX)
+    if (imageMatch) {
+      const url = imageMatch[2]
+      if (isSafeUrl(url)) {
+        this.blocks.push(createImage(url, imageMatch[1]))
+      } else {
+        this.blocks.push(createParagraph(line))
+      }
+      return i
+    }
+
+    // Bookmark/Embed [bookmark](url) or [embed](url)
+    const bookmarkMatch = line.match(BOOKMARK_REGEX)
+    if (bookmarkMatch) {
+      const type = bookmarkMatch[1].toLowerCase()
+      const url = bookmarkMatch[2]
+      if (isSafeUrl(url)) {
+        if (type === 'embed') {
+          this.blocks.push(createEmbed(url))
+        } else {
+          this.blocks.push(createBookmark(url))
+        }
+      } else {
+        this.blocks.push(createParagraph(line))
+      }
+      return i
+    }
+
+    // Toggle <details><summary>Title</summary>
+    if (trimmedLine === '<details>' || trimmedLine.startsWith('<details>')) {
+      const toggleData = parseToggle(this.lines, i)
+      this.blocks.push(createToggle(toggleData.title, toggleData.children))
+      return toggleData.endIndex
+    }
+
+    // Column layout :::columns
+    if (trimmedLine === ':::columns') {
+      const columnData = parseColumns(this.lines, i)
+      this.blocks.push(createColumnList(columnData.columns, columnData.widthRatios))
+      return columnData.endIndex
+    }
+
+    // Table (pipe-delimited)
+    if (line.includes('|') && trimmedLine.startsWith('|')) {
+      const tableData = parseTable(this.lines, i)
+      if (tableData) {
+        this.blocks.push(createTable(tableData.headers, tableData.rows, tableData.hasHeader))
+        return tableData.endIndex
+      }
+    }
+
+    // Heading
+    if (line.startsWith('# ')) {
+      this.blocks.push(createHeading(1, line.slice(2)))
+    } else if (line.startsWith('## ')) {
+      this.blocks.push(createHeading(2, line.slice(3)))
+    } else if (line.startsWith('### ')) {
+      this.blocks.push(createHeading(3, line.slice(4)))
+    }
+
+    // Code block
+    else if (line.startsWith('```')) {
+      const codeData = parseCodeBlock(this.lines, i, line)
+      this.blocks.push(codeData.block)
+      return codeData.endIndex
+    }
+
+    // Task list / Checkbox list - [ ] or - [x]
+    else if (CHECKED_LIST_REGEX.test(line)) {
+      const checked = line[3] !== ' '
+      const text = line.replace(CHECKED_LIST_REGEX, '')
+      this.currentListType = 'bulleted'
+      this.currentList.push(createTodoItem(text, checked))
+    }
+    // Bulleted list
+    else if (BULLETED_LIST_REGEX.test(line)) {
+      const text = line.replace(BULLETED_LIST_REGEX, '')
+      this.currentListType = 'bulleted'
+      this.currentList.push(createBulletedListItem(text))
+    }
+    // Numbered list
+    else if (NUMBERED_LIST_REGEX.test(line)) {
+      const text = line.replace(NUMBERED_LIST_REGEX, '')
+      this.currentListType = 'numbered'
+      this.currentList.push(createNumberedListItem(text))
+    }
+    // Quote
+    else if (line.startsWith('> ')) {
+      this.blocks.push(createQuote(line.slice(2)))
+    }
+    // Divider
+    else if (DIVIDER_REGEX.test(line)) {
+      this.blocks.push(createDivider())
+    }
+    // Regular paragraph
+    else {
+      this.blocks.push(createParagraph(line))
+    }
+
+    return i
+  }
+}
+
+export function markdownToBlocks(markdown: string): NotionBlock[] {
+  const parser = new MarkdownParser(markdown)
+  return parser.parse()
+}
+
+/**
+ * Convert Notion blocks to markdown
+ */
+function indentChildren(children: NotionBlock[]): string {
+  // Optimized: use highly optimized C++ RegExp engine instead of creating thousands of intermediate JS array/string objects
+  return blocksToMarkdown(children).replace(/^/gm, '  ')
+}
+
+export function blocksToMarkdown(blocks: NotionBlock[]): string {
+  const lines: string[] = []
+
+  for (const block of blocks) {
+    switch (block.type) {
+      case 'heading_1':
+        lines.push(`# ${richTextToMarkdown(block.heading_1.rich_text)}`)
+        if (block.heading_1.children?.length > 0) {
+          lines.push(blocksToMarkdown(block.heading_1.children))
+        }
+        break
+      case 'heading_2':
+        lines.push(`## ${richTextToMarkdown(block.heading_2.rich_text)}`)
+        if (block.heading_2.children?.length > 0) {
+          lines.push(blocksToMarkdown(block.heading_2.children))
+        }
+        break
+      case 'heading_3':
+        lines.push(`### ${richTextToMarkdown(block.heading_3.rich_text)}`)
+        if (block.heading_3.children?.length > 0) {
+          lines.push(blocksToMarkdown(block.heading_3.children))
+        }
+        break
+      case 'paragraph':
+        lines.push(richTextToMarkdown(block.paragraph.rich_text))
+        break
+      case 'bulleted_list_item':
+        lines.push(`- ${richTextToMarkdown(block.bulleted_list_item.rich_text)}`)
+        if (block.bulleted_list_item.children?.length > 0) {
+          lines.push(indentChildren(block.bulleted_list_item.children))
+        }
+        break
+      case 'numbered_list_item':
+        lines.push(`1. ${richTextToMarkdown(block.numbered_list_item.rich_text)}`)
+        if (block.numbered_list_item.children?.length > 0) {
+          lines.push(indentChildren(block.numbered_list_item.children))
+        }
+        break
+      case 'to_do':
+        lines.push(`- [${block.to_do.checked ? 'x' : ' '}] ${richTextToMarkdown(block.to_do.rich_text)}`)
+        if (block.to_do.children?.length > 0) {
+          lines.push(indentChildren(block.to_do.children))
+        }
+        break
+      case 'code':
+        lines.push(`\`\`\`${block.code.language || ''}`)
+        lines.push(richTextToMarkdown(block.code.rich_text))
+        lines.push('```')
+        break
+      case 'quote':
+        lines.push(`> ${richTextToMarkdown(block.quote.rich_text)}`)
+        if (block.quote.children?.length > 0) {
+          const childMd = blocksToMarkdown(block.quote.children)
+          lines.push(childMd.replace(/^/gm, '> '))
+        }
+        break
+      case 'divider':
+        lines.push('---')
+        break
+      case 'callout': {
+        const calloutText = richTextToMarkdown(block.callout.rich_text)
+        const calloutIcon = block.callout.icon?.emoji || ''
+        const calloutType = getCalloutTypeFromIcon(calloutIcon)
+        lines.push(`> [!${calloutType}] ${calloutText}`)
+        if (block.callout.children?.length > 0) {
+          const childMd = blocksToMarkdown(block.callout.children)
+          lines.push(childMd.replace(/^/gm, '> '))
+        }
+        break
+      }
+      case 'toggle': {
+        const toggleText = richTextToMarkdown(block.toggle.rich_text)
+        lines.push('<details>')
+        lines.push(`<summary>${toggleText}</summary>`)
+        if (block.toggle.children && block.toggle.children.length > 0) {
+          lines.push('')
+          lines.push(blocksToMarkdown(block.toggle.children))
+        }
+        lines.push('</details>')
+        break
+      }
+      case 'image': {
+        const imageUrl = block.image?.file?.url || block.image?.external?.url || ''
+        const caption = block.image?.caption ? richTextToMarkdown(block.image.caption) : ''
+        lines.push(`![${caption}](${imageUrl})`)
+        break
+      }
+      case 'bookmark':
+        lines.push(`[bookmark](${block.bookmark.url})`)
+        break
+      case 'embed':
+        lines.push(`[embed](${block.embed.url})`)
+        break
+      case 'equation':
+        lines.push(`$$${block.equation.expression}$$`)
+        break
+      case 'table': {
+        const tableRows = block.table?.children || []
+        if (tableRows.length > 0) {
+          for (let rowIdx = 0; rowIdx < tableRows.length; rowIdx++) {
+            const row = tableRows[rowIdx]
+            const cells = (row.table_row?.cells || []).map((cell: RichText[]) => richTextToMarkdown(cell))
+            lines.push(`| ${cells.join(' | ')} |`)
+            // Add header separator after first row if table has column header
+            if (rowIdx === 0 && block.table?.has_column_header) {
+              lines.push(`| ${cells.map(() => '---').join(' | ')} |`)
+            }
+          }
+        }
+        break
+      }
+      case 'column_list': {
+        lines.push(':::columns')
+        const columns = block.column_list?.children || []
+        for (let colIdx = 0; colIdx < columns.length; colIdx++) {
+          const col = columns[colIdx]
+          const ratio = col.column?.format?.column_ratio
+          lines.push(ratio !== undefined ? `:::column{width=${ratio}}` : ':::column')
+          const columnChildren = col.column?.children || []
+          if (columnChildren.length > 0) {
+            lines.push(blocksToMarkdown(columnChildren))
+          }
+          if (colIdx < columns.length - 1) {
+            lines.push('')
+          }
+        }
+        lines.push(':::end')
+        break
+      }
+      case 'table_of_contents':
+        lines.push('[toc]')
+        break
+      case 'breadcrumb':
+        lines.push('[breadcrumb]')
+        break
+      default:
+        // Unsupported block type, skip
+        break
+    }
+  }
+
+  return lines.join('\n')
+}
+
+/**
+ * Parse inline markdown formatting to rich text
+ * Supports: bold, italic, code, strikethrough, links, mentions, colors
+ */
+export function parseRichText(text: string): RichText[] {
+  const richText: RichText[] = []
+  let current = ''
+  let bold = false
+  let italic = false
+  let code = false
+  let strikethrough = false
+  let noMoreCloseBrackets = false
+
+  const flushCurrent = () => {
+    if (current) {
+      richText.push(createRichText(current, { bold, italic, code, strikethrough }))
+      current = ''
+    }
+  }
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]
+    const next = text[i + 1]
+
+    // Page mention @[Title](page-id-or-url) — must come before link handling
+    if (char === '@' && next === '[') {
+      const closeBracket = text.indexOf(']', i + 2)
+      if (closeBracket !== -1 && closeBracket + 1 < text.length && text[closeBracket + 1] === '(') {
+        const closeParen = text.indexOf(')', closeBracket + 2)
+        if (closeParen !== -1) {
+          flushCurrent()
+
+          const mentionTitle = text.slice(i + 2, closeBracket)
+          const mentionTarget = text.slice(closeBracket + 2, closeParen)
+
+          // Extract 32-char hex page ID from Notion URL or use as-is
+          const idMatch = mentionTarget.match(/([a-f0-9]{32})/)
+          const pageId = idMatch ? idMatch[1] : mentionTarget
+
+          richText.push(createMention({ page: { id: pageId } }, mentionTitle, { bold, italic, code, strikethrough }))
+
+          i = closeParen
+          continue
+        }
+      }
+    }
+
+    // Link [text](url) — optimized to avoid O(N²) on pathological inputs
+    if (char === '[' && !noMoreCloseBrackets) {
+      const closeBracket = text.indexOf(']', i + 1)
+      if (closeBracket === -1) {
+        // No more ] in the rest of the string, skip future indexOf calls
+        noMoreCloseBrackets = true
+      } else if (closeBracket + 1 < text.length && text[closeBracket + 1] === '(') {
+        const closeParen = text.indexOf(')', closeBracket + 2)
+
+        if (closeParen !== -1) {
+          flushCurrent()
+
+          const linkText = text.slice(i + 1, closeBracket)
+          const linkUrl = text.slice(closeBracket + 2, closeParen)
+          const isSafe = isSafeUrl(linkUrl)
+
+          richText.push({
+            type: 'text',
+            text: { content: linkText, link: isSafe ? { url: linkUrl } : null },
+            annotations: {
+              bold,
+              italic,
+              strikethrough,
+              underline: false,
+              code,
+              color: 'default'
+            }
+          })
+
+          i = closeParen
+          continue
+        }
+      }
+    }
+
+    // Bold **text**
+    if (char === '*' && next === '*') {
+      flushCurrent()
+      bold = !bold
+      i++ // Skip next *
+      continue
+    }
+    // Italic *text*
+    else if (char === '*' && next !== '*') {
+      flushCurrent()
+      italic = !italic
+      continue
+    }
+    // Code `text`
+    else if (char === '`') {
+      flushCurrent()
+      code = !code
+      continue
+    }
+    // Strikethrough ~~text~~
+    else if (char === '~' && next === '~') {
+      flushCurrent()
+      strikethrough = !strikethrough
+      i++ // Skip next ~
+      continue
+    }
+
+    current += char
+  }
+
+  flushCurrent()
+
+  return richText.length > 0 ? richText : [createRichText(text)]
+}
+
+/**
+ * Convert rich text array to plain markdown
+ */
+function richTextToMarkdown(richText: RichText[]): string {
+  if (!richText || !Array.isArray(richText)) return ''
+
+  let result = ''
+  for (let i = 0; i < richText.length; i++) {
+    const rt = richText[i]
+    if (!rt) continue
+
+    // Handle mention elements
+    if (rt.type === 'mention' && rt.mention) {
+      const title = rt.plain_text || rt.text?.content || 'Untitled'
+      const id = rt.mention.page?.id || rt.mention.database?.id || ''
+      if (id) {
+        result += `@[${title}](${id})`
+        continue
+      }
+      // Fallback for other mention types (user, date, etc.)
+      result += title
+      continue
+    }
+
+    if (!rt.text) continue
+
+    let text = rt.text.content || ''
+    const annotations = rt.annotations || ({} as any)
+
+    if (annotations.bold) text = `**${text}**`
+    if (annotations.italic) text = `*${text}*`
+    if (annotations.code) text = `\`${text}\``
+    if (annotations.strikethrough) text = `~~${text}~~`
+    if (rt.text.link) text = `[${text}](${rt.text.link.url})`
+    result += text
+  }
+
+  return result
+}
+
+/**
+ * Extract plain text from rich text
+ * Optimized string accumulation avoids creating intermediate arrays
+ * and reduces garbage collection pressure in hot paths.
+ */
+export function extractPlainText(richText: RichText[]): string {
+  if (!richText || !Array.isArray(richText)) return ''
+  let result = ''
+  for (let i = 0; i < richText.length; i++) {
+    result += richText[i].plain_text || richText[i].text?.content || ''
+  }
+  return result
+}
+
+// ============================================================
+// Block Parsing Helpers
+// ============================================================
+
+interface ParseResult {
+  block: NotionBlock
+  endIndex: number
+}
+
+function parseCalloutBlock(lines: string[], startIndex: number, match: RegExpMatchArray): ParseResult {
+  const calloutType = match[1].toUpperCase()
+  let calloutContent = match[2] || ''
+  let i = startIndex
+
+  // Collect continuation lines (lines starting with >)
+  while (i + 1 < lines.length && lines[i + 1].startsWith('> ')) {
+    i++
+    calloutContent += (calloutContent ? '\n' : '') + lines[i].slice(2)
+  }
+
+  const icon = getCalloutIcon(calloutType)
+  const color = getCalloutColor(calloutType)
+  return { block: createCallout(calloutContent || calloutType, icon, color), endIndex: i }
+}
+
+function parseCodeBlock(lines: string[], startIndex: number, line: string): ParseResult {
+  const language = line.slice(3).trim()
+  const codeLines: string[] = []
+  let i = startIndex + 1
+  while (i < lines.length && !lines[i].startsWith('```')) {
+    codeLines.push(lines[i])
+    i++
+  }
+  return { block: createCodeBlock(codeLines.join('\n'), language), endIndex: i }
+}
+
+function parseEquationBlock(lines: string[], startIndex: number, trimmedLine: string): ParseResult {
+  if (trimmedLine.endsWith('$$') && trimmedLine.length > 4) {
+    // Single line equation: $$expression$$
+    const expression = trimmedLine.slice(2, -2).trim()
+    return { block: createEquation(expression), endIndex: startIndex }
+  }
+  // Multi-line equation
+  const eqLines: string[] = []
+  let i = startIndex + 1
+  while (i < lines.length && !lines[i].trim().startsWith('$$')) {
+    eqLines.push(lines[i])
+    i++
+  }
+  return { block: createEquation(eqLines.join('\n')), endIndex: i }
+}
+// ============================================================
+// Table parsing
+// ============================================================
+
+interface TableParseResult {
+  headers: string[]
+  rows: string[][]
+  hasHeader: boolean
+  endIndex: number
+}
+
+function parseTable(lines: string[], startIndex: number): TableParseResult | null {
+  const tableLines: string[] = []
+  let i = startIndex
+
+  // Collect all consecutive pipe-delimited lines
+  while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].includes('|')) {
+    tableLines.push(lines[i])
+    i++
+  }
+
+  if (tableLines.length < 1) return null
+
+  const parsedRows = tableLines.map((line) => {
+    const cells = line
+      .split('|')
+      .map((cell) => cell.trim())
+      .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1) // Remove empty first/last
+    return cells
+  })
+
+  // Check for separator row (contains ---)
+  let hasHeader = false
+  let headerRow: string[] = []
+  const dataRows: string[][] = []
+
+  if (parsedRows.length >= 2) {
+    const possibleSeparator = parsedRows[1]
+    const isSeparator = possibleSeparator.every((cell) => /^[-:]+$/.test(cell.trim()))
+
+    if (isSeparator) {
+      hasHeader = true
+      headerRow = parsedRows[0]
+      dataRows.push(...parsedRows.slice(2))
+    } else {
+      headerRow = parsedRows[0]
+      dataRows.push(...parsedRows.slice(1))
+    }
+  } else {
+    headerRow = parsedRows[0]
+  }
+
+  return {
+    headers: headerRow,
+    rows: dataRows,
+    hasHeader,
+    endIndex: i - 1
+  }
+}
+
+// ============================================================
+// Toggle parsing (<details>/<summary>)
+// ============================================================
+
+interface ToggleParseResult {
+  title: string
+  children: NotionBlock[]
+  endIndex: number
+}
+
+function parseToggle(lines: string[], startIndex: number): ToggleParseResult {
+  let i = startIndex
+  let title = ''
+  const childLines: string[] = []
+
+  const detailsLine = lines[i].trim()
+
+  // Try to extract <summary>...</summary> from the <details> line itself
+  const inlineSummaryMatch = detailsLine.match(/^<details>\s*<summary>(.*?)<\/summary>(.*?)(<\/details>)?$/)
+
+  if (inlineSummaryMatch) {
+    // All-on-one-line or inline summary: <details><summary>Title</summary>[Content][</details>]
+    title = inlineSummaryMatch[1]
+    const afterSummary = inlineSummaryMatch[2].trim()
+    const closedOnSameLine = !!inlineSummaryMatch[3]
+
+    if (closedOnSameLine) {
+      // Entire toggle on one line: <details><summary>Title</summary>Content</details>
+      if (afterSummary) {
+        childLines.push(afterSummary)
+      }
+      const childContent = childLines.join('\n').trim()
+      const children = childContent ? markdownToBlocks(childContent) : []
+      return { title, children, endIndex: i }
+    }
+
+    // Inline summary but content continues on subsequent lines
+    if (afterSummary) {
+      childLines.push(afterSummary)
+    }
+    i++
+  } else {
+    // Standard multi-line: <details> on its own line
+    i++
+
+    // Look for <summary>...</summary> on the next line
+    if (i < lines.length) {
+      const summaryMatch = lines[i].match(/<summary>(.*?)<\/summary>/)
+      if (summaryMatch) {
+        title = summaryMatch[1]
+        i++
+      }
+    }
+  }
+
+  // Collect content until matching </details>, tracking nesting depth
+  let depth = 1
+  while (i < lines.length && depth > 0) {
+    const trimmed = lines[i].trim()
+
+    // Check for <details> opens BEFORE </details> closes so that
+    // a single-line nested toggle (opens+closes on same line) doesn't
+    // prematurely terminate the outer loop.
+    if (trimmed.startsWith('<details>') || trimmed === '<details>') {
+      depth++
+    }
+    if (trimmed === '</details>' || trimmed.endsWith('</details>')) {
+      depth--
+      if (depth === 0) break
+    }
+
+    childLines.push(lines[i])
+    i++
+  }
+
+  // Convert child content to blocks
+  const childContent = childLines.join('\n').trim()
+  const children = childContent ? markdownToBlocks(childContent) : []
+
+  return { title, children, endIndex: i }
+}
+
+// ============================================================
+// Column parsing (:::columns / :::column / :::end)
+// ============================================================
+
+interface ColumnParseResult {
+  columns: NotionBlock[][]
+  widthRatios: (number | undefined)[]
+  endIndex: number
+}
+
+function parseColumns(lines: string[], startIndex: number): ColumnParseResult {
+  let i = startIndex + 1 // Skip :::columns
+  const columns: NotionBlock[][] = []
+  const widthRatios: (number | undefined)[] = []
+  let currentColumnLines: string[] = []
+  let inColumn = false
+
+  while (i < lines.length) {
+    const line = lines[i].trim()
+
+    if (line === ':::end') {
+      // Flush last column
+      if (inColumn) {
+        columns.push(markdownToBlocks(currentColumnLines.join('\n').trim()))
+        currentColumnLines = []
+      }
+      break
+    }
+
+    const columnMatch = line.match(/^:::column(?:\{width=([\d.]+)\})?$/)
+    if (columnMatch) {
+      // Flush previous column (even if empty)
+      if (inColumn) {
+        columns.push(markdownToBlocks(currentColumnLines.join('\n').trim()))
+        currentColumnLines = []
+      }
+      inColumn = true
+      widthRatios.push(columnMatch[1] ? Number.parseFloat(columnMatch[1]) : undefined)
+      i++
+      continue
+    }
+
+    currentColumnLines.push(lines[i])
+    i++
+  }
+
+  // If no :::end found, flush remaining
+  if (currentColumnLines.length > 0 && (columns.length > 0 || currentColumnLines.some((l) => l.trim()))) {
+    columns.push(markdownToBlocks(currentColumnLines.join('\n').trim()))
+  }
+
+  return { columns, widthRatios, endIndex: i }
+}
+
+// ============================================================
+// Callout helpers
+// ============================================================
+
+function getCalloutIcon(type: string): string {
+  const icons: Record<string, string> = {
+    NOTE: '\u2139\ufe0f',
+    TIP: '\u{1f4a1}',
+    IMPORTANT: '\u2757',
+    WARNING: '\u26a0\ufe0f',
+    CAUTION: '\u{1f6d1}',
+    INFO: '\u2139\ufe0f',
+    SUCCESS: '\u2705',
+    ERROR: '\u274c'
+  }
+  return icons[type] || '\u2139\ufe0f'
+}
+
+function getCalloutColor(type: string): string {
+  const colors: Record<string, string> = {
+    NOTE: 'blue_background',
+    TIP: 'green_background',
+    IMPORTANT: 'purple_background',
+    WARNING: 'yellow_background',
+    CAUTION: 'red_background',
+    INFO: 'blue_background',
+    SUCCESS: 'green_background',
+    ERROR: 'red_background'
+  }
+  return colors[type] || 'gray_background'
+}
+
+function getCalloutTypeFromIcon(icon: string): string {
+  const iconMap: Record<string, string> = {
+    '\u2139\ufe0f': 'NOTE',
+    '\u{1f4a1}': 'TIP',
+    '\u2757': 'IMPORTANT',
+    '\u26a0\ufe0f': 'WARNING',
+    '\u{1f6d1}': 'CAUTION',
+    '\u2705': 'SUCCESS',
+    '\u274c': 'ERROR'
+  }
+  return iconMap[icon] || 'NOTE'
+}
+
+// ============================================================
+// Block creators
+// ============================================================
+
+function createRichText(
+  content: string,
+  annotations: { bold?: boolean; italic?: boolean; code?: boolean; strikethrough?: boolean; color?: string } = {}
+): RichText {
+  return {
+    type: 'text',
+    text: { content, link: null },
+    annotations: {
+      bold: annotations.bold || false,
+      italic: annotations.italic || false,
+      strikethrough: annotations.strikethrough || false,
+      underline: false,
+      code: annotations.code || false,
+      color: annotations.color || 'default'
+    }
+  }
+}
+
+function createHeading(level: 1 | 2 | 3, text: string): NotionBlock {
+  const type = `heading_${level}` as 'heading_1' | 'heading_2' | 'heading_3'
+  return {
+    object: 'block',
+    type,
+    [type]: {
+      rich_text: parseRichText(text),
+      color: 'default'
+    }
+  }
+}
+
+function createParagraph(text: string): NotionBlock {
+  return {
+    object: 'block',
+    type: 'paragraph',
+    paragraph: {
+      rich_text: parseRichText(text),
+      color: 'default'
+    }
+  }
+}
+
+function createBulletedListItem(text: string): NotionBlock {
+  return {
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: parseRichText(text),
+      color: 'default'
+    }
+  }
+}
+
+function createNumberedListItem(text: string): NotionBlock {
+  return {
+    object: 'block',
+    type: 'numbered_list_item',
+    numbered_list_item: {
+      rich_text: parseRichText(text),
+      color: 'default'
+    }
+  }
+}
+
+function createTodoItem(text: string, checked: boolean): NotionBlock {
+  return {
+    object: 'block',
+    type: 'to_do',
+    to_do: {
+      rich_text: parseRichText(text),
+      checked,
+      color: 'default'
+    }
+  }
+}
+
+function createCodeBlock(code: string, language: string): NotionBlock {
+  return {
+    object: 'block',
+    type: 'code',
+    code: {
+      rich_text: [createRichText(code)],
+      language: language || 'plain text'
+    }
+  }
+}
+
+function createQuote(text: string): NotionBlock {
+  return {
+    object: 'block',
+    type: 'quote',
+    quote: {
+      rich_text: parseRichText(text),
+      color: 'default'
+    }
+  }
+}
+
+function createDivider(): NotionBlock {
+  return {
+    object: 'block',
+    type: 'divider',
+    divider: {}
+  }
+}
+
+function createCallout(text: string, icon: string, color: string): NotionBlock {
+  return {
+    object: 'block',
+    type: 'callout',
+    callout: {
+      rich_text: parseRichText(text),
+      icon: { type: 'emoji', emoji: icon },
+      color
+    }
+  }
+}
+
+function createToggle(text: string, children: NotionBlock[] = []): NotionBlock {
+  return {
+    object: 'block',
+    type: 'toggle',
+    toggle: {
+      rich_text: parseRichText(text),
+      color: 'default',
+      children
+    }
+  }
+}
+
+function createImage(url: string, caption: string = ''): NotionBlock {
+  return {
+    object: 'block',
+    type: 'image',
+    image: {
+      type: 'external',
+      external: { url },
+      caption: caption ? [createRichText(caption)] : []
+    }
+  }
+}
+
+function createBookmark(url: string): NotionBlock {
+  return {
+    object: 'block',
+    type: 'bookmark',
+    bookmark: { url, caption: [] }
+  }
+}
+
+function createEmbed(url: string): NotionBlock {
+  return {
+    object: 'block',
+    type: 'embed',
+    embed: { url }
+  }
+}
+
+function createEquation(expression: string): NotionBlock {
+  return {
+    object: 'block',
+    type: 'equation',
+    equation: { expression }
+  }
+}
+
+function createTable(headers: string[], rows: string[][], hasHeader: boolean): NotionBlock {
+  const tableWidth = headers.length
+  const allRows: NotionBlock[] = []
+
+  // Header row
+  allRows.push({
+    object: 'block',
+    type: 'table_row',
+    table_row: {
+      cells: headers.map((h) => parseRichText(h))
+    }
+  })
+
+  // Data rows
+  for (const row of rows) {
+    const cells = []
+    for (let c = 0; c < tableWidth; c++) {
+      cells.push(parseRichText(row[c] || ''))
+    }
+    allRows.push({
+      object: 'block',
+      type: 'table_row',
+      table_row: { cells }
+    })
+  }
+
+  return {
+    object: 'block',
+    type: 'table',
+    table: {
+      table_width: tableWidth,
+      has_column_header: hasHeader,
+      has_row_header: false,
+      children: allRows
+    }
+  }
+}
+
+function createColumnList(columns: NotionBlock[][], widthRatios?: (number | undefined)[]): NotionBlock {
+  const columnBlocks = columns.map((children, i) => {
+    const col: any = { children }
+    const ratio = widthRatios?.[i]
+    if (ratio !== undefined) {
+      col.format = { column_ratio: ratio }
+    }
+    return {
+      object: 'block' as const,
+      type: 'column',
+      column: col
+    }
+  })
+
+  return {
+    object: 'block',
+    type: 'column_list',
+    column_list: {
+      children: columnBlocks
+    }
+  }
+}
+
+function createTableOfContents(): NotionBlock {
+  return {
+    object: 'block',
+    type: 'table_of_contents',
+    table_of_contents: { color: 'default' }
+  }
+}
+
+function createBreadcrumb(): NotionBlock {
+  return {
+    object: 'block',
+    type: 'breadcrumb',
+    breadcrumb: {}
+  }
+}
+
+function isListItem(line: string): boolean {
+  return BULLETED_LIST_REGEX.test(line) || NUMBERED_LIST_REGEX.test(line)
+}

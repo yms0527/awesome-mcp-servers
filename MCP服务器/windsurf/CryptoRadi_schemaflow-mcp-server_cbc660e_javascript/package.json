@@ -1,0 +1,47 @@
+{
+  "name": "schemaflow-mcp-server",
+  "version": "1.0.0",
+  "description": "Real-time PostgreSQL schema access for AI-IDEs via Model Context Protocol (MCP)",
+  "main": "src/index.js",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "postgresql",
+    "supabase",
+    "database",
+    "schema",
+    "ai-ide",
+    "cursor",
+    "windsurf",
+    "cline",
+    "database-schema",
+    "real-time",
+    "sse"
+  ],
+  "author": "SchemaFlow",
+  "license": "MIT",
+  "homepage": "https://schemaflow.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CryptoRadi/schemaflow-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CryptoRadi/schemaflow-mcp-server/issues"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 

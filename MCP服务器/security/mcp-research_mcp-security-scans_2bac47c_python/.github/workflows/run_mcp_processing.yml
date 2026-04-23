@@ -1,0 +1,74 @@
+name: Process MCP Repositories
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_org:
+        description: 'Target GitHub organization to fork into (optional)'
+        required: false
+        default: 'mcp-research' # Default from script
+      num_repos:
+        description: 'Number of repositories to process (optional)'
+        required: false
+        default: '50' # Default for workflow runs
+
+  schedule:
+    - cron: '0 3 * * *' # Run every day at 3 AM UTC
+
+  push:
+    paths:
+      - src/process_mcp_repos.py
+      - .github/workflows/run_mcp_processing.yml
+
+permissions:
+  contents: read
+
+jobs:
+  process_repos:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # For the checkout action
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11' # Use a specific Python version
+          cache: 'pip' # Cache the Python package installer
+
+      - name: Setup virtual environment and install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --require-hashes -r requirements.lock
+
+      - name: Run MCP Repo Processing Script
+        env:
+          GH_APP_ID: ${{ vars.GH_APP_ID }}
+          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          # Use the input if manually triggered, otherwise the script uses its internal default
+          TARGET_ORG_INPUT: ${{ github.event.inputs.target_org }}
+          NUM_REPOS_INPUT: ${{ github.event.inputs.num_repos }}
+        run: |
+          # Activate the virtual environment
+          source venv/bin/activate
+
+          PY_ARGS=()
+          # Only add the argument if the input is not empty and not the default (to let the script handle the default)
+          if [[ -n "$TARGET_ORG_INPUT" && "$TARGET_ORG_INPUT" != "mcp-research" ]]; then
+            PY_ARGS+=( --target-org "$TARGET_ORG_INPUT" )
+          fi
+
+          # Determine the number of repos argument or use the default
+          PY_ARGS+=( --num-repos "${NUM_REPOS_INPUT:-50}" )
+
+          echo "Running script with arguments: [${PY_ARGS[*]}]"
+          python -m src.process_mcp_repos "${PY_ARGS[@]}"

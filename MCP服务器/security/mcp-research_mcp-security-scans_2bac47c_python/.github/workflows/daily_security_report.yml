@@ -1,0 +1,58 @@
+name: Daily Security Report
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    # Runs at 7:00 AM UTC every day
+    - cron: '0 7 * * *'
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: read
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Harden the runner (Audit all outbound calls)
+      uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    - name: Set up Python
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Setup virtual environment and install dependencies
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install --require-hashes -r requirements.lock
+
+    - name: Generate security report
+      env:
+        GH_APP_ID: ${{ vars.GH_APP_ID }}
+        GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      run: |
+        # Activate the virtual environment
+        source venv/bin/activate
+        python -m src.report
+
+    - name: Upload report artifacts
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      with:
+        name: security-reports
+        path: |
+          reports/ghas_report_*.json
+          reports/ghas_report_*.md
+        retention-days: 90

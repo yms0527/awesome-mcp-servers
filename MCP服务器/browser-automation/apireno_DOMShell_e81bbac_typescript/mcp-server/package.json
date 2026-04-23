@@ -1,0 +1,55 @@
+{
+  "name": "@apireno/domshell",
+  "version": "1.1.1",
+  "description": "MCP server that turns your browser into a filesystem. 38 tools let AI agents ls, cd, grep, click, and type through Chrome via the DOMShell extension.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "domshell": "./bin/domshell.js",
+    "domshell-proxy": "./bin/domshell-proxy.js"
+  },
+  "files": [
+    "dist/",
+    "bin/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai-agent",
+    "browser-automation",
+    "chrome-extension",
+    "dom",
+    "web-scraping",
+    "claude",
+    "filesystem"
+  ],
+  "author": "Pireno (https://pireno.com)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/apireno/DOMShell"
+  },
+  "homepage": "https://pireno.com/domshell",
+  "mcpName": "io.github.apireno/domshell",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "express": "^4.21.0",
+    "ws": "^8.18.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/ws": "^8.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0"
+  }
+}

@@ -1,0 +1,33 @@
+[project]
+name = "example-langchain-mcp"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "rajatnigam", email = "rajatnigam89@gmail.com" }
+]
+dependencies = [
+    "langchain>=0.3.22",
+    "langgraph>=0.3.21",
+    "langchain-openai>=0.3.11",
+    "black>=25.1.0",
+    "isort>=6.0.1",
+    "langchainhub>=0.1.21",
+    "python-dotenv>=1.1.0",
+    "langchain-mcp-adapters>=0.0.6",
+]
+readme = "README.md"
+requires-python = ">= 3.8"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = []
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/example_langchain_mcp"]

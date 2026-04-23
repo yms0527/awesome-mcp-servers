@@ -1,0 +1,470 @@
+## APIs
+
+### Implemented Operations
+- Get all APIs (`GET /apis`)
+  - Parameters:
+    - `#/components/parameters/workspaceIdQueryTrue` (required)
+    - `#/components/parameters/createdBy`
+    - `#/components/parameters/cursor`
+    - `#/components/parameters/apiDescription`
+    - `#/components/parameters/limit`
+  - Responses:
+    - 200: `#/components/responses/getApis`
+    - 401: `#/components/responses/common401Error`
+    - 403: `#/components/responses/featureUnavailable403Error`
+    - 404: `#/components/responses/api404ErrorNotFound`
+    - 422: `#/components/responses/v9Unsupported`
+    - 500: `#/components/responses/common500Error`
+
+- Create API (`POST /apis`)
+  - Parameters:
+    - `#/components/parameters/workspaceIdQueryTrue`
+    - `#/components/parameters/v10Accept`
+  - Request Body: `#/components/requestBodies/createApi`
+    - Required fields:
+      - name: API name
+      - summary: Brief description
+      - workspaceId: Target workspace ID
+  - Responses:
+    - 200: `#/components/responses/createApi`
+    - 400: `#/components/responses/workspace400ErrorParamMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: Multiple possible responses:
+      - `#/components/schemas/api403ErrorForbidden`
+      - `#/components/schemas/api403ErrorLimitReached`
+      - `#/components/schemas/featureUnavailable403Error`
+    - 404: `#/components/responses/workspace404Error`
+    - 500: `#/components/responses/common500Error`
+
+- Get specific API (`GET /apis/{apiId}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/v10Accept`
+    - `#/components/parameters/apiInclude`
+  - Note: Git-connected APIs only return versions and gitInfo query responses
+  - Note: API viewers can only use versions option in include parameter
+  - Responses:
+    - 200: `#/components/responses/getApi`
+    - 400: `#/components/responses/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: `#/components/responses/featureUnavailable403Error`
+    - 404: `#/components/responses/api404ErrorNotFound`
+    - 422: `#/components/responses/v9Unsupported`
+    - 500: `#/components/responses/common500Error`
+
+- Update API (`PUT /apis/{apiId}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/v10Accept`
+  - Request Body: `#/components/requestBodies/updateApi`
+    - Optional fields:
+      - name: New API name
+      - summary: Updated description
+      - versionTag: Version identifier
+  - Responses:
+    - 200: `#/components/responses/updateApi`
+    - 400: `#/components/responses/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: `#/components/responses/api403ErrorAndFeatureUnavailable`
+    - 404: `#/components/responses/api404ErrorNotFound`
+    - 422: `#/components/responses/v9Unsupported`
+    - 500: `#/components/responses/common500Error`
+
+- Delete API (`DELETE /apis/{apiId}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/v10Accept`
+  - Responses:
+    - 204: No Content
+    - 400: `#/components/responses/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: `#/components/responses/api403ErrorAndFeatureUnavailable`
+    - 404: `#/components/responses/api404ErrorNotFound`
+    - 422: `#/components/responses/v9Unsupported`
+    - 500: `#/components/responses/common500Error`
+
+#### API Collections
+- Add collection (`POST /apis/{apiId}/collections`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/v10Accept`
+  - Description: Supports operations:
+    - COPY_COLLECTION - Copy from workspace
+    - CREATE_NEW - Create with provided content
+    - GENERATE_FROM_SCHEMA - Generate from API schema
+  - Request Body: `#/components/requestBodies/addApiCollection`
+    - Required fields:
+      - operationType: COPY_COLLECTION | CREATE_NEW | GENERATE_FROM_SCHEMA
+      - collection: Collection details based on operation type
+      - options: Advanced creation options (for GENERATE_FROM_SCHEMA)
+  - Responses:
+    - 200: `#/components/responses/addApiCollection`
+    - 400: `#/components/responses/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: Multiple possible responses:
+      - `#/components/schemas/apiSchema403ErrorForbidden`
+      - `#/components/schemas/featureUnavailable403Error`
+    - 404: `#/components/responses/api404ErrorNotFound`
+    - 500: `#/components/responses/common500Error`
+
+- Get collection (`GET /apis/{apiId}/collections/{collectionId}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/collectionIdApi` (required)
+    - `#/components/parameters/v10Accept`
+    - `#/components/parameters/apiVersionQuery`
+  - Note: Cannot be used for Git-linked API collections
+  - Note: versionId query parameter required for API viewers
+  - Responses:
+    - 200: `#/components/responses/getApiCollection`
+    - 400: Multiple possible responses:
+      - `#/components/schemas/api400ErrorVersionIdMissing`
+      - `#/components/schemas/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: `#/components/responses/api403ErrorAndFeatureUnavailable`
+    - 404: `#/components/responses/apiCollection404ErrorNotFound`
+    - 422: `#/components/responses/gitLinkedApi422Error`
+    - 500: `#/components/responses/common500Error`
+
+- Sync collection with schema (`PUT /apis/{apiId}/collections/{collectionId}/sync-with-schema-tasks`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/collectionIdApi` (required)
+    - `#/components/parameters/v10Accept`
+  - Note: Asynchronous operation returning 202 Accepted
+  - Note: Only supports OpenAPI 3 schema type
+  - Responses:
+    - 202: `#/components/responses/syncCollectionWithSchema`
+    - 400: Multiple possible responses:
+      - `#/components/schemas/apiCollection400InvalidParam`
+      - `#/components/schemas/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: Multiple possible responses:
+      - `#/components/schemas/apiSchema403ErrorForbidden`
+      - `#/components/schemas/featureUnavailable403Error`
+    - 404: `#/components/responses/apiSchema404ErrorNotFound`
+    - 422: `#/components/responses/apiSchema422ErrorActionNotAllowed`
+    - 500: `#/components/responses/common500Error`
+
+#### API Schemas
+- Create schema (`POST /apis/{apiId}/schemas`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/v10Accept`
+  - Request Body: `#/components/requestBodies/createApiSchema`
+    - Required fields:
+      - type: Schema type (e.g., openapi3)
+      - files: Array of schema files with content
+  - Responses:
+    - 200: `#/components/responses/createApiSchema`
+    - 400: Multiple possible responses:
+      - `#/components/schemas/apiSchema400ErrorInvalidParams`
+      - `#/components/schemas/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: Multiple possible responses:
+      - `#/components/schemas/apiSchema403ErrorForbidden`
+      - `#/components/schemas/featureUnavailable403Error`
+    - 404: `#/components/responses/api404ErrorInstanceNotFound`
+    - 422: `#/components/responses/gitLinkedApi422Error`
+    - 500: `#/components/responses/common500Error`
+
+- Get schema (`GET /apis/{apiId}/schemas/{schemaId}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/apiSchemaId` (required)
+    - `#/components/parameters/v10Accept`
+    - `#/components/parameters/apiVersionQuery`
+    - `#/components/parameters/apiSchemaOutput`
+  - Note: versionId query parameter required for API viewers
+  - Responses:
+    - 200: `#/components/responses/getApiSchema`
+    - 400: Multiple possible responses:
+      - `#/components/schemas/apiSchema400ErrorNotLinked`
+      - `#/components/schemas/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: `#/components/responses/api403ErrorAndFeatureUnavailable`
+    - 404: `#/components/responses/api404ErrorInstanceNotFound`
+    - 422: `#/components/responses/gitLinkedApi422Error`
+    - 500: `#/components/responses/common500Error`
+
+- Get schema files (`GET /apis/{apiId}/schemas/{schemaId}/files`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/apiSchemaId` (required)
+    - `#/components/parameters/v10Accept`
+    - `#/components/parameters/apiVersionQuery`
+    - `#/components/parameters/limit`
+    - `#/components/parameters/cursor`
+  - Note: versionId query parameter required for API viewers
+  - Responses:
+    - 200: `#/components/responses/getApiSchemaFiles`
+    - 400: Multiple possible responses:
+      - `#/components/schemas/apiSchema400ErrorNotLinked`
+      - `#/components/schemas/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: `#/components/responses/featureUnavailable403Error`
+    - 404: `#/components/responses/api404ErrorInstanceNotFound`
+    - 422: `#/components/responses/gitLinkedApi422Error`
+    - 500: `#/components/responses/common500Error`
+
+- Get schema file contents (`GET /apis/{apiId}/schemas/{schemaId}/files/{file-path}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/apiSchemaId` (required)
+    - `#/components/parameters/file-path` (required)
+    - `#/components/parameters/v10Accept`
+    - `#/components/parameters/apiVersionQuery`
+  - Note: versionId query parameter required for API viewers
+  - Responses:
+    - 200: `#/components/responses/getApiSchemaFileContents`
+    - 400: Multiple possible responses:
+      - `#/components/schemas/apiSchema400ErrorNotLinked`
+      - `#/components/schemas/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: `#/components/responses/featureUnavailable403Error`
+    - 404: `#/components/responses/api404ErrorInstanceNotFound`
+    - 422: `#/components/responses/gitLinkedApi422Error`
+    - 500: `#/components/responses/common500Error`
+
+- Create/update schema file (`PUT /apis/{apiId}/schemas/{schemaId}/files/{file-path}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/apiSchemaId` (required)
+    - `#/components/parameters/file-path` (required)
+    - `#/components/parameters/v10Accept`
+  - Note: Creates new file if path doesn't exist
+  - Note: Creates folders for paths containing forward slashes
+  - Note: Only root tag updates allowed for protobuf specs
+  - Request Body: `#/components/requestBodies/createUpdateApiSchemaFile`
+    - Required fields:
+      - content: Schema file content
+  - Responses:
+    - 200: `#/components/responses/createUpdateApiSchemaFile`
+    - 400: Multiple possible responses:
+      - `#/components/schemas/apiSchema400ErrorNotLinked`
+      - `#/components/schemas/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: Multiple possible responses:
+      - `#/components/schemas/apiSchema403ErrorForbidden`
+      - `#/components/schemas/featureUnavailable403Error`
+    - 404: `#/components/responses/apiSchema404ErrorNotFound`
+    - 422: `#/components/responses/gitLinkedApi422Error`
+    - 500: `#/components/responses/common500Error`
+
+- Delete schema file (`DELETE /apis/{apiId}/schemas/{schemaId}/files/{file-path}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/apiSchemaId` (required)
+    - `#/components/parameters/file-path` (required)
+    - `#/components/parameters/v10Accept`
+  - Responses:
+    - 204: Deleted
+    - 400: Multiple possible responses:
+      - `#/components/schemas/apiSchema400ErrorNotLinked`
+      - `#/components/schemas/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: Multiple possible responses:
+      - `#/components/schemas/apiSchema403ErrorForbidden`
+      - `#/components/schemas/featureUnavailable403Error`
+    - 404: `#/components/responses/api404ErrorInstanceNotFound`
+    - 422: `#/components/responses/gitLinkedApi422Error`
+    - 500: `#/components/responses/common500Error`
+
+#### API Comments
+- Get API comments (`GET /apis/{apiId}/comments`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+  - Responses:
+    - 200: `#/components/responses/commentGet`
+    - 400: `#/components/responses/v10HeaderMissing`
+    - 401: `#/components/responses/comment401Error`
+    - 403: `#/components/responses/comment403ErrorAndFeatureUnavailable`
+    - 404: `#/components/responses/comment404Error`
+    - 500: `#/components/responses/comment500Error`
+
+- Create API comment (`POST /apis/{apiId}/comments`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+  - Note: Maximum 10,000 characters
+  - Request Body: `#/components/requestBodies/commentCreate`
+    - Required fields:
+      - content: Comment text
+      - threadId: Optional, for replying to existing comments
+  - Responses:
+    - 201: `#/components/responses/commentCreated`
+    - 400: `#/components/responses/v10HeaderMissing`
+    - 401: `#/components/responses/comment401Error`
+    - 403: `#/components/responses/comment403ErrorAndFeatureUnavailable`
+    - 404: `#/components/responses/comment404Error`
+    - 500: `#/components/responses/comment500Error`
+
+- Update API comment (`PUT /apis/{apiId}/comments/{commentId}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/commentId` (required)
+  - Note: Maximum 10,000 characters
+  - Request Body: `#/components/requestBodies/commentUpdate`
+    - Required fields:
+      - content: Updated comment text
+  - Responses:
+    - 200: `#/components/responses/commentUpdated`
+    - 400: `#/components/responses/v10HeaderMissing`
+    - 401: `#/components/responses/comment401Error`
+    - 403: `#/components/responses/comment403ErrorAndFeatureUnavailable`
+    - 404: `#/components/responses/comment404Error`
+    - 500: `#/components/responses/comment500Error`
+
+- Delete API comment (`DELETE /apis/{apiId}/comments/{commentId}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/commentId` (required)
+  - Note: Deleting first comment deletes entire thread
+  - Responses:
+    - 204: No Content
+    - 400: `#/components/responses/v10HeaderMissing`
+    - 401: `#/components/responses/comment401Error`
+    - 403: `#/components/responses/comment403ErrorAndFeatureUnavailable`
+    - 404: `#/components/responses/comment404Error`
+    - 500: `#/components/responses/comment500Error`
+
+#### API Tags
+- Get API tags (`GET /apis/{apiId}/tags`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/v10Accept`
+  - Responses:
+    - 200: `#/components/responses/tagGetPut`
+    - 400: `#/components/responses/v10HeaderMissing`
+    - 401: `#/components/responses/tag401Error`
+    - 403: Multiple possible responses:
+      - `#/components/schemas/tag403Error`
+      - `#/components/schemas/featureUnavailable403Error`
+    - 404: `#/components/responses/tag404Error`
+    - 500: `#/components/responses/tag500Error`
+
+- Update API tags (`PUT /apis/{apiId}/tags`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/v10Accept`
+  - Request Body: `#/components/requestBodies/tagUpdateTags`
+    - Required fields:
+      - tags: Array of tag objects with slug and name
+  - Responses:
+    - 200: `#/components/responses/tagGetPut`
+    - 400: Multiple possible responses:
+      - `#/components/schemas/tag400Error`
+      - `#/components/schemas/v10HeaderMissing`
+    - 401: `#/components/responses/tag401Error`
+    - 403: Multiple possible responses:
+      - `#/components/schemas/tag403Error`
+      - `#/components/schemas/featureUnavailable403Error`
+    - 404: `#/components/responses/tag404Error`
+    - 500: `#/components/responses/tag500Error`
+
+#### API Versions
+- Get all versions (`GET /apis/{apiId}/versions`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/v10Accept`
+    - `#/components/parameters/cursor`
+    - `#/components/parameters/limit`
+  - Description: Gets all the published versions of an API
+  - Responses:
+    - 200: `#/components/responses/getApiVersions`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: `#/components/responses/featureUnavailable403Error`
+    - 404: `#/components/responses/apiVersions404Response`
+    - 422: `#/components/responses/v9Unsupported`
+    - 500: `#/components/responses/common500Error`
+
+- Create version (`POST /apis/{apiId}/versions`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/v10Accept`
+  - Description: Creates new API version asynchronously
+  - Note: Returns 202 Accepted with task status polling link
+  - Note: Equivalent to publishing a version in Postman app
+  - Request Body: `#/components/requestBodies/createApiVersion`
+  - Responses:
+    - 202: `#/components/responses/createApiVersion`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: Multiple possible responses:
+      - `#/components/schemas/apiSchema403ErrorForbidden`
+      - `#/components/schemas/featureUnavailable403Error`
+    - 404: `#/components/responses/apiVersions404Response`
+    - 422: `#/components/responses/apiVersion422ErrorStateInconsistent`
+    - 500: `#/components/responses/common500Error`
+
+- Get version (`GET /apis/{apiId}/versions/{versionId}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/apiVersionId` (required)
+    - `#/components/parameters/v10Accept`
+  - Note: Returns 302 Found with task status for pending versions (API editors)
+  - Note: Returns 404 Not Found for pending versions (API viewers)
+  - Responses:
+    - 200: `#/components/responses/getApiVersion`
+    - 302: Found (with Location header)
+    - 400: `#/components/responses/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: `#/components/responses/featureUnavailable403Error`
+    - 404: `#/components/responses/apiVersion404ErrorNotFound`
+    - 500: `#/components/responses/common500Error`
+
+- Update version (`PUT /apis/{apiId}/versions/{versionId}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/apiVersionId` (required)
+    - `#/components/parameters/v10Accept`
+  - Note: Returns 404 Not Found for pending versions
+  - Request Body: `#/components/requestBodies/updateApiVersion`
+  - Responses:
+    - 200: `#/components/responses/updateApiVersion`
+    - 400: `#/components/responses/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: `#/components/responses/api403ErrorAndFeatureUnavailable`
+    - 404: `#/components/responses/apiVersion404ErrorNotFound`
+    - 500: `#/components/responses/common500Error`
+
+- Delete version (`DELETE /apis/{apiId}/versions/{versionId}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/apiVersionId` (required)
+    - `#/components/parameters/v10Accept`
+  - Note: Returns 404 Not Found for pending versions
+  - Responses:
+    - 204: No Content
+    - 400: Multiple possible responses:
+      - `#/components/schemas/apiVersion400ErrorInstanceNotFound`
+      - `#/components/schemas/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: `#/components/responses/api403ErrorAndFeatureUnavailable`
+    - 404: `#/components/responses/apiVersion404ErrorNotFound`
+    - 500: `#/components/responses/common500Error`
+
+#### API Tasks
+- Get status of an asynchronous task (`GET /apis/{apiId}/tasks/{taskId}`)
+  - Parameters:
+    - `#/components/parameters/apiId` (required)
+    - `#/components/parameters/apiTaskId` (required)
+    - `#/components/parameters/v10Accept`
+  - Description: Gets the status of an asynchronous task
+  - Responses:
+    - 200: `#/components/responses/getStatusOfAnAsyncTask`
+    - 400: Multiple possible responses:
+      - `#/components/schemas/apiVersion400ErrorInvalidParam`
+      - `#/components/schemas/v10HeaderMissing`
+    - 401: `#/components/responses/api401ErrorUnauthorized`
+    - 403: `#/components/responses/api403ErrorAndFeatureUnavailable`
+    - 404: `#/components/responses/taskNotFound`
+
+### Key Features
+- API definition management
+- Schema version control
+- Collection integration
+- Multi-file schema support
+- Commenting system
+- API versioning
+- Git repository integration
+- Tag management
+- Asynchronous task tracking

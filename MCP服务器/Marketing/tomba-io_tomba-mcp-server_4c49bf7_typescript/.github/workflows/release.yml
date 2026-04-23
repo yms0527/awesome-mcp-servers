@@ -1,0 +1,71 @@
+name: Release & Upload MCPB
+
+on:
+    push:
+        tags:
+            - "*"
+
+jobs:
+    build-pack-upload:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Install dependencies
+              run: npm install --frozen-lockfile
+
+            - name: Build
+              run: npm run build
+
+            - name: MCPB Install
+              run: npm install -g @anthropic-ai/mcpb@latest
+
+            - name: MCPB version
+              run: mcpb --version
+
+            - name: MCPB Pack
+              run: npm run pack
+
+            - name: Write production certificate files
+              run: |
+                  echo -e "$PROD_CERT" > production-cert.pem
+                  echo -e "$PROD_KEY" > production-key.pem
+                  echo -e "$INTERMEDIATE_CA" > intermediate-ca.pem
+                  echo -e "$ROOT_CA" > root-ca.pem
+
+                  # Verify files are created correctly
+                  echo "Verifying certificate files..."
+                  for file in production-cert.pem production-key.pem intermediate-ca.pem root-ca.pem; do
+                    if [ -f "$file" ]; then
+                      echo "✓ $file created ($(wc -l < $file) lines)"
+                      head -n 1 "$file"
+                    else
+                      echo "✗ $file not found"
+                      exit 1
+                    fi
+                  done
+              env:
+                  PROD_CERT: ${{ secrets.PROD_CERT }}
+                  PROD_KEY: ${{ secrets.PROD_KEY }}
+                  INTERMEDIATE_CA: ${{ secrets.INTERMEDIATE_CA }}
+                  ROOT_CA: ${{ secrets.ROOT_CA }}
+              shell: bash
+
+            - name: MCPB Sign (production)
+              run: mcpb sign tomba-mcp-server-$(npm pkg get version | tr -d '\"').mcpb --cert production-cert.pem --key production-key.pem --intermediate intermediate-ca.pem root-ca.pem
+
+            - name: MCPB Info
+              run: mcpb info tomba-mcp-server-$(npm pkg get version | tr -d '\"').mcpb
+
+            - name: Upload MCPB artifact to release
+              uses: softprops/action-gh-release@v2
+              with:
+                  files: tomba-mcp-server-$(npm pkg get version | tr -d '\"').mcpb
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,31 @@
+{
+  "name": "my-mcp-server",
+  "version": "1.0.0",
+  "description": "Try MCP Server",
+  "main": "src/server.ts",
+  "type": "module",
+  "bin": {
+    "diceRoller": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod 755 build/index.js",
+    "test": "vitest",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
+  },
+  "files": [
+    "build"
+  ],
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.25.46"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "prettier": "3.5.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.4"
+  }
+}

@@ -1,0 +1,39 @@
+services:
+  mcp-server:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile
+    container_name: mcp-server-container
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_PATH=/app/data/context.db
+      - MCP_PORT=3000
+    restart: unless-stopped
+    networks:
+      - mcp-network
+
+  middleware:
+    build:
+      context: ./middleware
+      dockerfile: Dockerfile
+    container_name: mcp-middleware-container
+    ports:
+      - "8080:8080"
+    environment:
+      - MCP_SERVER_URL=http://mcp-server-container:3000
+      - OLLAMA_API_URL=http://host.docker.internal:11434/api/generate
+      - MODEL_NAME=gemma3:4b
+    depends_on:
+      - mcp-server
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge 

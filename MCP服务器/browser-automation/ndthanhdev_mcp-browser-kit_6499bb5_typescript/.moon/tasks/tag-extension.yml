@@ -1,0 +1,64 @@
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+fileGroups:
+  assets:
+    - assets/**/*
+  sources:
+    - src/**/*
+  tsup-dist:
+    - target/tsup/dist/**/*
+  extension-assets:
+    - target/extension/tmp/extension/assets/**/*
+  extension-manifest:
+    - target/extension/tmp/extension/manifest.json
+  extension-vendors:
+    - target/extension/tmp/extension/vendors/**/*
+  extension-dist:
+    - target/extension/dist/**/*
+
+tasks:
+  extension-copy-assets:
+    deps:
+      - ~:tsup-build
+    script: >-
+      $workspaceRoot/etc/scripts/actions/extension-copy-assets.ts
+    env:
+      PROJECT_ROOT: $projectRoot
+      WORKSPACE_ROOT: $workspaceRoot
+    inputs: 
+      - '@group(assets)'
+      - '@group(sources)'
+      - '@group(tsup-dist)'
+    outputs:
+      - '@group(extension-vendors)'
+      - '@group(extension-assets)'
+      - '@group(extension-manifest)'
+  extension-build:
+    options:
+      runDepsInParallel: false
+    deps:
+      - extension-copy-assets
+    toolchain: node
+    script: >-
+      web-ext build -o --source-dir=$projectRoot/target/extension/tmp/extension --artifacts-dir=$projectRoot/target/extension/dist
+    inputs:
+      - '@group(assets)'
+      - '@group(sources)'
+      - '@group(tsup-dist)'
+    outputs:
+      - '@group(extension-dist)'
+  extension-build-firefox:
+    toolchain: node
+    options:
+      runInCI: false
+    script: >-
+      $workspaceRoot/etc/scripts/actions/extension-build-firefox.ts
+    env:
+      PROJECT_ROOT: $projectRoot
+    inputs:
+      - '@group(tsup-dist)'
+      - '@group(extension-assets)'
+      - '@group(extension-manifest)'
+      - '@group(extension-vendors)'
+    outputs:
+      - '@group(extension-dist)'

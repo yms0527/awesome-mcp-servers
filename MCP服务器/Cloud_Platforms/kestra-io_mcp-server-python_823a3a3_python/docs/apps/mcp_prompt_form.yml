@@ -1,0 +1,58 @@
+id: mcp_prompt_form
+type: io.kestra.plugin.ee.apps.Execution
+displayName: Interact with Kestra's AI Agent
+namespace: company.ai
+flowId: kestra_mcp_docker
+access: 
+  type: PRIVATE
+tags:
+  - AI
+
+layout:
+  - on: OPEN
+    blocks:
+      - type: io.kestra.plugin.ee.apps.core.blocks.Markdown
+        content: |
+          ## Request data
+          What would you like to do in Kestra?
+      - type: io.kestra.plugin.ee.apps.execution.blocks.CreateExecutionForm
+      - type: io.kestra.plugin.ee.apps.execution.blocks.CreateExecutionButton
+        text: Submit
+
+  - on: RUNNING
+    blocks:
+      - type: io.kestra.plugin.ee.apps.core.blocks.Markdown
+        content: |
+          ## Making request
+          Don't close this window. The results will be displayed as soon as processing is complete.
+      
+      - type: io.kestra.plugin.ee.apps.core.blocks.Loading
+      - type: io.kestra.plugin.ee.apps.execution.blocks.CancelExecutionButton
+        text: Cancel request
+
+  - on: SUCCESS
+    blocks:
+      - type: io.kestra.plugin.ee.apps.core.blocks.Markdown
+        content: |
+          ## Request processed successfully
+          Your prompt was:
+
+      - type: io.kestra.plugin.ee.apps.execution.blocks.Inputs
+        filter:
+          include:
+            - prompt
+
+      - type: io.kestra.plugin.ee.apps.core.blocks.Markdown
+        content: |
+          Generated response:
+
+      - type: io.kestra.plugin.ee.apps.execution.blocks.TaskOutputs
+        outputs:
+          - displayName: AI
+            type: STRING
+            value: "{{ outputs.agent.textOutput }}"
+
+      - type: io.kestra.plugin.ee.apps.core.blocks.Button
+        text: Submit new request
+        url: "{{ app.url }}"
+        style: DEFAULT

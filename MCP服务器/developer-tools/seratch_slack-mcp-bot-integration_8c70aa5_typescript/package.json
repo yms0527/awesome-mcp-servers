@@ -1,0 +1,28 @@
+{
+  "name": "slack-mcp-bot-integration",
+  "version": "0.0.0",
+  "description": "Simple MCP server example for Slack integrations",
+  "main": "lib/main.js",
+  "scripts": {
+    "start": "npm run build && node lib/main.js",
+    "format": "npx @biomejs/biome format --write src/ *.json",
+    "build": "tsc -p .",
+    "local": "nodemon --watch 'src/**/*.ts' --exec \"tsx\" src/main.ts"
+  },
+  "author": "Kazuhiro Sera",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.1",
+    "express": "^4.21.1",
+    "slack-web-api-client": "^1.1.3",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@slack/cli-hooks": "^1.1.2",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.1",
+    "nodemon": "^3.1.7",
+    "typescript": "^5.7.2"
+  }
+}

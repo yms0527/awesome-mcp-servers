@@ -1,0 +1,180 @@
+const DEFAULT_BASE_URL = "http://127.0.0.1:18890";
+const LOCAL_API_HOSTS = new Set(["localhost", "127.0.0.1"]);
+
+export class DelegaApiError extends Error {
+  status: number;
+  statusText: string;
+  responseBody: string;
+
+  constructor(status: number, statusText: string, responseBody: string) {
+    super(`Delega API request failed (${status} ${statusText})`);
+    this.name = "DelegaApiError";
+    this.status = status;
+    this.statusText = statusText;
+    this.responseBody = responseBody;
+  }
+}
+
+function normalizeBaseUrl(rawUrl: string): string {
+  const parsed = new URL(rawUrl);
+  if (parsed.protocol !== "https:" && !LOCAL_API_HOSTS.has(parsed.hostname)) {
+    throw new Error("Delega API URL must use HTTPS unless it points to localhost");
+  }
+  return rawUrl.replace(/\/+$/, "");
+}
+
+export class DelegaClient {
+  private baseUrl: string;
+  private agentKey?: string;
+  private pathPrefix: string;
+
+  constructor(baseUrl?: string, agentKey?: string) {
+    this.baseUrl = normalizeBaseUrl(baseUrl || DEFAULT_BASE_URL);
+    this.agentKey = agentKey;
+    // Hosted API (api.delega.dev) uses /v1/ prefix, self-hosted uses /api/
+    this.pathPrefix = new URL(this.baseUrl).hostname === "api.delega.dev" ? "/v1" : "/api";
+  }
+
+  private async request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    query?: Record<string, string>,
+  ): Promise<T> {
+    const url = new URL(path, this.baseUrl);
+    if (query) {
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined && value !== "") {
+          url.searchParams.set(key, value);
+        }
+      }
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (this.agentKey) {
+      headers["X-Agent-Key"] = this.agentKey;
+    }
+
+    const res = await fetch(url.toString(), {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new DelegaApiError(res.status, res.statusText, text);
+    }
+
+    if (res.status === 204) {
+      return undefined as T;
+    }
+
+    return res.json() as Promise<T>;
+  }
+
+  // ── Tasks ──
+
+  async listTasks(params: {
+    project_id?: number;
+    label?: string;
+    due?: "today" | "upcoming" | "overdue";
+    completed?: boolean;
+  }) {
+    const query: Record<string, string> = {};
+    if (params.project_id !== undefined) query.project_id = String(params.project_id);
+    if (params.label !== undefined) query.label = params.label;
+    if (params.due !== undefined) query.due = params.due;
+    if (params.completed !== undefined) query.completed = String(params.completed);
+
+    return this.request<unknown[]>("GET", `${this.pathPrefix}/tasks`, undefined, query);
+  }
+
+  async getTask(taskId: string | number) {
+    return this.request<unknown>("GET", `${this.pathPrefix}/tasks/${taskId}`);
+  }
+
+  async createTask(data: {
+    content: string;
+    description?: string;
+    project_id?: number;
+    labels?: string[];
+    priority?: number;
+    due_date?: string;
+  }) {
+    return this.request<unknown>("POST", `${this.pathPrefix}/tasks`, data);
+  }
+
+  async updateTask(
+    taskId: string | number,
+    data: {
+      content?: string;
+      description?: string;
+      labels?: string[];
+      priority?: number;
+      due_date?: string;
+      project_id?: number;
+    },
+  ) {
+    return this.request<unknown>("PUT", `${this.pathPrefix}/tasks/${taskId}`, data);
+  }
+
+  async completeTask(taskId: string | number) {
+    return this.request<unknown>("POST", `${this.pathPrefix}/tasks/${taskId}/complete`);
+  }
+
+  async deleteTask(taskId: string | number) {
+    return this.request<unknown>("DELETE", `${this.pathPrefix}/tasks/${taskId}`);
+  }
+
+  // ── Comments ──
+
+  async addComment(
+    taskId: string | number,
+    data: { content: string; author?: string },
+  ) {
+    return this.request<unknown>(
+      "POST",
+      `${this.pathPrefix}/tasks/${taskId}/comments`,
+      data,
+    );
+  }
+
+  // ── Projects ──
+
+  async listProjects() {
+    return this.request<unknown[]>("GET", `${this.pathPrefix}/projects`);
+  }
+
+  // ── Stats ──
+
+  async getStats() {
+    return this.request<unknown>("GET", `${this.pathPrefix}/stats`);
+  }
+
+  // ── Agents ──
+
+  async listAgents() {
+    return this.request<unknown[]>("GET", `${this.pathPrefix}/agents`);
+  }
+
+  async registerAgent(data: { name: string; display_name?: string; description?: string; permissions?: string[] }) {
+    return this.request<unknown>("POST", `${this.pathPrefix}/agents`, data);
+  }
+
+  // ── Webhooks ──
+
+  async listWebhooks() {
+    return this.request<unknown[]>("GET", `${this.pathPrefix}/webhooks`);
+  }
+
+  async createWebhook(data: { url: string; events: string[]; secret?: string }) {
+    return this.request<unknown>("POST", `${this.pathPrefix}/webhooks`, data);
+  }
+
+  async deleteWebhook(webhookId: string | number) {
+    return this.request<unknown>("DELETE", `${this.pathPrefix}/webhooks/${webhookId}`);
+  }
+}

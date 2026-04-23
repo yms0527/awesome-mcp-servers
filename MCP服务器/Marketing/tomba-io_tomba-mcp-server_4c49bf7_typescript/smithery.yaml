@@ -1,0 +1,5 @@
+# Smithery configuration for Tomba MCP Server
+runtime: "typescript"
+
+env:
+  NODE_ENV: "production"

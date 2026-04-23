@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "freshcontext-mcp",
+  "main": "src/worker.ts",
+  "compatibility_date": "2024-09-23",
+  "compatibility_flags": ["nodejs_compat_v2"],
+  "browser": {
+    "binding": "BROWSER"
+  },
+  "triggers": {
+    "crons": [
+      "0 */6 * * *"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "freshcontext-db",
+      "database_id": "d9898d65-f67e-4dcb-abdc-7f7b53f2d444"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "RATE_LIMITER",
+      "id": "7b74255ddbee42a99feea5898a11842b"
+    },
+    {
+      "binding": "CACHE",
+      "id": "2bfd2b8f371345d493af520644364c6c"
+    }
+  ]
+}

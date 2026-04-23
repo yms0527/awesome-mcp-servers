@@ -1,0 +1,88 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/geropl/github-mcp-go-test/contents/README.md
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: true
+        body: '{"name":"README.md","path":"README.md","sha":"e337dd962793f45d58c42425477ce153e5c15350","size":180,"url":"https://api.github.com/repos/geropl/github-mcp-go-test/contents/README.md?ref=main","html_url":"https://github.com/geropl/github-mcp-go-test/blob/main/README.md","git_url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/blobs/e337dd962793f45d58c42425477ce153e5c15350","download_url":"https://raw.githubusercontent.com/geropl/github-mcp-go-test/main/README.md","type":"file","content":"IyBXaGF0IGlzIHRoaXM/CgpUaGlzIHJlcG9zaXRvcnkgc2VydmVzIGFzIHRl\nc3QgcmVwbyBmb3IgaHR0cHM6Ly9naXRodWIuY29tL2dlcm9wbC9naXRodWIt\nbWNwLWdvLiBBbGwgaXNzdWVzL2NvbW1pdHMvYnJhbmNoZXMvcHVsbCByZXF1\nZXN0cy9ldGMuIG1pZ2h0IGJlIHJlbGllZCB1cG9uIGluIHRlc3QgY2FzZXMu\n","encoding":"base64","_links":{"self":"https://api.github.com/repos/geropl/github-mcp-go-test/contents/README.md?ref=main","git":"https://api.github.com/repos/geropl/github-mcp-go-test/git/blobs/e337dd962793f45d58c42425477ce153e5c15350","html":"https://github.com/geropl/github-mcp-go-test/blob/main/README.md"}}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=60, s-maxage=60
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Fri, 07 Mar 2025 10:28:17 GMT
+            Etag:
+                - W/"e337dd962793f45d58c42425477ce153e5c15350"
+            Github-Authentication-Token-Expiration:
+                - 2025-04-06 08:38:40 +0200
+            Last-Modified:
+                - Fri, 07 Mar 2025 07:43:03 GMT
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Github-Permissions:
+                - contents=read
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - F61C:AA8B5:3218DDF:33C45B3:67CACA41
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "4995"
+            X-Ratelimit-Reset:
+                - "1741346230"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "5"
+            X-Xss-Protection:
+                - "0"
+        status: 200 OK
+        code: 200
+        duration: 285.903138ms

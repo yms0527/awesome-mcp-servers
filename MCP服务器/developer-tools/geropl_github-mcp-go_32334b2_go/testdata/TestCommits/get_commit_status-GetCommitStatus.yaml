@@ -1,0 +1,86 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            User-Agent:
+                - go-github/v69.2.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/geropl/github-mcp-go-test/commits/main/status
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: true
+        body: '{"state":"pending","statuses":[],"sha":"4707587d1c57e90aeed4c846b1b71221c73de5f3","total_count":0,"repository":{"id":944349554,"node_id":"R_kgDOOEmhcg","name":"github-mcp-go-test","full_name":"geropl/github-mcp-go-test","private":false,"owner":{"login":"geropl","id":32448529,"node_id":"MDQ6VXNlcjMyNDQ4NTI5","avatar_url":"https://avatars.githubusercontent.com/u/32448529?v=4","gravatar_id":"","url":"https://api.github.com/users/geropl","html_url":"https://github.com/geropl","followers_url":"https://api.github.com/users/geropl/followers","following_url":"https://api.github.com/users/geropl/following{/other_user}","gists_url":"https://api.github.com/users/geropl/gists{/gist_id}","starred_url":"https://api.github.com/users/geropl/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/geropl/subscriptions","organizations_url":"https://api.github.com/users/geropl/orgs","repos_url":"https://api.github.com/users/geropl/repos","events_url":"https://api.github.com/users/geropl/events{/privacy}","received_events_url":"https://api.github.com/users/geropl/received_events","type":"User","user_view_type":"public","site_admin":false},"html_url":"https://github.com/geropl/github-mcp-go-test","description":"Test repo for the github-mcp-go project","fork":false,"url":"https://api.github.com/repos/geropl/github-mcp-go-test","forks_url":"https://api.github.com/repos/geropl/github-mcp-go-test/forks","keys_url":"https://api.github.com/repos/geropl/github-mcp-go-test/keys{/key_id}","collaborators_url":"https://api.github.com/repos/geropl/github-mcp-go-test/collaborators{/collaborator}","teams_url":"https://api.github.com/repos/geropl/github-mcp-go-test/teams","hooks_url":"https://api.github.com/repos/geropl/github-mcp-go-test/hooks","issue_events_url":"https://api.github.com/repos/geropl/github-mcp-go-test/issues/events{/number}","events_url":"https://api.github.com/repos/geropl/github-mcp-go-test/events","assignees_url":"https://api.github.com/repos/geropl/github-mcp-go-test/assignees{/user}","branches_url":"https://api.github.com/repos/geropl/github-mcp-go-test/branches{/branch}","tags_url":"https://api.github.com/repos/geropl/github-mcp-go-test/tags","blobs_url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/blobs{/sha}","git_tags_url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/tags{/sha}","git_refs_url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/refs{/sha}","trees_url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/trees{/sha}","statuses_url":"https://api.github.com/repos/geropl/github-mcp-go-test/statuses/{sha}","languages_url":"https://api.github.com/repos/geropl/github-mcp-go-test/languages","stargazers_url":"https://api.github.com/repos/geropl/github-mcp-go-test/stargazers","contributors_url":"https://api.github.com/repos/geropl/github-mcp-go-test/contributors","subscribers_url":"https://api.github.com/repos/geropl/github-mcp-go-test/subscribers","subscription_url":"https://api.github.com/repos/geropl/github-mcp-go-test/subscription","commits_url":"https://api.github.com/repos/geropl/github-mcp-go-test/commits{/sha}","git_commits_url":"https://api.github.com/repos/geropl/github-mcp-go-test/git/commits{/sha}","comments_url":"https://api.github.com/repos/geropl/github-mcp-go-test/comments{/number}","issue_comment_url":"https://api.github.com/repos/geropl/github-mcp-go-test/issues/comments{/number}","contents_url":"https://api.github.com/repos/geropl/github-mcp-go-test/contents/{+path}","compare_url":"https://api.github.com/repos/geropl/github-mcp-go-test/compare/{base}...{head}","merges_url":"https://api.github.com/repos/geropl/github-mcp-go-test/merges","archive_url":"https://api.github.com/repos/geropl/github-mcp-go-test/{archive_format}{/ref}","downloads_url":"https://api.github.com/repos/geropl/github-mcp-go-test/downloads","issues_url":"https://api.github.com/repos/geropl/github-mcp-go-test/issues{/number}","pulls_url":"https://api.github.com/repos/geropl/github-mcp-go-test/pulls{/number}","milestones_url":"https://api.github.com/repos/geropl/github-mcp-go-test/milestones{/number}","notifications_url":"https://api.github.com/repos/geropl/github-mcp-go-test/notifications{?since,all,participating}","labels_url":"https://api.github.com/repos/geropl/github-mcp-go-test/labels{/name}","releases_url":"https://api.github.com/repos/geropl/github-mcp-go-test/releases{/id}","deployments_url":"https://api.github.com/repos/geropl/github-mcp-go-test/deployments"},"commit_url":"https://api.github.com/repos/geropl/github-mcp-go-test/commits/4707587d1c57e90aeed4c846b1b71221c73de5f3","url":"https://api.github.com/repos/geropl/github-mcp-go-test/commits/4707587d1c57e90aeed4c846b1b71221c73de5f3/status"}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=60, s-maxage=60
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Fri, 07 Mar 2025 13:02:39 GMT
+            Etag:
+                - W/"d954d200c9e686cc776d51cca14aed763dea47e8fe0f96643656cfa65f46b596"
+            Github-Authentication-Token-Expiration:
+                - 2025-04-06 13:14:03 +0200
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Github-Permissions:
+                - statuses=read
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - 7498:1EA0F8:3C7D42C:3E652F5:67CAEE6E
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "4938"
+            X-Ratelimit-Reset:
+                - "1741353443"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "62"
+            X-Xss-Protection:
+                - "0"
+        status: 200 OK
+        code: 200
+        duration: 184.65138ms

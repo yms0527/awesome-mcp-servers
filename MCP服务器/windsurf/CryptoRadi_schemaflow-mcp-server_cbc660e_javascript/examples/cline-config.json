@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "schemaflow": {
+      "type": "sse",
+      "url": "https://api.schemaflow.dev/mcp/?token=your-token-here",
+      "description": "SchemaFlow - PostgreSQL schema access for AI-powered development"
+    }
+  }
+} 

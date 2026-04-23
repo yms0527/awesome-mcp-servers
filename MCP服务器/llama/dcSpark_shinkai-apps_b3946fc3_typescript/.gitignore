@@ -1,0 +1,57 @@
+# See http://help.github.com/ignore-files/ for more about ignoring files.
+
+# compiled output
+dist
+tmp
+/out-tsc
+
+# dependencies
+node_modules
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+/.nx
+.env
+
+# System Files
+.DS_Store
+Thumbs.db
+
+qr_code_device_0.png
+
+apps/shinkai-desktop/src-tauri/storage
+apps/shinkai-desktop/src-tauri/node_storage
+
+apps/shinkai-desktop/src-tauri/external-binaries
+launch.json
+temp
+apps/shinkai-app/android/.gradle
+apps/shinkai-desktop/src-tauri/gen
+output.txt
+
+vite.config.*.timestamp*
+vitest.config.*.timestamp*
+.with-cache

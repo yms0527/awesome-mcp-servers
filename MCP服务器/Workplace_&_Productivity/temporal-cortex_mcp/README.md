@@ -1,0 +1,623 @@
+# Temporal Cortex MCP
+
+[![CI](https://github.com/temporal-cortex/mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/temporal-cortex/mcp/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@temporal-cortex/cortex-mcp)](https://www.npmjs.com/package/@temporal-cortex/cortex-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/@temporal-cortex/cortex-mcp)](https://www.npmjs.com/package/@temporal-cortex/cortex-mcp)
+[![Smithery](https://smithery.ai/badge/@temporal-cortex/cortex-mcp)](https://smithery.ai/server/@temporal-cortex/cortex-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+**v0.9.1** · March 2026 · [Changelog](CHANGELOG.md) · **Website:** [temporal-cortex.com](https://temporal-cortex.com)
+
+Give any AI agent autonomous scheduling capabilities. Temporal Cortex is open scheduling infrastructure that lets any AI agent schedule reliably — whether the other person has an AI agent or not, uses Google Calendar or Outlook, or responds instantly or days later. 18 tools across 5 layers handle contact resolution, temporal reasoning, cross-provider availability, and atomic booking. Accessible via MCP, A2A, REST, and browser. Powered by [Truth Engine](https://github.com/temporal-cortex/core). Install: `npx @temporal-cortex/cortex-mcp`.
+
+<a href="https://insiders.vscode.dev/redirect/mcp/install?name=temporal-cortex-mcp&inputs=%7B%22google_client_id%22%3A%22%22%2C%22google_client_secret%22%3A%22%22%7D&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40temporal-cortex%2Fcortex-mcp%22%5D%2C%22env%22%3A%7B%22GOOGLE_CLIENT_ID%22%3A%22%24%7Binput%3Agoogle_client_id%7D%22%2C%22GOOGLE_CLIENT_SECRET%22%3A%22%24%7Binput%3Agoogle_client_secret%7D%22%7D%7D"><img src="https://img.shields.io/badge/VS_Code-Install_MCP_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code"></a>
+<a href="https://cursor.com/install-mcp?name=temporal-cortex&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkB0ZW1wb3JhbC1jb3J0ZXgvY29ydGV4LW1jcCJdLCJlbnYiOnsiR09PR0xFX0NMSUVOVF9JRCI6InlvdXItY2xpZW50LWlkLmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwiR09PR0xFX0NMSUVOVF9TRUNSRVQiOiJ5b3VyLWNsaWVudC1zZWNyZXQifX0%3D"><img src="https://img.shields.io/badge/Cursor-Install_MCP_Server-black?style=flat-square&logo=cursor&logoColor=white" alt="Install in Cursor"></a>
+
+## Two ways to use Temporal Cortex
+
+### For individuals
+
+Connect your calendars. Your AI agent handles the rest — checking availability, resolving time zones, and booking meetings without double-booking. Works with Claude Desktop, Cursor, OpenClaw, Manus, and any MCP-compatible AI client.
+
+```bash
+npx @temporal-cortex/cortex-mcp setup
+```
+
+The setup wizard walks you through provider authentication, timezone configuration, and MCP client setup interactively. You'll be scheduling in under a minute.
+
+**Or use the managed Platform** — no Node.js required. Sign up at [app.temporal-cortex.com](https://app.temporal-cortex.com), connect your calendars via OAuth, and add a single MCP config with your API key.
+
+### For developers
+
+Add scheduling to your AI agent or product. 18 tools across 5 layers, 4 protocols (MCP, A2A, REST, Browser), atomic booking with Two-Phase Commit, and deterministic temporal computation powered by [Truth Engine](https://github.com/temporal-cortex/core).
+
+- **Local MCP server:** `npx @temporal-cortex/cortex-mcp` — full tool suite, zero infrastructure
+- **Platform REST API:** [app.temporal-cortex.com](https://app.temporal-cortex.com) — managed hosting, API keys, usage dashboard, Open Scheduling network
+- **Framework integrations:** [LangGraph](docs/langgraph-integration.md), [CrewAI](docs/crewai-integration.md), [OpenAI Agents SDK](docs/openai-agents-integration.md)
+- **REST API reference:** [temporal-cortex.com/docs/rest-api](https://temporal-cortex.com/docs/rest-api)
+
+---
+
+## Why do AI agents fail at calendar tasks?
+
+Even the latest LLMs — GPT-5, Claude, Gemini — score below 50% on temporal reasoning tasks ([OOLONG benchmark](https://arxiv.org/abs/2511.02817)). Earlier models scored as low as 29% on scheduling and 13% on duration calculations ([Test of Time, ICLR 2025](https://arxiv.org/abs/2406.09170)). Ask "Schedule for next Tuesday at 2pm" and it picks the wrong Tuesday. Ask "Am I free at 3pm?" and it checks the wrong timezone. Then it double-books your calendar.
+
+Most calendar tools for AI agents are thin CRUD wrappers that pass these failures through to a single calendar provider — no temporal awareness, no conflict detection, no safety net.
+
+## What makes Temporal Cortex different?
+
+- **Temporal awareness** — Agents call `get_temporal_context` to know the actual time and timezone. `resolve_datetime` turns `"next Tuesday at 2pm"` into a precise RFC 3339 timestamp. No hallucination.
+- **Atomic booking** — Lock the time slot, verify no conflicts exist, then write. Two agents booking the same 2pm slot? Exactly one succeeds. The other gets a clear error. No double-bookings.
+- **Computed availability** — Merges free/busy data across multiple calendars into a single unified view. The AI sees actual availability, not a raw dump of events to misinterpret.
+- **Deterministic RRULE expansion** — Handles DST transitions, `BYSETPOS=-1` (last weekday of month), `EXDATE` with timezones, leap year recurrences, and `INTERVAL>1` with `BYDAY`. Powered by [Truth Engine](https://github.com/temporal-cortex/core), not LLM inference.
+- **Token-efficient output** — TOON format compresses calendar data by ~40% fewer tokens than standard JSON, reducing costs and context window usage. TOON is the default output format for all data tools (`list_calendars`, `list_events`, `find_free_slots`, `expand_rrule`, `get_availability`). JSON is available via explicit `format: "json"`.
+
+## What do I need to run Temporal Cortex?
+
+- **Node.js 18+** (for `npx` to download and run the binary) or **Docker**
+- **At least one calendar provider**:
+  - **Google Calendar** — requires [Google OAuth credentials](docs/google-cloud-setup.md)
+  - **Microsoft Outlook** — requires [Azure AD app registration](docs/outlook-setup.md) (`MICROSOFT_CLIENT_ID`)
+  - **CalDAV** (iCloud, Fastmail, etc.) — requires an [app-specific password](docs/caldav-setup.md)
+
+## How do I install Temporal Cortex?
+
+**The fastest way to get started:**
+
+```bash
+npx @temporal-cortex/cortex-mcp setup
+```
+
+The `cortex-mcp setup` wizard walks you through provider authentication, timezone configuration, and MCP client setup interactively. See the [First Run Guide](docs/first-run-guide.md) for a detailed walkthrough.
+
+**Or set up manually in 3 steps:**
+
+1. **Install prerequisites** — Node.js 18+ (or Docker) and at least one calendar provider ([Google Calendar](docs/google-cloud-setup.md), [Microsoft Outlook](docs/outlook-setup.md), or [CalDAV](docs/caldav-setup.md)).
+2. **Add the MCP configuration** to your AI client's config file (see client-specific examples below).
+3. **Run the auth flow** — `npx @temporal-cortex/cortex-mcp auth google` (or `outlook` / `caldav`). This authenticates and configures timezone, week start, and telemetry preferences.
+
+### Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "temporal-cortex": {
+      "command": "npx",
+      "args": ["-y", "@temporal-cortex/cortex-mcp"],
+      "env": {
+        "GOOGLE_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
+        "GOOGLE_CLIENT_SECRET": "your-client-secret",
+        "TIMEZONE": "America/New_York"
+      }
+    }
+  }
+}
+```
+
+### Cursor
+
+Add to Cursor's MCP settings (`~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "temporal-cortex": {
+      "command": "npx",
+      "args": ["-y", "@temporal-cortex/cortex-mcp"],
+      "env": {
+        "GOOGLE_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
+        "GOOGLE_CLIENT_SECRET": "your-client-secret",
+        "TIMEZONE": "America/New_York"
+      }
+    }
+  }
+}
+```
+
+### Windsurf
+
+Add to Windsurf's MCP config (`~/.codeium/windsurf/mcp_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "temporal-cortex": {
+      "command": "npx",
+      "args": ["-y", "@temporal-cortex/cortex-mcp"],
+      "env": {
+        "GOOGLE_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
+        "GOOGLE_CLIENT_SECRET": "your-client-secret",
+        "TIMEZONE": "America/New_York"
+      }
+    }
+  }
+}
+```
+
+### Docker
+
+```bash
+docker run --rm -i \
+  -e GOOGLE_CLIENT_ID="your-client-id.apps.googleusercontent.com" \
+  -e GOOGLE_CLIENT_SECRET="your-client-secret" \
+  -e TIMEZONE="America/New_York" \
+  -v ~/.config/temporal-cortex:/root/.config/temporal-cortex \
+  cortex-mcp
+```
+
+Build the image first: `docker build -t cortex-mcp .` (or build directly from the repo: `docker build -t cortex-mcp https://github.com/temporal-cortex/mcp.git`).
+
+> **Need help with provider credentials?** See the setup guides: [Google Calendar](docs/google-cloud-setup.md), [Microsoft Outlook](docs/outlook-setup.md), [CalDAV (iCloud/Fastmail)](docs/caldav-setup.md). For a complete reference of all environment variables and configuration options, see the [Configuration Guide](docs/configuration-guide.md).
+
+## How do I verify the installation?
+
+SHA256 checksums are published with every [GitHub Release](https://github.com/temporal-cortex/mcp/releases) and embedded in the npm package as `checksums.json` for automatic postinstall verification. The postinstall script downloads the platform-specific binary and compares its SHA256 hash against the expected checksum in `checksums.json`. **On mismatch, installation fails with an error** — the binary is not installed and the error message includes both the expected and actual hashes.
+
+**Verify manually:**
+
+```bash
+# Download the published checksums
+curl -sL https://github.com/temporal-cortex/mcp/releases/download/mcp-v0.9.1/SHA256SUMS.txt
+
+# Compare against your installed binary
+sha256sum "$(dirname "$(which cortex-mcp)")/../cortex-mcp" 2>/dev/null || \
+  shasum -a 256 "$(npm root -g)/@temporal-cortex/cortex-mcp/bin/cortex-mcp" 2>/dev/null
+```
+
+**Build provenance:** Binaries are cross-compiled from Rust source in [GitHub Actions](https://github.com/temporal-cortex/mcp/actions) across 5 platforms (darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64). The computation layer is open source at [temporal-cortex/core](https://github.com/temporal-cortex/core).
+
+**Docker containment:** For maximum isolation, run the MCP server in a container:
+
+```bash
+docker build -t cortex-mcp https://github.com/temporal-cortex/mcp.git
+docker run --rm -i -v ~/.config/temporal-cortex:/root/.config/temporal-cortex cortex-mcp
+```
+
+No Node.js on the host, no direct filesystem access beyond the mounted config directory.
+
+## How do I authenticate with calendar providers?
+
+The easiest path is `npx @temporal-cortex/cortex-mcp setup`, which handles authentication, configuration, and MCP client setup in one guided flow. For individual provider auth, run the commands below:
+
+```bash
+# Google Calendar (default)
+npx @temporal-cortex/cortex-mcp auth google
+
+# Microsoft Outlook
+npx @temporal-cortex/cortex-mcp auth outlook
+
+# CalDAV (iCloud, Fastmail, or custom server)
+npx @temporal-cortex/cortex-mcp auth caldav
+
+# Docker (interactive auth — needs terminal + browser)
+docker run --rm -it \
+  -e GOOGLE_CLIENT_ID="your-id" -e GOOGLE_CLIENT_SECRET="your-secret" \
+  -p 8085:8085 \
+  -v ~/.config/temporal-cortex:/root/.config/temporal-cortex \
+  cortex-mcp auth google
+```
+
+Each auth flow saves credentials to `~/.config/temporal-cortex/credentials.json` and registers the provider in `~/.config/temporal-cortex/config.json`. You can connect multiple providers — the server discovers all configured providers on startup and merges their calendars into a unified view.
+
+During auth, the server guides you through interactive setup:
+- **Timezone** — auto-detects your system timezone and opens a fuzzy-search picker with all 597 IANA timezones (type to filter, arrow keys to navigate)
+- **Week start** — arrow-key selection between Monday (ISO standard) and Sunday
+- **Telemetry** — optional anonymous usage data (default: off)
+
+All preferences are stored in `~/.config/temporal-cortex/config.json` and used by all temporal tools. You can override them per-session with the `TIMEZONE` and `WEEK_START` env vars.
+
+After authentication, verify it works by asking your AI assistant: *"What time is it?"* — the agent should call `get_temporal_context` and return your current local time.
+
+For a guided workflow, install the [Temporal Cortex Agent Skills](https://github.com/temporal-cortex/skills) to teach your AI agent the orient-resolve-query-book pattern.
+
+## Temporal Cortex Platform
+
+Instead of running the MCP server locally via `npx`, you can use the managed Temporal Cortex Platform. No Node.js installation or local OAuth credentials required.
+
+**Getting started:**
+
+1. Sign up at [app.temporal-cortex.com](https://app.temporal-cortex.com).
+2. Connect your Google Calendar or Microsoft Outlook account via OAuth in the dashboard.
+3. Generate an API key from the dashboard.
+4. Add the MCP config to your AI client (see examples below).
+
+### Claude Desktop (Platform)
+
+Add to your Claude Desktop config file:
+
+```json
+{
+  "mcpServers": {
+    "temporal-cortex": {
+      "url": "https://mcp.temporal-cortex.com/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
+
+### Cursor (Platform)
+
+Add to Cursor's MCP settings (`~/.cursor/mcp.json`) using the same format:
+
+```json
+{
+  "mcpServers": {
+    "temporal-cortex": {
+      "url": "https://mcp.temporal-cortex.com/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
+
+**Platform capabilities (beyond Local Mode):**
+
+- **No OAuth credentials to manage** -- calendar connections are handled in the dashboard via standard OAuth flows.
+- **No Node.js required** -- the client connects directly to the cloud endpoint over HTTP.
+- **Usage dashboard** -- monitor tool calls, connected calendars, and billing from [app.temporal-cortex.com](https://app.temporal-cortex.com).
+- **Managed calendar connections** -- token refresh, re-authentication, and provider health are handled server-side.
+- **Multi-agent coordination** -- distributed locking prevents double-bookings when multiple agents schedule simultaneously.
+- **Usage metering** -- track tool calls per agent and team from the dashboard.
+- **Content firewall** -- automatic prompt injection detection and zero-width Unicode stripping.
+- **Caller-based policies** -- enforce booking rules per agent (max duration, allowed hours, booking limits).
+
+All 15 core tools and 5 layers work identically. The Platform adds safety, coordination, and visibility infrastructure on top, plus 3 additional Open Scheduling tools (see below).
+
+### Open Scheduling + Temporal Links
+
+Platform users can enable **Open Scheduling** to make their availability publicly queryable by AI agents and humans — no API key required.
+
+1. Go to **Settings > Scheduling** in the dashboard.
+2. Set a slug (e.g., `billy`) and enable Open Scheduling.
+3. Share your **Temporal Link**: `book.temporal-cortex.com/billy`
+
+**What callers get:**
+
+- **Agent Card** (A2A discovery): `GET /public/{slug}/.well-known/agent-card.json`
+- **Availability** (REST): `GET /public/{slug}/availability?date=2026-03-15`
+- **Booking** (REST): `POST /public/{slug}/book`
+- **A2A JSON-RPC**: `POST /public/{slug}/a2a` with `query_availability` or `book_slot` methods
+- **Identity resolution**: `GET /resolve?identity=email@example.com` resolves to the user's Agent Card
+
+**Human fallback:** The same Temporal Link works in a browser — humans see a booking page with date/time picker and form.
+
+**Viral loop:** Every Agent Card exposes Temporal Cortex to the calling agent's framework. Every booking includes "Powered by Temporal Cortex" in the event description.
+
+## What tools does Temporal Cortex provide?
+
+Temporal Cortex exposes up to 18 Model Context Protocol tools organized in 5 layers. The 15 core tools are always available; 3 additional Open Scheduling tools are available in Platform Mode.
+
+### Layer 0 — Discovery
+
+| Tool | Description |
+|------|-------------|
+| `resolve_identity` | Resolves an identity (email, slug, or URL) to a Temporal Cortex user's Agent Card — returns slug, display name, and Open Scheduling status. Platform Mode only. |
+| `search_contacts` | Searches the user's address book by name (Google People API, Microsoft Graph). Returns matching contacts with emails, phones, organization, and job title. Opt-in — requires contacts permission. |
+| `resolve_contact` | Given a confirmed contact's email, determines the best scheduling path: Open Scheduling (instant booking), email, or phone. Chains with `resolve_identity` when Platform API is available. |
+
+### Layer 1 — Temporal Context
+
+| Tool | Description |
+|------|-------------|
+| `get_temporal_context` | Returns the current time, timezone, UTC offset, DST status, DST prediction (next transition date and direction), and day of week for the configured locale. Call this tool first in any calendar session. |
+| `resolve_datetime` | Resolves human language expressions like "next Tuesday at 2pm" or "tomorrow morning" into precise RFC 3339 timestamps. |
+| `convert_timezone` | Converts any RFC 3339 datetime from one IANA timezone to another, reporting the target timezone's DST status. |
+| `compute_duration` | Computes the duration between two timestamps, returning days, hours, minutes, and a human-readable string. |
+| `adjust_timestamp` | Adjusts a timestamp by a compound duration like "+1d2h30m" with DST-aware day-level shifts that preserve wall-clock time. |
+
+### Layer 2 — Calendar Operations
+
+| Tool | Description |
+|------|-------------|
+| `list_calendars` | Lists all calendars across connected providers with provider-prefixed IDs, names, colors, and access roles. TOON output by default (~40% fewer tokens). |
+| `list_events` | Lists calendar events within a time range, supporting provider-prefixed IDs. TOON output by default (~40% fewer tokens); use `format: "json"` for JSON. |
+| `find_free_slots` | Finds available time slots in a calendar by computing gaps between events, with support for minimum slot duration. TOON output by default. |
+| `expand_rrule` | Expands RFC 5545 recurrence rules into concrete datetime instances, handling DST transitions, BYSETPOS, leap years, and EXDATE exclusions deterministically. TOON output by default. |
+| `check_availability` | Checks whether a specific time slot is available by examining both calendar events and active booking locks. |
+
+### Layer 3 — Availability
+
+| Tool | Description |
+|------|-------------|
+| `get_availability` | Merges free/busy data across multiple calendars into a single unified view with configurable privacy levels (Opaque or Full). TOON output by default. |
+| `query_public_availability` | Queries another user's public availability by slug — returns available time slots for a given date and duration. No API key required. Platform Mode only. |
+
+### Layer 4 — Booking
+
+| Tool | Description |
+|------|-------------|
+| `book_slot` | Books a calendar slot using Two-Phase Commit: acquires a time-range lock, verifies no conflicts exist, writes the event, then releases the lock. |
+| `request_booking` | Requests a booking on another user's public calendar by slug — creates a calendar event on their behalf with attendee and title information. Platform Mode only. |
+| `compose_proposal` | Composes a scheduling proposal message for email, Slack, or SMS with proposed time slots formatted in the recipient's timezone. Includes optional Temporal Link self-serve booking URL. Does NOT send — returns formatted text for the agent to send via its channel MCP. |
+
+See [docs/tools.md](docs/tools.md) for full input/output schemas and usage examples.
+
+## How does Temporal Cortex handle recurrence rules?
+
+Most AI models and calendar tools silently fail on recurrence rule edge cases. Run the challenge to see the difference:
+
+```bash
+npx @temporal-cortex/cortex-mcp rrule-challenge
+```
+
+### 5 cases where LLMs consistently fail
+
+**1. "Third Tuesday of every month" across DST (March 2026, America/New_York)**
+
+The third Tuesday is March 17. Spring-forward on March 8 shifts UTC offsets from -05:00 to -04:00. LLMs often produce the wrong UTC time or skip the month entirely.
+
+**2. "Last Friday of every month" (BYSETPOS=-1)**
+
+`RRULE:FREQ=MONTHLY;BYDAY=FR;BYSETPOS=-1` — LLMs frequently return the first Friday instead of the last, or fail to handle months with 4 vs 5 Fridays.
+
+**3. "Every weekday except holidays" (EXDATE with timezone)**
+
+`EXDATE` values with explicit timezone offsets require exact matching against generated instances. LLMs often ignore EXDATE entirely or apply it to the wrong date.
+
+**4. "Biweekly on Monday, Wednesday, Friday" (INTERVAL=2 + BYDAY)**
+
+`RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE,FR` — The `INTERVAL=2` applies to weeks, not individual days. LLMs frequently generate every-week occurrences instead of every-other-week.
+
+**5. "February 29 yearly" (leap year recurrence)**
+
+`RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29` — Should only produce instances in leap years (2028, 2032...). LLMs often generate Feb 28 or Mar 1 in non-leap years.
+
+Truth Engine handles all of these deterministically using the [RFC 5545](https://www.rfc-editor.org/rfc/rfc5545) specification. No inference, no hallucination.
+
+## How does the MCP server architecture work?
+
+The MCP server is a single Rust binary distributed via npm and Docker. It runs locally on your machine and communicates with MCP clients over stdio (standard input/output) or streamable HTTP.
+
+**Request flow in 4 stages:**
+
+1. **Receive** — The server accepts JSON-RPC messages from MCP clients over stdio (default) or streamable HTTP (when `HTTP_PORT` is set).
+2. **Resolve** — Truth Engine converts human datetime expressions into precise UTC timestamps, handling timezone conversion and DST transitions deterministically.
+3. **Compute** — For availability queries, the engine merges free/busy data across all connected calendar providers. For RRULE expansion, it generates concrete instances following RFC 5545 rules.
+4. **Execute** — For booking operations, Two-Phase Commit acquires a lock, verifies the slot is free, writes the event, and releases the lock. Failure at any step triggers rollback.
+
+TOON (Token-Oriented Object Notation) compresses calendar data for LLM consumption — ~40% fewer tokens than JSON, with perfect roundtrip fidelity. TOON is the default output format for all data tools; use `format: "json"` when you need structured JSON.
+
+### Stdio vs HTTP Transport
+
+Transport mode is auto-detected — set `HTTP_PORT` to switch from stdio to HTTP.
+
+- **Stdio** (default): Standard MCP transport for local clients (Claude Desktop, VS Code, Cursor). The server reads/writes JSON-RPC messages over stdin/stdout.
+- **HTTP** (when `HTTP_PORT` is set): Streamable HTTP transport per MCP 2025-11-25 spec. The server listens on `http://{HTTP_HOST}:{HTTP_PORT}/mcp` with SSE streaming, session management (`Mcp-Session-Id` header), and Origin validation. Requests with an invalid `Origin` header are rejected with HTTP 403.
+
+```bash
+# HTTP mode example
+HTTP_PORT=8009 npx @temporal-cortex/cortex-mcp
+```
+
+### Local Mode vs Platform Mode
+
+Mode is auto-detected — there is no configuration flag.
+
+- **Local Mode** (default): No infrastructure required. Uses in-memory locking and local file credential storage. Supports multiple calendar providers (Google, Outlook, CalDAV) with multi-calendar availability merging. Designed for individual developers.
+- **Platform Mode** (managed service at mcp.temporal-cortex.com): Managed multi-tenant hosting with Postgres-backed credentials, Bearer token authentication, guardrails (rate limiting + booking caps), usage metering, and distributed locking for multi-agent safety. Designed for teams and production deployments.
+
+## How do I configure Temporal Cortex?
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `GOOGLE_CLIENT_ID` | For Google | — | Google OAuth Client ID from [Cloud Console](https://console.cloud.google.com/apis/credentials) |
+| `GOOGLE_CLIENT_SECRET` | For Google | — | Google OAuth Client Secret |
+| `GOOGLE_OAUTH_CREDENTIALS` | No | — | Path to Google OAuth JSON credentials file (alternative to `CLIENT_ID` + `CLIENT_SECRET`) |
+| `MICROSOFT_CLIENT_ID` | For Outlook | — | Azure AD application (client) ID for Outlook calendar access |
+| `MICROSOFT_CLIENT_SECRET` | For Outlook | — | Azure AD client secret for Outlook calendar access |
+| `TIMEZONE` | No | auto-detected | IANA timezone override (e.g., `America/New_York`). Overrides stored config and OS detection. |
+| `WEEK_START` | No | `monday` | Week start day: `monday` (ISO 8601) or `sunday`. Affects "start of week", "next week", etc. |
+| `REDIS_URLS` | No | — | Comma-separated Redis URLs for distributed locking within Platform Mode. Optional — falls back to in-memory locking if not set. |
+| `TENANT_ID` | No | auto-generated | UUID for tenant isolation |
+| `LOCK_TTL_SECS` | No | `30` | Lock time-to-live in seconds |
+| `OAUTH_REDIRECT_PORT` | No | `8085` | Port for the local OAuth callback server |
+| `HTTP_PORT` | No | — | Port for HTTP transport. When set, enables streamable HTTP mode instead of stdio. |
+| `HTTP_HOST` | No | `127.0.0.1` | Bind address for HTTP transport. Use `0.0.0.0` only behind a reverse proxy. |
+| `ALLOWED_ORIGINS` | No | — | Comma-separated allowed Origin headers for HTTP mode (e.g., `http://localhost:3000`). All cross-origin requests rejected if unset. |
+
+At least one calendar provider must be configured. See the provider setup guides: [Google Calendar](docs/google-cloud-setup.md), [Microsoft Outlook](docs/outlook-setup.md), [CalDAV (iCloud/Fastmail)](docs/caldav-setup.md). For a complete configuration reference, see the [Configuration Guide](docs/configuration-guide.md).
+
+## How do I troubleshoot common issues?
+
+| Problem | Solution |
+|---------|----------|
+| "No credentials found" | Run `npx @temporal-cortex/cortex-mcp auth google` (or `outlook` / `caldav`) to authenticate |
+| OAuth error / "Access blocked" | Verify `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (or `MICROSOFT_CLIENT_ID` and `MICROSOFT_CLIENT_SECRET` for Outlook) are correct. Ensure the OAuth consent screen is configured. |
+| Port 8085 already in use | Set `OAUTH_REDIRECT_PORT` to a different port (e.g., `8086`) |
+| Server not appearing in MCP client | Ensure Node.js 18+ is installed (`node --version`). Check your MCP client's logs for errors. |
+| Provider not discovered on startup | Verify the provider is registered in `~/.config/temporal-cortex/config.json` (run `auth` again if needed) |
+
+See provider-specific troubleshooting: [Google Calendar](docs/google-cloud-setup.md#troubleshooting), [Microsoft Outlook](docs/outlook-setup.md#troubleshooting), [CalDAV](docs/caldav-setup.md#troubleshooting).
+
+## Frequently Asked Questions
+
+### Does Temporal Cortex work without internet access?
+
+Layer 1 tools (temporal context, datetime resolution, timezone conversion, duration computation, timestamp adjustment) are pure computation and need no network access. Calendar tools (Layers 2-4) require network access to reach Google Calendar, Microsoft Outlook, or CalDAV APIs. The MCP server itself runs locally on your machine.
+
+### Which AI clients are supported?
+
+Any Model Context Protocol-compatible client works. Tested configurations are provided for Claude Desktop, Claude Code, VS Code with GitHub Copilot, Cursor, and Windsurf. The server uses stdio transport by default and also supports streamable HTTP transport for custom integrations.
+
+### How do I use Temporal Cortex with CrewAI?
+
+Temporal Cortex works with [CrewAI](https://www.crewai.com/) via the native MCPServerAdapter — no wrapper needed. See the [CrewAI integration guide](docs/crewai-integration.md) and [example code](examples/crewai/) for a complete multi-agent scheduling crew.
+
+**Quick start (DSL — simplest):**
+
+```python
+from crewai import Agent
+from crewai.mcp import MCPServerStdio
+
+scheduler = Agent(
+    role="Calendar Scheduling Assistant",
+    goal="Schedule meetings using deterministic calendar tools",
+    backstory="You always call get_temporal_context first to orient in time.",
+    mcps=[
+        MCPServerStdio(
+            command="npx",
+            args=["-y", "@temporal-cortex/cortex-mcp"],
+            env={"TIMEZONE": "America/New_York"},
+        ),
+    ],
+)
+```
+
+**Platform Mode (SSE — no local server):**
+
+```python
+from crewai.mcp import MCPServerSSE
+
+scheduler = Agent(
+    ...,
+    mcps=[
+        MCPServerSSE(
+            url="https://mcp.temporal-cortex.com/mcp",
+            headers={"Authorization": "Bearer YOUR_API_KEY"},
+        ),
+    ],
+)
+```
+
+### How do I use Temporal Cortex with LangGraph?
+
+Temporal Cortex works with [LangGraph](https://langchain-ai.github.io/langgraph/) via `langchain-mcp-adapters` — the adapter auto-discovers all MCP tools and converts them into LangChain-compatible `StructuredTool` objects. See the [LangGraph integration guide](docs/langgraph-integration.md) and [example code](examples/langgraph/) for ReAct agent, multi-agent StateGraph, and human-in-the-loop examples.
+
+**Quick start (ReAct agent):**
+
+```python
+from langchain_anthropic import ChatAnthropic
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langgraph.prebuilt import create_react_agent
+
+model = ChatAnthropic(model="claude-sonnet-4-6")
+
+async with MultiServerMCPClient(
+    {
+        "temporal-cortex": {
+            "command": "npx",
+            "args": ["-y", "@temporal-cortex/cortex-mcp"],
+            "env": {"TIMEZONE": "America/New_York"},
+            "transport": "stdio",
+        }
+    }
+) as client:
+    tools = client.get_tools()
+    agent = create_react_agent(model, tools)
+```
+
+**Platform Mode (HTTP — no local server):**
+
+```python
+async with MultiServerMCPClient(
+    {
+        "temporal-cortex": {
+            "url": "https://mcp.temporal-cortex.com/mcp",
+            "headers": {"Authorization": "Bearer YOUR_API_KEY"},
+            "transport": "streamable_http",
+        }
+    }
+) as client:
+    tools = client.get_tools()
+    agent = create_react_agent(model, tools)
+```
+
+### How do I use Temporal Cortex with OpenAI Agents SDK?
+
+Temporal Cortex works with the [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/) via `HostedMCPTool` — OpenAI handles the MCP connection server-side, no local server needed. See the [OpenAI Agents SDK integration guide](docs/openai-agents-integration.md) and [example code](examples/openai-agents/) for single-agent, multi-agent, and approval workflow examples.
+
+**Quick start:**
+
+```python
+from agents import Agent, HostedMCPTool
+
+agent = Agent(
+    name="Calendar Scheduler",
+    instructions="You schedule meetings using Temporal Cortex calendar tools.",
+    tools=[
+        HostedMCPTool(
+            tool_config={
+                "type": "mcp",
+                "server_label": "temporal-cortex",
+                "server_url": "https://mcp.temporal-cortex.com/mcp",
+                "headers": {"Authorization": "Bearer YOUR_API_KEY"},
+                "require_approval": "never",
+            }
+        ),
+    ],
+)
+```
+
+### Can I connect multiple calendar providers simultaneously?
+
+Yes. Run the auth flow for each provider (Google, Outlook, CalDAV) separately. The server discovers all configured providers on startup and merges their calendars into a unified availability view. Use provider-prefixed IDs like `google/primary` or `outlook/work` to target specific calendars.
+
+### How does Two-Phase Commit prevent double-bookings?
+
+When `book_slot` is called, the server acquires a time-range lock, verifies no conflicting events or active locks exist, writes the event to the calendar API, then releases the lock. If any step fails, the operation rolls back. Two agents booking the same slot simultaneously will have exactly one succeed and the other receive a clear error.
+
+### What is TOON and why does it reduce costs?
+
+TOON (Token-Oriented Object Notation) compresses calendar payloads by ~40% fewer tokens compared to JSON (38% on a Google Calendar event schema benchmark) while maintaining perfect roundtrip fidelity. Fewer tokens means lower API costs and more room in the LLM context window. TOON is now the default output format for all data tools (`list_calendars`, `list_events`, `find_free_slots`, `expand_rrule`, `get_availability`). Use `format: "json"` to get JSON output instead.
+
+### How does Temporal Cortex handle daylight saving time?
+
+All temporal tools are DST-aware. `adjust_timestamp` with "+1d" across a spring-forward boundary preserves wall-clock time (1:00 AM EST becomes 1:00 AM EDT). RRULE expansion keeps recurring events at their local time across DST transitions. `get_temporal_context` reports whether DST is currently active and predicts the next DST transition — including the transition date, direction (spring-forward or fall-back), and days until it occurs.
+
+### What is the difference between Local Mode and Platform Mode?
+
+Local Mode (default) runs on your machine with in-memory locking, local file credential storage, and no infrastructure required — all 15 core tools work with zero setup (contact tools require opt-in contacts permission). Platform Mode (at mcp.temporal-cortex.com) adds managed OAuth lifecycle, multi-agent coordination with distributed locking, usage metering, caller-based policies, a content firewall, a dashboard UI, and 3 additional Open Scheduling tools (`resolve_identity`, `query_public_availability`, `request_booking`). Both expose the same 15 core tools and 5 layers — the Platform adds safety, coordination, visibility, and up to 18 tools total for teams.
+
+### How bad are LLMs at temporal reasoning?
+
+Even the latest frontier models — GPT-5, Claude Sonnet 4, Gemini 2.5 Pro — score below 50% on temporal reasoning tasks ([OOLONG benchmark, arXiv:2511.02817](https://arxiv.org/abs/2511.02817)). Earlier models scored as low as 29% on scheduling and 13% on duration calculations ([Test of Time, ICLR 2025, arXiv:2406.09170](https://arxiv.org/abs/2406.09170)). Temporal questions are consistently the most challenging category for LLMs. Temporal Cortex replaces LLM inference with deterministic computation for all calendar math.
+
+### Is there a managed cloud option?
+
+Yes. The Temporal Cortex Platform is available at [app.temporal-cortex.com](https://app.temporal-cortex.com). Sign up for free — individuals get 20 bookings/month on the Starter tier, developers get 100 bookings/month. Paid tiers (Individual Pro, Developer Growth/Scale) add higher limits and priority support. All scheduling features are available on every tier, including free.
+
+## Does Temporal Cortex collect telemetry?
+
+During setup, an interactive prompt asks if you'd like to share anonymous usage data (default: off).
+
+**Collected:** tool names, success/error counts, platform, version. **Never collected:** calendar data, events, or personal info.
+
+Non-interactive sessions (MCP stdio) auto-opt-out. Change your choice anytime:
+
+```bash
+export TEMPORAL_CORTEX_TELEMETRY=off
+```
+
+## How do I teach my AI agent the scheduling workflow?
+
+The **[Temporal Cortex Agent Skills](https://github.com/temporal-cortex/skills)** teach AI agents the correct workflow for using these tools — from temporal orientation through conflict-free booking. Install them to give your agent procedural knowledge for calendar operations:
+
+```bash
+# Claude Code
+npx skills add temporal-cortex/skills
+```
+
+The skill follows the [Agent Skills specification](https://agentskills.io/specification) and works with Claude Code, OpenAI Codex, Google Gemini, GitHub Copilot, Cursor, and 20+ other platforms.
+
+## What is the computation layer behind Temporal Cortex?
+
+The computation layer is open source:
+
+- **[temporal-cortex-core](https://github.com/temporal-cortex/core)** — Truth Engine (temporal resolution, RRULE expansion, availability merging, timezone conversion) + TOON (token compression)
+- Available on [crates.io](https://crates.io/crates/truth-engine), [npm](https://www.npmjs.com/package/@temporal-cortex/truth-engine), and [PyPI](https://pypi.org/project/temporal-cortex-toon/)
+- 510+ Rust tests, 42 JS tests, 30 Python tests, ~9,000 property-based tests
+
+## Contributing
+
+Bug reports and feature requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE)

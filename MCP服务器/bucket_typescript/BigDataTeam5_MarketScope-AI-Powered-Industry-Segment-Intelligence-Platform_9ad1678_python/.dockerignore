@@ -1,0 +1,65 @@
+# Airflow logs
+Airflow/logs/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+*.ipynb_checkpoints
+*.mypy_cache/
+.cache/
+
+# Frontend-related (excluded for backend build)
+frontend/
+streamlit_app/
+*streamlit*.py
+**/node_modules/
+*.html
+*.css
+*.jsx
+*.tsx
+
+# IDE / System files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Distribution / Packaging
+dist/
+build/
+*.egg-info/
+.git
+.github
+
+# Large files & model dumps
+*.csv
+*.xlsv
+*.pickle
+*.pkl
+*.pt
+*.pth
+*.bin
+
+# Docs
+docs/
+LICENSE
+
+# Logs
+logs/
+
+# Keep essential app files
+!Backend/
+!chroma_db/
+!uploads/
+!user_markdowns/
+!Rag_modelings/
+!.env
+!requirements.txt
+!poetry.lock
+!pyproject.toml

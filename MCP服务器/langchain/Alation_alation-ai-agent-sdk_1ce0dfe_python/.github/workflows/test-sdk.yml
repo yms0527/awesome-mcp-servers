@@ -1,0 +1,84 @@
+name: Test SDK
+permissions:
+  contents: read
+on:
+  workflow_call:
+jobs:
+  test-sdk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdk-wheel
+          path: artifacts
+
+      - run: pip install artifacts/*.whl pytest==8.3.5
+
+      - run: |
+          set +e
+          pytest python/core-sdk --tb=line --maxfail=50 --disable-warnings -v --no-header > sdk-test-output.log 2>&1
+          echo $? > sdk-exit-code.txt
+          set -e
+
+      - run: |
+          TEST_EXIT_CODE=$(cat sdk-exit-code.txt)
+          
+          # Extract test statistics (using more portable regex)
+          TOTAL=$(grep -o 'collected [0-9]*' sdk-test-output.log | grep -o '[0-9]*' || echo "0")
+          PASSED=$(grep -o '[0-9]* passed' sdk-test-output.log | grep -o '[0-9]*' || echo "0")
+          FAILED=$(grep -o '[0-9]* failed' sdk-test-output.log | grep -o '[0-9]*' || echo "0")
+          ERRORS=$(grep -o '[0-9]* error' sdk-test-output.log | grep -o '[0-9]*' || echo "0")
+          SKIPPED=$(grep -o '[0-9]* skipped' sdk-test-output.log | grep -o '[0-9]*' || echo "0")
+          
+          # Calculate total failures (failed + errors)
+          TOTAL_FAILED=$((FAILED + ERRORS))
+          
+          {
+            echo "### ✅ SDK Test Summary"
+            echo ""
+            echo "| Suite | Total | Passed | Failed | Errors | Skipped |"
+            echo "|-------|-------|--------|--------|--------|---------|"
+            echo "| SDK   | $TOTAL | $PASSED | $FAILED | $ERRORS | $SKIPPED |"
+            
+            if [ "$TOTAL_FAILED" -gt 0 ]; then
+              echo ""
+              echo "**❌ Failed Tests Details:**"
+              echo '```'
+              
+              # Extract failed test details with better parsing
+              grep -E "FAILED|ERROR" sdk-test-output.log | head -20 || echo "No detailed failure info found"
+              
+              if [ $(grep -c -E "FAILED|ERROR" sdk-test-output.log) -gt 20 ]; then
+                echo ""
+                echo "... (showing first 20 failures, check logs for complete details)"
+              fi
+              
+              echo '```'
+              
+              # Add test execution summary if available
+              if grep -q "short test summary info" sdk-test-output.log; then
+                echo ""
+                echo "**📋 Test Summary:**"
+                echo '```'
+                sed -n '/short test summary info/,/==/p' sdk-test-output.log | head -30 || echo "Summary not available"
+                echo '```'
+              fi
+            fi
+          } > sdk-test-summary.md
+          
+          # Always show the output for debugging
+          echo "=== FULL TEST OUTPUT ==="
+          cat sdk-test-output.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdk-test-summary
+          path: sdk-test-summary.md
+
+      - run: exit $(cat sdk-exit-code.txt)

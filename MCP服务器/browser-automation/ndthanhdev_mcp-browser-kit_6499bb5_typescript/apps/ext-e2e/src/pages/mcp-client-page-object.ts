@@ -1,0 +1,179 @@
+import type {
+	ServerToolArgs,
+	ServerToolName,
+} from "@mcp-browser-kit/core-server";
+import type { ServerToolOverResult } from "@mcp-browser-kit/server-driving-mcp-server";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import {
+	type CallToolResult,
+	CallToolResultSchema,
+	ListResourcesResultSchema,
+	ListToolsResultSchema,
+} from "@modelcontextprotocol/sdk/types.js";
+import type { Page } from "@playwright/test";
+
+export type TypedCallToolResult<T extends ServerToolName> = Omit<
+	CallToolResult,
+	"structuredContent"
+> & {
+	structuredContent?: ServerToolOverResult<T>;
+};
+
+import {
+	createCoreServerContainer,
+	LoggerFactoryOutputPort,
+} from "@mcp-browser-kit/core-server";
+import { DrivenLoggerFactoryConsolaError } from "@mcp-browser-kit/driven-logger-factory";
+import { ServerDrivenTrpcChannelProvider } from "@mcp-browser-kit/server-driven-trpc-channel-provider";
+import { ServerDrivingMcpServer } from "@mcp-browser-kit/server-driving-mcp-server";
+
+export class McpClientPageObject {
+	private client: Client;
+	private clientTransport:
+		| ReturnType<typeof InMemoryTransport.createLinkedPair>[0]
+		| null = null;
+	private serverTransport:
+		| ReturnType<typeof InMemoryTransport.createLinkedPair>[1]
+		| null = null;
+	private mcpServer: ServerDrivingMcpServer | null = null;
+	private trpcServer: ServerDrivenTrpcChannelProvider | null = null;
+
+	constructor() {
+		this.client = new Client({
+			name: "e2e-test-client",
+			version: "1.0.0",
+		});
+	}
+
+	async startServer() {
+		const container = createCoreServerContainer();
+
+		DrivenLoggerFactoryConsolaError.setupContainer(
+			container,
+			LoggerFactoryOutputPort,
+		);
+		ServerDrivenTrpcChannelProvider.setupContainer(container);
+		ServerDrivingMcpServer.setupContainer(container);
+
+		this.trpcServer = container.get<ServerDrivenTrpcChannelProvider>(
+			ServerDrivenTrpcChannelProvider,
+		);
+		await this.trpcServer.start();
+
+		this.mcpServer = container.get<ServerDrivingMcpServer>(
+			ServerDrivingMcpServer,
+		);
+		await this.mcpServer.initMcpServer();
+	}
+
+	async connect() {
+		if (!this.mcpServer) {
+			throw new Error("MCP server not started. Call startServer() first.");
+		}
+
+		const server = this.mcpServer.getServer();
+		if (!server) {
+			throw new Error("MCP server instance not initialized.");
+		}
+
+		[this.clientTransport, this.serverTransport] =
+			InMemoryTransport.createLinkedPair();
+
+		await Promise.all([
+			server.connect(this.serverTransport),
+			this.client.connect(this.clientTransport),
+		]);
+	}
+
+	async disconnect() {
+		await this.client.close();
+		await this.trpcServer?.stop();
+	}
+
+	async listTools() {
+		const res = await this.client.request(
+			{
+				method: "tools/list",
+				params: {},
+			},
+			ListToolsResultSchema,
+		);
+		return res.tools;
+	}
+
+	async callTool<T extends ServerToolName>(
+		name: T,
+		...args: keyof ServerToolArgs<T> extends never
+			? []
+			: [
+					args: ServerToolArgs<T>,
+				]
+	): Promise<TypedCallToolResult<T>> {
+		const res = await this.client.request(
+			{
+				method: "tools/call",
+				params: {
+					name,
+					arguments: args[0] ?? {},
+				},
+			},
+			CallToolResultSchema,
+		);
+		return res as TypedCallToolResult<T>;
+	}
+
+	async listResources() {
+		const res = await this.client.request(
+			{
+				method: "resources/list",
+				params: {},
+			},
+			ListResourcesResultSchema,
+		);
+		return res.resources;
+	}
+
+	async waitForBrowsers(timeout = 20000) {
+		const { expect } = await import("@playwright/test");
+		await expect(async () => {
+			const contextOutput = await this.callTool("getContext", {});
+			console.log("contextOutput", contextOutput);
+			expect(
+				contextOutput.structuredContent?.value?.browsers?.length,
+			).toBeGreaterThan(0);
+		}).toPass({
+			timeout,
+			intervals: [
+				2000,
+			],
+		});
+	}
+
+	async waitForTabByUrl(
+		page: Page,
+		urlPattern: string,
+		timeout = 10000,
+	): Promise<string> {
+		const { expect } = await import("@playwright/test");
+		await page.waitForURL(`**/*${urlPattern}*`, {
+			timeout,
+		});
+		await page.waitForLoadState("networkidle");
+		let tabKey = "";
+		await expect(async () => {
+			const contextResult = await this.callTool("getContext", {});
+			tabKey =
+				contextResult.structuredContent?.value?.browsers[0]?.browserWindows[0]?.tabs.find(
+					(t) => t.url.includes(urlPattern),
+				)?.tabKey ?? "";
+			expect(tabKey).not.toBe("");
+		}).toPass({
+			timeout,
+			intervals: [
+				500,
+			],
+		});
+		return tabKey;
+	}
+}

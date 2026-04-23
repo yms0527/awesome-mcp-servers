@@ -1,0 +1,42 @@
+name: Tag @rajbos on New Issues
+
+# This workflow automatically tags @rajbos on new issues that were not created by @rajbos
+# to ensure timely attention to reported issues in this repository.
+
+on:
+  pull_request:
+    types: [opened]
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  tag-rajbos:
+    # Only run this job if we're in the actual repository context, not in forks
+    if: github.repository == 'mcp-research/mcp-security-scans' && github.actor != 'rajbos'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+        with:
+          egress-policy: audit
+
+      - name: Check issue creator and tag @rajbos
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '@rajbos A new issue or PR was created that might need your attention.'
+            });
+            console.log('Tagged @rajbos on issue #' + context.issue.number);

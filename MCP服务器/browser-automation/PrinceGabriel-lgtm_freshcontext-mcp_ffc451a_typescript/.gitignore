@@ -1,0 +1,7 @@
+node_modules/
+.env
+*.js.map
+
+mcp-publisher.exe
+.mcpregistry_*
+.mcp_publisher_token

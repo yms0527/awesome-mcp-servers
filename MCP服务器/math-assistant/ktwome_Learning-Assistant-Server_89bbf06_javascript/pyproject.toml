@@ -1,0 +1,38 @@
+[project]
+name = "learning-assistant-server"
+version = "0.1.0"
+description = "PDF 문서를 분석하여 핵심 개념을 마크다운으로 정리하는 서버"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.68.0",
+    "uvicorn>=0.15.0",
+    "python-multipart>=0.0.5",
+    "PyPDF2>=3.0.0",
+    "langchain>=0.1.0",
+    "langchain-community>=0.0.10",
+    "python-dotenv>=0.19.0",
+    "markdown>=3.3.4",
+    "transformers>=4.37.0",
+    "torch>=2.2.0"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "httpx>=0.24.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+packages = ["learning_assistant_server"]
+
+[tool.pytest.ini_options]
+testpaths = ["learning_assistant_server/tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"

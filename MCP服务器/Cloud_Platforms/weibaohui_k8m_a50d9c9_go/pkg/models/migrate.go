@@ -1,0 +1,253 @@
+package models
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/weibaohui/k8m/internal/dao"
+	"gorm.io/gorm"
+	"k8s.io/klog/v2"
+)
+
+func init() {
+
+	err := AutoMigrate()
+	if err != nil {
+		klog.Fatalf("数据库迁移失败，程序无法启动: %v", err)
+	}
+	klog.V(4).Info("数据库自动迁移完成")
+
+	_ = FixClusterName()
+	_ = FixRoleName()
+	_ = InitConfigTable()
+	_ = InitConditionTable()
+	_ = FixClusterAuthorizationTypeName()
+	_ = AddInnerAdminUserGroup()
+	_ = AddInnerAdminUser()
+}
+func AutoMigrate() error {
+
+	var errs []error
+	// 添加需要迁移的所有模型
+
+	if err := dao.DB().AutoMigrate(&CustomTemplate{}); err != nil {
+		errs = append(errs, err)
+	}
+	if err := dao.DB().AutoMigrate(&KubeConfig{}); err != nil {
+		errs = append(errs, err)
+	}
+	if err := dao.DB().AutoMigrate(&User{}); err != nil {
+		errs = append(errs, err)
+	}
+	if err := dao.DB().AutoMigrate(&ClusterUserRole{}); err != nil {
+		errs = append(errs, err)
+	}
+	if err := dao.DB().AutoMigrate(&OperationLog{}); err != nil {
+		errs = append(errs, err)
+	}
+	if err := dao.DB().AutoMigrate(&ShellLog{}); err != nil {
+		errs = append(errs, err)
+	}
+
+	// MYSQL 下需要单独处理 content字段为LONGTEXT，pg、sqlite不需要处理，这个字段删掉了，不用了
+	// if dao.DB().Migrator().HasTable(&HelmRepository{}) && dao.DB().Dialector.Name() == "mysql" {
+	// 	dao.DB().Exec("ALTER TABLE helm_repositories MODIFY COLUMN content LONGTEXT")
+	// }
+
+	if err := dao.DB().AutoMigrate(&UserGroup{}); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := dao.DB().AutoMigrate(&Config{}); err != nil {
+		errs = append(errs, err)
+	}
+	if err := dao.DB().AutoMigrate(&ConditionReverse{}); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := dao.DB().AutoMigrate(&SSOConfig{}); err != nil {
+		errs = append(errs, err)
+	}
+	if err := dao.DB().AutoMigrate(&LDAPConfig{}); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := dao.DB().AutoMigrate(&Menu{}); err != nil {
+		errs = append(errs, err)
+	}
+
+	// 插件配置表
+	if err := dao.DB().AutoMigrate(&PluginConfig{}); err != nil {
+		errs = append(errs, fmt.Errorf("PluginConfig 表迁移失败: %w", err))
+	} else {
+		// 验证表是否真的创建成功
+		if !dao.DB().Migrator().HasTable(&PluginConfig{}) {
+			errs = append(errs, fmt.Errorf("PluginConfig 表创建失败：表不存在"))
+		}
+	}
+
+	// 删除 user 表 name 字段，已弃用
+	if dao.DB().Migrator().HasColumn(&User{}, "Role") {
+		if err := dao.DB().Migrator().DropColumn(&User{}, "Role"); err != nil {
+			// 判断是不是check that column/key exists
+			// 不存在，不用删除，那么不用报错误
+			if !strings.Contains(err.Error(), "check that column/key exists") {
+				errs = append(errs, err)
+			}
+		}
+	}
+
+	// 打印所有非nil的错误
+	for i, err := range errs {
+		if err != nil {
+			klog.Errorf("数据库迁移报错[%d]: %v", i, err)
+		}
+	}
+
+	// 如果有错误，返回合并后的错误
+	if len(errs) > 0 {
+		return fmt.Errorf("数据库迁移发生 %d 个错误", len(errs))
+	}
+
+	return nil
+}
+
+func FixRoleName() error {
+	// 将用户组表中角色进行统一，除了平台管理员以外，都更新为普通用户guest
+	err := dao.DB().Model(&UserGroup{}).Where("role != ?", "platform_admin").Update("role", "guest").Error
+	if err != nil {
+		klog.Errorf("更新用户组表中角色失败: %v", err)
+		return err
+	}
+
+	return nil
+}
+func FixClusterAuthorizationTypeName() error {
+	// 将用户组表中角色进行统一，除了平台管理员以外，都更新为普通用户guest
+	err := dao.DB().Model(&ClusterUserRole{}).Where("authorization_type = '' or authorization_type is null").Update("authorization_type", "user").Error
+	if err != nil {
+		klog.Errorf("更新用户组表中角色失败: %v", err)
+		return err
+	}
+
+	return nil
+}
+func FixClusterName() error {
+	// 将display_name为空的记录更新为cluster字段
+	result := dao.DB().Model(&KubeConfig{}).Where("display_name = ?", "").Update("display_name", gorm.Expr("cluster"))
+	if result.Error != nil {
+		klog.Errorf("更新cluster_name失败: %v", result.Error)
+		return result.Error
+	}
+	return nil
+}
+
+func InitConfigTable() error {
+	var count int64
+	if err := dao.DB().Model(&Config{}).Count(&count).Error; err != nil {
+		klog.Errorf("查询配置表: %v", err)
+		return err
+	}
+	if count == 0 {
+		config := &Config{
+			PrintConfig: false,
+			LoginType:   "password",
+		}
+		if err := dao.DB().Create(config).Error; err != nil {
+			klog.Errorf("初始化配置表失败: %v", err)
+			return err
+		}
+		klog.V(4).Info("成功初始化配置表")
+	}
+
+	return nil
+}
+
+func InitConditionTable() error {
+	var count int64
+	if err := dao.DB().Model(&ConditionReverse{}).Count(&count).Error; err != nil {
+		klog.Errorf("查询翻转指标配置表: %v", err)
+		return err
+	}
+	if count == 0 {
+		// 初始化需要翻转的指标
+		conditions := []ConditionReverse{
+			{Name: "Pressure", Enabled: true},
+			{Name: "Unavailable", Enabled: true},
+			{Name: "Problem", Enabled: true},
+			{Name: "Error", Enabled: true},
+			{Name: "Slow", Enabled: true},
+		}
+		if err := dao.DB().Create(&conditions).Error; err != nil {
+			klog.Errorf("初始化翻转指标配置失败: %v", err)
+			return err
+		}
+
+		klog.V(4).Info("成功初始化翻转指标配置表")
+	}
+
+	return nil
+}
+
+// AddInnerAdminUser 添加内置管理员账户
+func AddInnerAdminUser() error {
+	// 检查是否存在名为k8m的记录
+	var count int64
+	if err := dao.DB().Model(&User{}).Count(&count).Error; err != nil {
+		klog.Errorf("统计用户数错误: %v", err)
+		return err
+	}
+	if count > 0 {
+		klog.V(4).Info("已存在用户，不再添加默认管理员用户")
+		return nil
+	}
+	if err := dao.DB().Model(&User{}).Where("username = ?", "k8m").Count(&count).Error; err != nil {
+		klog.Errorf("查看k8m默认用户是否存在，发生错误: %v", err)
+		return err
+	}
+	// 如果不存在，添加默认的一个默认的平台管理员账户
+	// 用户名为: k8m
+	// 密码为: k8m
+	if count == 0 {
+		config := &User{
+			Username:   "k8m",
+			Salt:       "grfi92rq",
+			Password:   "8RGCXWw6IzgKDPyeFKt6Kw==",
+			GroupNames: "平台管理员组",
+		}
+		if err := dao.DB().Create(config).Error; err != nil {
+			klog.Errorf("添加默认平台管理员账户失败: %v", err)
+			return err
+		}
+		klog.V(4).Info("成功添加默认平台管理员账户")
+	} else {
+		klog.V(4).Info("默认平台管理员k8m账户已存在")
+	}
+
+	return nil
+}
+
+// AddInnerAdminUserGroup 添加内置管理员账户组
+func AddInnerAdminUserGroup() error {
+	// 检查是否存在名为 平台管理员组 的内置管理员账户组的记录
+	var count int64
+	if err := dao.DB().Model(&UserGroup{}).Where("group_name = ?", "平台管理员组").Count(&count).Error; err != nil {
+		klog.Errorf("已存在内置 平台管理员组 角色: %v", err)
+		return err
+	}
+	if count == 0 {
+		config := &UserGroup{
+			GroupName: "平台管理员组",
+			Role:      "platform_admin",
+		}
+		if err := dao.DB().Create(config).Error; err != nil {
+			klog.Errorf("添加默认平台管理员组失败: %v", err)
+			return err
+		}
+		klog.V(4).Info("成功添加默认平台管理员组")
+	} else {
+		klog.V(4).Info("默认平台管理员组已存在")
+	}
+
+	return nil
+}

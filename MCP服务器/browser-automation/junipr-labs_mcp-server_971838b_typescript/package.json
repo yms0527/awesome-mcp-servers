@@ -1,0 +1,49 @@
+{
+  "name": "junipr-mcp",
+  "version": "1.2.1",
+  "description": "MCP server for Junipr APIs — screenshots, PDFs, and metadata extraction",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "junipr-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "junipr",
+    "screenshot",
+    "pdf",
+    "metadata",
+    "web-scraping",
+    "ai-tools"
+  ],
+  "author": "Jesse Eldridge <dev@junipr.io>",
+  "license": "MIT",
+  "homepage": "https://junipr.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/junipr-labs/junipr-mcp"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

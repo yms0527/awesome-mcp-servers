@@ -1,0 +1,4 @@
+{
+  "output": "# Branches\n\nFound 3 branches.\n\n## 1. main\n\n**SHA:** 6f4e312c2e1478d5a59fc11d1bb0d14209db21f9  \n**Protected:** No  \n\n## 2. test/feature-branch-1\n\n**SHA:** 6f4e312c2e1478d5a59fc11d1bb0d14209db21f9  \n**Protected:** No  \n\n## 3. test/feature-branch-1741336350\n\n**SHA:** f68aa0ed39aae8e2dedef581081dc181d637dded  \n**Protected:** No  \n\n",
+  "err": ""
+}

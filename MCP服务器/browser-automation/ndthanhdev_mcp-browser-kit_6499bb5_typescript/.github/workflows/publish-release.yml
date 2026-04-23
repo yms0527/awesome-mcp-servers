@@ -1,0 +1,53 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - v*.*.*
+      - v0.0.0-*
+
+jobs:
+  publish-release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for creating releases and uploading assets
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Dagger
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: v0.19.8
+          verb: functions
+          workdir: ./etc/workflow-runtime
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: yarn install
+
+      - run: "yarn install"
+      - run: "./etc/scripts/workflows/ci.ts"
+
+      - name: Upload target directory
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: target-directory
+          path: target/
+          retention-days: 1
+
+      - name: Upload extensions to GitHub Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/*
+          file_glob: true
+          tag: ${{ github.ref }}
+          overwrite: true

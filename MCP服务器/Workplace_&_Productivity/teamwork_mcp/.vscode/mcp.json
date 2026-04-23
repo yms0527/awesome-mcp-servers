@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "Teamwork": {
+      "type": "http",
+      "url": "https://mcp.ai.teamwork.com/"
+    }
+  }
+}

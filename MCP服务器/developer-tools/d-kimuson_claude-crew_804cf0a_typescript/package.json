@@ -1,0 +1,118 @@
+{
+  "name": "claude-crew",
+  "description": "A CLI tool for enhancing Claude Desktop with additional capabilities and workflows",
+  "version": "0.0.13",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "package.json"
+  ],
+  "bin": {
+    "claude-crew": "dist/cli.js"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "cli": "CLAUDE_CREW_DEVELOPMENT=true pnpm ts:run ./src/cli.ts",
+    "build": "run-p build:*",
+    "build:tsup": "tsup --clean",
+    "build:schema": "pnpm ts:run ./src/scripts/buildConfigSchema.ts",
+    "build:migrations": "pnpm db:generate && rm -rf dist/migrations && cp -r drizzle/migrations dist/migrations",
+    "release": "pnpm build && pnpm release-it",
+    "typecheck": "tsc -p ./tsconfig.test.json --noEmit",
+    "lint": "run-s lint:*",
+    "lint:cspell": "cspell lint './**/*.{tsx,ts,mts,mcs,mjs,cjs,js,json,md,yml,yaml}' --gitignore --cache",
+    "lint:prettier": "pnpm run:prettier . --check",
+    "lint:eslint": "pnpm run:eslint .",
+    "fix": "run-s fix:*",
+    "fix:prettier": "pnpm run:prettier . --write",
+    "fix:eslint": "pnpm lint:eslint --fix",
+    "test": "vitest run --shard ${TEST_SHARD:-1/1}",
+    "test:coverage": "vitest run --coverage",
+    "db:generate": "drizzle-kit generate",
+    "run:prettier": "prettier --ignore-unknown --no-error-on-unmatched-pattern --cache",
+    "run:eslint": "eslint --cache --no-error-on-unmatched-pattern",
+    "ts:run": "tsx --tsconfig ./tsconfig.src.json",
+    "setup:lefthook": "lefthook install",
+    "prepare": "run-s setup:*"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^1.3.7",
+    "@electric-sql/pglite": "^0.2.17",
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "@xenova/transformers": "^2.17.2",
+    "ai": "^4.3.2",
+    "boxen": "^8.0.1",
+    "chalk": "^5.4.1",
+    "diff": "^7.0.0",
+    "drizzle-orm": "^0.41.0",
+    "drizzle-zod": "^0.7.1",
+    "get-port": "^7.1.0",
+    "glob": "^11.0.1",
+    "ignore": "^7.0.3",
+    "inquirer": "^12.5.2",
+    "nanoid": "^5.1.5",
+    "neverthrow": "^8.2.0",
+    "ora": "^8.2.0",
+    "prexit": "^2.3.0",
+    "tree-sitter": "^0.22.4",
+    "tree-sitter-javascript": "^0.23.1",
+    "tree-sitter-python": "^0.23.6",
+    "tree-sitter-typescript": "^0.23.2",
+    "ts-morph": "^25.0.1",
+    "tsx": "^4.19.3",
+    "type-safe-prompt": "^0.0.3",
+    "yargs": "^17.7.2",
+    "zod": "^3.24.2",
+    "zod-to-json-schema": "^3.24.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "@modelcontextprotocol/inspector": "^0.8.1",
+    "@tsconfig/node22": "^22.0.1",
+    "@tsconfig/strictest": "^2.0.5",
+    "@types/diff": "^7.0.2",
+    "@types/node": "^22.14.0",
+    "@types/yargs": "^17.0.33",
+    "@vitest/coverage-v8": "^3.1.1",
+    "cspell": "8.18.1",
+    "drizzle-kit": "^0.30.6",
+    "eslint": "^9.24.0",
+    "eslint-import-resolver-typescript": "^4.3.1",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-unused-imports": "^4.1.4",
+    "lefthook": "1.11.6",
+    "npm-run-all2": "^7.0.2",
+    "prettier": "3.5.3",
+    "release-it": "^18.1.2",
+    "release-it-pnpm": "^4.6.4",
+    "tsup": "^8.4.0",
+    "type-fest": "^4.39.1",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.29.0",
+    "vitest": "^3.1.1"
+  },
+  "author": "d-kimuson",
+  "homepage": "https://github.com/d-kimuson/claude-crew#readme",
+  "bugs": "https://github.com/d-kimuson/claude-crew/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/d-kimuson/claude-crew.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "llm",
+    "claude",
+    "ai",
+    "agent"
+  ],
+  "packageManager": "pnpm@10.6.5",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "protobufjs",
+      "sharp"
+    ]
+  }
+}

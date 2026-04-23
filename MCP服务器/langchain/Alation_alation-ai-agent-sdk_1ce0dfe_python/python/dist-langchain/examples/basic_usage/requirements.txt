@@ -1,0 +1,4 @@
+alation-ai-agent-langchain>=1.0.0rc3
+# Core dependencies are handled by alation-ai-agent-langchain
+langchain-openai>=0.1.0
+openai>=1.0.0

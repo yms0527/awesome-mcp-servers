@@ -1,0 +1,88 @@
+{
+    "name": "re-stack-mcp",
+    "version": "0.1.0",
+    "description": "Re-Stack MCP Server - Bridging Stack Overflow & LLMs through Model Context Protocol",
+    "main": "build/index.js",
+    "type": "module",
+    "bin": {
+        "re-stack-mcp": "build/index.js"
+    },
+    "scripts": {
+        "start": "node build/index.js",
+        "build": "npx tsc",
+        "dev": "npx tsc -w",
+        "clean": "rm -rf build",
+        "lint": "eslint src --ext .ts",
+        "lint:fix": "eslint src --ext .ts --fix",
+        "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+        "prepare": "npm run build"
+    },
+    "keywords": [
+        "stackexchange",
+        "mcp",
+        "api",
+        "server"
+    ],
+    "author": "Your Name",
+    "license": "MIT",
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.7.0",
+        "@types/dotenv": "^6.1.1",
+        "@types/xml2js": "^0.4.14",
+        "axios": "^1.8.4",
+        "dotenv": "^16.4.7",
+        "express": "^5.0.1",
+        "express-session": "^1.18.1",
+        "open": "^10.1.0",
+        "passport": "^0.7.0",
+        "passport-stackexchange": "^0.1.2",
+        "xml2js": "^0.6.2"
+    },
+    "devDependencies": {
+        "@types/express": "^5.0.1",
+        "@types/express-session": "^1.18.1",
+        "@types/jest": "^29.5.14",
+        "@types/node": "^22.13.14",
+        "@types/passport": "^1.0.17",
+        "@typescript-eslint/eslint-plugin": "^8.22.0",
+        "@typescript-eslint/parser": "^8.27.0",
+        "eslint": "^9.19.0",
+        "jest": "^29.7.0",
+        "ts-jest": "^29.2.6",
+        "typescript": "^5.8.2"
+    },
+    "engines": {
+        "node": ">=16.0.0"
+    },
+    "jest": {
+        "preset": "ts-jest",
+        "testEnvironment": "node",
+        "transform": {
+            "^.+\\.tsx?$": "ts-jest"
+        },
+        "testRegex": "(/__tests__/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
+        "moduleFileExtensions": [
+            "ts",
+            "tsx",
+            "js",
+            "jsx",
+            "json",
+            "node"
+        ]
+    },
+    "eslintConfig": {
+        "parser": "@typescript-eslint/parser",
+        "plugins": [
+            "@typescript-eslint"
+        ],
+        "extends": [
+            "eslint:recommended",
+            "plugin:@typescript-eslint/recommended"
+        ],
+        "rules": {
+            "no-console": "off",
+            "@typescript-eslint/explicit-function-return-type": "error",
+            "@typescript-eslint/no-explicit-any": "warn"
+        }
+    }
+}

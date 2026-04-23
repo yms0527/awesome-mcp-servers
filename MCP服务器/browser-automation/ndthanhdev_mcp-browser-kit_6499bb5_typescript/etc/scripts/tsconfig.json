@@ -1,0 +1,15 @@
+{
+	"extends": "../../tsconfig.options.json",
+	"compilerOptions": {
+		"baseUrl": ".",
+		"outDir": "../../.moon/cache/types/etc/scripts",
+		"paths": {
+			"@mcp-browser-kit/scripts/*": [
+				"*"
+			]
+		}
+	},
+	"include": [
+		"**/*.ts"
+	]
+}

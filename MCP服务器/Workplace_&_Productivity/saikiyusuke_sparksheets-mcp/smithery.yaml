@@ -1,0 +1,65 @@
+name: sparksheets-mcp
+displayName: SparkSheets MCP
+description: AI-powered document and spreadsheet platform MCP server. Use SparkSheets as a persistent memory and context store for Claude Code, Cursor, and Cline across sessions.
+version: "1.0.3"
+homepage: https://sparksheets.ai
+repository: https://github.com/saikiyusuke/sparksheets-mcp
+license: MIT
+author: SparkSheets
+
+categories:
+  - productivity
+  - documents
+  - memory
+
+tags:
+  - spreadsheets
+  - documents
+  - context
+  - memory
+  - collaboration
+  - claude-code
+  - cursor
+  - cline
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - apiToken
+    properties:
+      apiToken:
+        type: string
+        description: SparkSheets API token. Get yours at https://sparksheets.ai/settings/
+        default: ""
+  commandFunction: |-
+    (config) => ({
+      command: "npx",
+      args: ["@sparksheets/mcp"],
+      env: {
+        SPARKSHEETS_API_TOKEN: config.apiToken
+      }
+    })
+
+tools:
+  - name: list_sessions
+    description: List work sessions with timestamps, titles, and last-updated dates
+  - name: get_session
+    description: Get details of a specific work session
+  - name: create_session
+    description: Create a new work session for tracking project context
+  - name: update_session
+    description: Update session content, notes, or status
+  - name: list_documents
+    description: List SparkSheets documents accessible to the user
+  - name: get_document
+    description: Read the contents of a SparkSheets document or spreadsheet
+  - name: create_document
+    description: Create a new document in SparkSheets
+  - name: update_document
+    description: Update the contents of a document
+  - name: search_documents
+    description: Search across all documents by keyword
+  - name: share_document
+    description: Share a document with team members or agents

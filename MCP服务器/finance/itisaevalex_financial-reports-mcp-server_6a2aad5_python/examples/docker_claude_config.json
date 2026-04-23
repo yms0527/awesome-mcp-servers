@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "financial-reports": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "financial-reports-mcp:latest"],
+      "env": {
+        "API_KEY": "your_api_key_here",
+        "MCP_TRANSPORT": "stdio"
+      }
+    }
+  }
+}

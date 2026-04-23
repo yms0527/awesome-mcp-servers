@@ -1,0 +1,38 @@
+# Python bytecode files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Generated files
+*.log
+*.png
+*.gif
+
+# Environment variables
+.env
+
+# Local configuration
+claude_desktop_config.json
+
+# Playwright browsers
+playwright-downloads/
+
+# Temporary files
+temp/
+tmp/

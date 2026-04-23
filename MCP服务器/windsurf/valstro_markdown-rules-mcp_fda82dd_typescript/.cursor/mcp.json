@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "markdown-rules-wsl": {
+      "command": "wsl.exe",
+      "args": ["-e", "bash", "-c", "./wsl-start-server.sh"]
+    }
+  }
+}

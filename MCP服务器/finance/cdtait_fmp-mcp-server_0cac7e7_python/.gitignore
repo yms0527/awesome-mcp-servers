@@ -1,0 +1,49 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE settings
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment variables - ignore actual env files but keep the template
+.env
+.env.local
+!.env.template
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# OS specific
+.DS_Store
+coverage.xml
+
+# Security - tokens and keys
+token.txt
+*.token
+*.key
+
+# Test scripts with hardcoded keys (but allow deployment scripts)
+scripts/
+!scripts/mcp-aws-ecs-setup.sh
+!scripts/add-load-balancer.sh
+!scripts/add-service-discovery.sh
+!scripts/cleanup-duplicates.sh
+# Terraform state files
+*.tfstate
+*.tfstate.backup

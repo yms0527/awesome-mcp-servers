@@ -1,0 +1,4 @@
+{
+  "output": "# Pull Request Diff (#1)\n\n```diff\ndiff --git a/super-important-feature-design-doc.md b/super-important-feature-design-doc.md\nnew file mode 100644\nindex 0000000..4596328\n--- /dev/null\n+++ b/super-important-feature-design-doc.md\n@@ -0,0 +1 @@\n+bla bla bla\n\\ No newline at end of file\n\n```\n",
+  "err": ""
+}

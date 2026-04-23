@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.log
+.env
+.DS_Store
+*.srt
+*.vtt
+temp/
+coverage/
+docker-hub-description.md
+cookies.txt
+.cursor/
+docker-compose.yml

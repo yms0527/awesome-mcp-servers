@@ -1,0 +1,32 @@
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: kubectl-mcp-server
+  namespace: default
+  labels:
+    app: kubectl-mcp-server
+    app.kubernetes.io/name: kubectl-mcp-server
+spec:
+  deployment:
+    image: "rohitghumare64/kubectl-mcp-server:latest"
+    imagePullPolicy: IfNotPresent
+    port: 8000
+    env:
+      MCP_DEBUG: "0"
+    secretRefs:
+      - name: kubeconfig-secret
+    volumeMounts:
+      - name: kubeconfig
+        mountPath: /root/.kube
+        readOnly: true
+    volumes:
+      - name: kubeconfig
+        secret:
+          secretName: kubeconfig-secret
+          items:
+            - key: config
+              path: config
+  transportType: http
+  httpTransport:
+    targetPort: 8000
+    path: /mcp

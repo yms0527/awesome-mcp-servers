@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slack MCP Server — Video Demo</title>
+  <meta name="description" content="Give Claude your Slack. 16 self-hosted tools plus a managed Cloud path with Gemini CLI support, security/procurement review, deployment review, and hosted credentials.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Slack MCP Server — Video Demo">
+  <meta property="og:description" content="Give Claude your Slack. 16 self-hosted tools plus a managed Cloud path with Gemini CLI support, security/procurement review, deployment review, and hosted credentials.">
+  <meta property="og:url" content="https://jtalk22.github.io/slack-mcp-server/public/demo-video.html">
+  <meta property="og:image" content="https://jtalk22.github.io/slack-mcp-server/docs/images/social-preview-v3.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Slack MCP Server — Video Demo">
+  <meta name="twitter:description" content="Give Claude your Slack. 16 self-hosted tools plus a managed Cloud path with Gemini CLI support, security/procurement review, deployment review, and hosted credentials.">
+  <meta name="twitter:image" content="https://jtalk22.github.io/slack-mcp-server/docs/images/social-preview-v3.png">
+  <link rel="icon" href="https://jtalk22.github.io/slack-mcp-server/docs/assets/icon-512.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --font-heading: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+      --font-body: "IBM Plex Sans", "Inter", "Segoe UI", sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: var(--font-body);
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 900px;
+      width: 100%;
+    }
+    h1 {
+      color: #ffffff;
+      font-size: 1.75rem;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 0.5rem;
+      font-family: var(--font-heading);
+      letter-spacing: -0.02em;
+    }
+    .subtitle {
+      color: #94a3b8;
+      text-align: center;
+      margin-bottom: 1.5rem;
+      font-size: 1rem;
+    }
+    .cta-strip {
+      margin: 0 auto 1rem;
+      background: rgba(15, 52, 96, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 0.8125rem;
+    }
+    .cta-strip .links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .cta-strip .links a {
+      color: #d8efff;
+      text-decoration: none;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      border-radius: 999px;
+      padding: 4px 8px;
+    }
+    .cta-strip .links a:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .cta-strip .note {
+      color: rgba(255, 255, 255, 0.82);
+    }
+    .cta-strip .note a {
+      color: #9ee7ff;
+      text-decoration: underline;
+    }
+    .video-wrapper {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      background: #0f0f1a;
+    }
+    video {
+      width: 100%;
+      display: block;
+      border-radius: 12px;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: #4ecdc4;
+      color: #1a1a2e;
+    }
+    .btn-primary:hover {
+      background: #5eead4;
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .back-link {
+      margin-top: 2rem;
+      text-align: center;
+    }
+    .back-link a {
+      color: #94a3b8;
+      text-decoration: none;
+      font-size: 0.875rem;
+    }
+    .back-link a:hover {
+      color: #ffffff;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 1rem 0.75rem;
+      }
+
+      .cta-strip .links {
+        width: 100%;
+      }
+
+      .controls {
+        gap: 0.75rem;
+      }
+
+      .btn {
+        flex: 1;
+        min-width: 0;
+        padding: 0.72rem 0.95rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Slack MCP Server</h1>
+    <p class="subtitle">Give Claude your Slack. 16 self-hosted tools for search, replies, reactions, unread triage, and user lookup. Cloud provides 15 managed tools, 3 Team AI workflows, and Gemini CLI support.</p>
+    <div class="cta-strip">
+      <div class="links">
+<a href="https://mcp.revasserlabs.com" target="_blank" rel="noopener noreferrer" style="background:rgba(240,194,70,0.18);border-color:rgba(240,194,70,0.45);color:#f0c246">Cloud</a>
+      <a href="https://www.npmjs.com/package/@jtalk22/slack-mcp" target="_blank" rel="noopener noreferrer">npm Install</a>
+      <a href="https://mcp.revasserlabs.com/pricing?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" target="_blank" rel="noopener noreferrer">Pricing</a>
+      <a href="https://mcp.revasserlabs.com/checkout?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud&plan=solo" target="_blank" rel="noopener noreferrer">Start Solo</a>
+      <a href="https://mcp.revasserlabs.com/checkout?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud&plan=team" target="_blank" rel="noopener noreferrer">Start Team</a>
+      <a href="https://mcp.revasserlabs.com/workflows?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" target="_blank" rel="noopener noreferrer">Workflows</a>
+      <a href="https://mcp.revasserlabs.com/official-slack-mcp-vs-managed?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" target="_blank" rel="noopener noreferrer">Official vs Managed</a>
+      <a href="https://mcp.revasserlabs.com/gemini-cli?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" target="_blank" rel="noopener noreferrer">Gemini CLI</a>
+      <a href="https://github.com/jtalk22/slack-mcp-server/blob/main/docs/SETUP.md" target="_blank" rel="noopener noreferrer">Setup Guide</a>
+      <a href="https://mcp.revasserlabs.com/docs?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" target="_blank" rel="noopener noreferrer">Cloud Docs</a>
+      <a href="https://mcp.revasserlabs.com/security?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" target="_blank" rel="noopener noreferrer">Security</a>
+      <a href="https://mcp.revasserlabs.com/procurement?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" target="_blank" rel="noopener noreferrer">Procurement</a>
+      <a href="https://mcp.revasserlabs.com/marketplace-readiness?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" target="_blank" rel="noopener noreferrer">Marketplace Readiness</a>
+      <a href="https://mcp.revasserlabs.com/deployment?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" target="_blank" rel="noopener noreferrer">Deployment Review</a>
+      <a href="https://mcp.revasserlabs.com/support?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" target="_blank" rel="noopener noreferrer">Cloud Support</a>
+      </div>
+      <div class="note">
+        Self-host free for 16 tools and full transport control, or use <a href="https://mcp.revasserlabs.com/pricing?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" target="_blank" rel="noopener noreferrer">Cloud</a> for 15 managed tools, deployment review, procurement-ready security, and support. Slack now has an official MCP path, so the paid case is rollout confidence, workflow packaging, and continuity, not generic protocol access. Solo starts at $19/mo; Team at $49/mo adds 3 AI workflows. Use <a href="https://mcp.revasserlabs.com/checkout?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud&plan=solo" target="_blank" rel="noopener noreferrer">Start Solo</a> or <a href="https://mcp.revasserlabs.com/checkout?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud&plan=team" target="_blank" rel="noopener noreferrer">Start Team</a> to enter the hosted checkout path with first-party attribution. Turnkey Team Launch starts at $2.5k+; Managed Reliability starts at $800/mo+.
+      </div>
+    </div>
+
+    <div class="video-wrapper">
+      <video id="demo" poster="../docs/images/demo-poster.png" playsinline>
+        <source src="../docs/videos/demo-claude.webm" type="video/webm">
+        <source src="https://jtalk22.github.io/slack-mcp-server/docs/videos/demo-claude.webm" type="video/webm">
+        Your browser does not support the video tag.
+      </video>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-primary" onclick="togglePlay()">Play / Pause</button>
+      <button class="btn btn-secondary" onclick="restart()">Restart</button>
+    </div>
+
+    <div class="back-link">
+      <a href="https://github.com/jtalk22/slack-mcp-server">GitHub</a> · <a href="https://mcp.revasserlabs.com/pricing?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" style="color:#f0c246;text-decoration:none;font-size:0.875rem">Cloud Plans</a> · <a href="https://mcp.revasserlabs.com/checkout?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud&plan=team" style="color:#94a3b8;text-decoration:none;font-size:0.875rem">Start Team</a> · <a href="https://mcp.revasserlabs.com/workflows?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" style="color:#94a3b8;text-decoration:none;font-size:0.875rem">Workflows</a> · <a href="https://mcp.revasserlabs.com/official-slack-mcp-vs-managed?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" style="color:#94a3b8;text-decoration:none;font-size:0.875rem">Official vs Managed</a> · <a href="https://mcp.revasserlabs.com/gemini-cli?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" style="color:#94a3b8;text-decoration:none;font-size:0.875rem">Gemini CLI</a> · <a href="https://mcp.revasserlabs.com/security?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" style="color:#94a3b8;text-decoration:none;font-size:0.875rem">Security</a> · <a href="https://mcp.revasserlabs.com/deployment?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" style="color:#94a3b8;text-decoration:none;font-size:0.875rem">Deployment Review</a> · <a href="https://mcp.revasserlabs.com/support?utm_source=github&utm_medium=pages&utm_campaign=slack_mcp_cloud" style="color:#94a3b8;text-decoration:none;font-size:0.875rem">Cloud Support</a> · <a href="https://www.npmjs.com/package/@jtalk22/slack-mcp" style="color:#94a3b8;text-decoration:none;font-size:0.875rem">npm</a>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('demo');
+    const HIGHLIGHT_START_SECONDS = 6;
+
+    function playFromHighlight() {
+      if (video.duration && video.duration > HIGHLIGHT_START_SECONDS + 1) {
+        video.currentTime = HIGHLIGHT_START_SECONDS;
+      }
+      return video.play();
+    }
+
+    // Autoplay with 1 second delay
+    setTimeout(() => {
+      playFromHighlight().catch(() => {
+        // Autoplay blocked, user will need to click
+        console.log('Autoplay blocked, click to play');
+      });
+    }, 1000);
+
+    function togglePlay() {
+      if (video.paused) {
+        video.play();
+      } else {
+        video.pause();
+      }
+    }
+
+    function restart() {
+      video.currentTime = 0;
+      video.play();
+    }
+
+    // Loop the video
+    video.addEventListener('ended', () => {
+      video.currentTime = HIGHLIGHT_START_SECONDS;
+      video.play();
+    });
+  </script>
+</body>
+</html>

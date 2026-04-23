@@ -1,0 +1,217 @@
+name: Wails build
+
+# inspired by https://github.com/dAppServer/wails-build-action/blob/main/action.yml
+
+on: [push]
+
+env:
+  # Necessary for most environments as build failure can occur due to OOM issues
+  NODE_OPTIONS: "--max-old-space-size=4096"
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Setup GoLang
+        uses: actions/setup-go@v4
+        with:
+          check-latest: true
+          go-version: 1.24.0
+      - name: Test
+        shell: bash
+        run: |
+          mkdir frontend/dist
+          touch frontend/dist/index.html
+          go test -v ./...
+
+  build:
+    name: Build
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        build: [
+          { name: 'ask-mai-linux-amd64', platform: linux/amd64, os: ubuntu-latest },
+#          { name: 'ask-mai-linux-arm64', platform: linux/arm64, os: ubuntu-latest },
+#          { name: 'ask-mai-linux-arm', platform: linux/arm, os: ubuntu-latest },
+          { name: 'ask-mai-windows-amd64', platform: windows/amd64, os: windows-latest },
+#          { name: 'ask-mai-windows-arm64', platform: windows/arm64, os: windows-latest },
+          { name: 'ask-mai-windows-386', platform: windows/386, os: windows-latest },
+          { name: 'ask-mai-darwin-amd64', platform: darwin/amd64, os: macos-latest },
+          { name: 'ask-mai-darwin-arm64', platform: darwin/arm64, os: macos-latest },
+          { name: 'ask-mai-darwin-universal', platform: darwin/universal, os: macos-latest }
+        ]
+    runs-on: ${{ matrix.build.os }}
+    steps:
+      # Checkout code
+      - name: Common - Check out code
+        uses: actions/checkout@v2
+
+      # Setup and configure GoLang
+      - name: Common - Setup GoLang
+        uses: actions/setup-go@v4
+        with:
+          check-latest: true
+          go-version: 1.24.0
+      # Setup and configure NodeJS
+      - name: Common - Setup NodeJS
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      # install wails and dependencies
+      - name: Common - Install Wails
+        run: |
+          WAILS_VERSION=$(cat go.mod | grep "^\s*github.com/wailsapp/wails/" | sed 's/^\s*//' | cut -d" " -f2)
+          echo "Use Wails version: ${WAILS_VERSION}"
+          go install github.com/wailsapp/wails/v2/cmd/wails@${WAILS_VERSION}
+        shell: bash
+      - name: Linux - Install Wails deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install libgtk-3-0 libwebkit2gtk-4.1-dev gcc-aarch64-linux-gnu upx-ucl
+        shell: bash
+      - name: Windows - Install Wails deps
+        if: runner.os == 'Windows' && matrix.build.platform != 'windows/arm64'
+        run: choco install upx
+        shell: powershell
+
+      # Version ldflags
+      - name: Common - Set version flags
+        id: ldflags
+        run: |
+          echo -n " -X 'main.commitHash=$(git rev-parse HEAD)'" >> ldflags
+          echo -n " -X 'main.branch=$(git rev-parse --abbrev-ref HEAD)'" >> ldflags
+          echo -n " -X 'main.tag=${GITHUB_REF#refs/tags/}'" >> ldflags
+          echo -n " -X 'main.built=$(date +%s%3N)'" >> ldflags
+
+          echo "ldflags=$(cat ldflags)" >> $GITHUB_OUTPUT
+
+      # Build
+      - name: Linux - Build
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          wails build -platform ${{ matrix.build.platform }} -ldflags "${{ steps.ldflags.outputs.ldflags }}" -tags "webkit2_41" -upx -o ${{ matrix.build.name }}
+      - name: Linux - Build (debug)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          wails build -platform ${{ matrix.build.platform }} -ldflags "${{ steps.ldflags.outputs.ldflags }}" -debug -devtools -tags "debug webkit2_41" -upx -o ${{ matrix.build.name }}-debug
+      - name: Windows - Build
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          wails build -platform ${{ matrix.build.platform }} -ldflags "${{ steps.ldflags.outputs.ldflags }}" -o ${{ matrix.build.name }}.exe
+          wails build -platform ${{ matrix.build.platform }} -ldflags "${{ steps.ldflags.outputs.ldflags }} -X 'main.windowMode=false'" -windowsconsole -o ${{ matrix.build.name }}-console.exe
+      - name: Windows - Build (compressed)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          wails build -platform ${{ matrix.build.platform }} -ldflags "${{ steps.ldflags.outputs.ldflags }}" -upx -o ${{ matrix.build.name }}-compressed.exe
+          wails build -platform ${{ matrix.build.platform }} -ldflags "${{ steps.ldflags.outputs.ldflags }} -X 'main.windowMode=false'" -windowsconsole -upx -o ${{ matrix.build.name }}-console-compressed.exe
+      - name: Windows - Build (debug)
+        if: runner.os == 'Windows' && matrix.build.platform != 'windows/arm64'  #currently broken in arm64 - don't know why
+        shell: bash
+        run: |
+          wails build -platform ${{ matrix.build.platform }} -ldflags "${{ steps.ldflags.outputs.ldflags }} -X 'main.windowMode=false'" -windowsconsole -devtools -debug -tags debug -o ${{ matrix.build.name }}-console-debug.exe
+      - name: MacOS - Build
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          APP_DIR_NAME="$(cat wails.json | jq -r '.name' ).app"
+
+          wails build -platform ${{ matrix.build.platform }} -ldflags "${{ steps.ldflags.outputs.ldflags }}" -o ${{ matrix.build.name }}
+          ditto -c -k ./build/bin/${APP_DIR_NAME} ./build/bin/${{ matrix.build.name }}.app.zip
+          productbuild --component ./build/bin/${APP_DIR_NAME} ./build/bin/${{ matrix.build.name }}.pkg
+      - name: MacOS - Build (debug)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          APP_DIR_NAME="$(cat wails.json | jq -r '.name' ).app"
+
+          wails build -platform ${{ matrix.build.platform }} -ldflags "${{ steps.ldflags.outputs.ldflags }}" -devtools -debug -tags debug -o ${{ matrix.build.name }}
+          ditto -c -k ./build/bin/${APP_DIR_NAME} ./build/bin/${{ matrix.build.name }}-debug.app.zip
+          productbuild --component ./build/bin/${APP_DIR_NAME} ./build/bin/${{ matrix.build.name }}-debug.pkg
+
+      # Upload build assets (only for tags)
+      - name: Common - Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: Wails Build ${{ matrix.build.name }}
+          path: |
+            */bin/
+            *\bin\*
+      - name: Common - Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            */bin/*
+
+#  build-flatpak:
+#    name: "Build (ask-mai-flatpak)"
+#    needs: test
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#      # Version ldflags
+#      - name: Common - Set version flags
+#        id: ldflags
+#        run: |
+#          echo -n " -X 'main.commitHash=${GITHUB_SHA}'" >> .ldflags
+#          echo -n " -X 'main.branch=${GITHUB_HEAD_REF}'" >> .ldflags
+#          echo -n " -X 'main.tag=${GITHUB_REF#refs/tags/}'" >> .ldflags
+#          echo -n " -X 'main.built=$(date +%s%3N)'" >> .ldflags
+#
+#      - name: Common - Setup Flatpak
+#        run: |
+#          sudo apt-get update && sudo apt-get install flatpak flatpak-builder
+#          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+#
+#      - name: Linux - Build (debug)
+#        run: |
+#          echo "START BUILDING FLATPAK"
+#          sudo flatpak-builder .flatpak-build de.rainu.ask-mai.yml --repo=.flatpak-repo --install-deps-from=flathub --force-clean --default-branch=master --arch=x86_64 --ccache
+#          echo "END BUILDING FLATPAK"
+#
+#          echo "START BUNDLE FLATPAK"
+#          sudo flatpak build-bundle .flatpak-repo ask-mai-linux-amd64-debug.flatpak --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo --arch=x86_64 de.rainu.ask-mai master
+#          echo "END BUNDLE FLATPAK"
+#
+#      - name: Common - Release
+#        uses: softprops/action-gh-release@v1
+#        if: startsWith(github.ref, 'refs/tags/')
+#        with:
+#          files: |
+#            ask-mai-linux-amd64-debug.flatpak
+
+  publish-aur:
+    name: "Publish to AUR"
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Generate PKGBUILD
+        env:
+          VERSION: ${{ github.ref_name }}
+          REV: ${{ github.run_number }}
+        run: |
+          ./build/generatePKGBUILD.sh > ./build/PKGBUILD
+          cat ./build/PKGBUILD
+
+      - name: Publish AUR package
+        uses: KSXGitHub/github-actions-deploy-aur@v4.1.1
+        with:
+          pkgname: ask-mai
+          pkgbuild: ./build/PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: Update AUR package - https://github.com/rainu/ask-mai/commit/${{ github.sha }}
+          ssh_keyscan_types: rsa,ecdsa,ed25519

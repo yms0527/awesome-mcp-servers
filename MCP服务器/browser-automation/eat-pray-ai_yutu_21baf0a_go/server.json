@@ -1,0 +1,105 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "title": "yutu",
+  "name": "io.github.eat-pray-ai/yutu",
+  "description": "A fully functional MCP server and CLI for YouTube",
+  "icons": [
+    {
+      "mimeType": "image/svg+xml",
+      "sizes": ["any"],
+      "src": "https://raw.githubusercontent.com/eat-pray-ai/yutu/main/assets/yutu-ico.svg"
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/eat-pray-ai/yutu",
+    "source": "github",
+    "id": "643163403"
+  },
+  "version": "0.0.0-dev",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/eat-pray-ai/yutu:0.0.0-dev",
+      "transport": {
+        "type": "streamable-http",
+        "url": "http://localhost:8216/mcp"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--user",
+          "value": "{user}:{group}",
+          "description": "UID and GID in the container to match host user",
+          "isRepeated": false,
+          "isRequired": false,
+          "variables": {
+            "user": {
+              "description": "The current user, output of `id -u`"
+            },
+            "group": {
+              "description": "The current user's primary group, output of `id -g`"
+            }
+          }
+        },
+        {
+          "type": "named",
+          "name": "--mount",
+          "value": "type=bind,source={hostPath},target=/app",
+          "description": "Mount host directory containing credentials and token",
+          "isRepeated": false,
+          "isRequired": false,
+          "variables": {
+            "hostPath": {
+              "description": "The directory containing `client_secret.json` and `youtube.token.json`"
+            }
+          }
+        },
+        {
+          "type": "named",
+          "name": "-p",
+          "value": "8216:8216",
+          "description": "Publish MCP server port",
+          "isRepeated": false,
+          "isRequired": true
+        }
+      ],
+      "runtimeHint": "docker",
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        },
+        {
+          "type": "named",
+          "name": "--mode",
+          "value": "http"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "description": "GCP project credential for yutu, base64 encoded JSON or path to JSON file",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true,
+          "name": "YUTU_CREDENTIAL"
+        },
+        {
+          "description": "YouTube authentication token, base64 encoded JSON or path to JSON file",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true,
+          "name": "YUTU_CACHE_TOKEN"
+        },
+        {
+          "description": "Log level",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false,
+          "name": "YUTU_LOG_LEVEL",
+          "default": "INFO",
+          "choices": ["DEBUG", "INFO", "WARNING", "ERROR"]
+        }
+      ]
+    }
+  ]
+}

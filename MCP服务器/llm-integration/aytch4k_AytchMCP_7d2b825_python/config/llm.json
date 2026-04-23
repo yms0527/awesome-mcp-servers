@@ -1,0 +1,15 @@
+{
+  "provider": "openai",
+  "model": "gpt-4",
+  "api_key_env_var": "OPENAI_API_KEY",
+  "api_base_url": null,
+  "additional_params": {
+    "temperature": 0.7,
+    "max_tokens": 1000,
+    "top_p": 1.0,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0
+  },
+  "openrouter_model_env_var": "OPENROUTER_MODEL",
+  "ninjachat_model_env_var": "NINJACHAT_MODEL"
+}

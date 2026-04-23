@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.mintlineai/mintline-mcp",
+  "description": "Connect AI assistants to your Mintline receipts, transactions, and spending analytics.",
+  "repository": {
+    "url": "https://github.com/mintlineai/mintline-mcp",
+    "source": "github"
+  },
+  "version": "1.1.9",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@mintline/mcp",
+      "version": "1.1.9",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

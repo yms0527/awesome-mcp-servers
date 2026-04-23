@@ -1,0 +1,133 @@
+package menu
+
+import (
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/weibaohui/k8m/internal/dao"
+	"github.com/weibaohui/k8m/pkg/comm/utils/amis"
+	"github.com/weibaohui/k8m/pkg/models"
+	"github.com/weibaohui/k8m/pkg/response"
+	"gorm.io/gorm"
+)
+
+type AdminMenuController struct {
+}
+
+// AdminMenu 用于菜单相关接口
+// 路由注册函数
+
+func RegisterAdminMenuRoutes(r chi.Router) {
+
+	ctrl := AdminMenuController{}
+	// menu 平台管理员可操作，管理菜单
+	r.Get("/menu/list", response.Adapter(ctrl.List))
+	r.Get("/menu/history", response.Adapter(ctrl.History))
+	r.Post("/menu/save", response.Adapter(ctrl.Save))
+	r.Post("/menu/delete/{ids}", response.Adapter(ctrl.Delete))
+	r.Post("/menu/history/delete/{id}", response.Adapter(ctrl.DeleteHistory))
+
+}
+
+// @Summary 获取菜单列表
+// @Description 获取所有菜单版本信息
+// @Security BearerAuth
+// @Success 200 {object} []models.Menu
+// @Router /admin/menu/list [get]
+func (a *AdminMenuController) List(c *response.Context) {
+	params := dao.BuildParams(c)
+	m := &models.Menu{}
+	items, _, err := m.List(params, func(db *gorm.DB) *gorm.DB {
+		return db
+	})
+	if err != nil {
+		amis.WriteJsonError(c, err)
+		return
+	}
+	amis.WriteJsonData(c, items)
+}
+
+// @Summary 保存菜单
+// @Description 新增或更新菜单（每次操作生成新版本）
+// @Security BearerAuth
+// @Accept json
+// @Param data body models.Menu true "菜单内容"
+// @Success 200 {object} map[string]interface{}
+// @Router /admin/menu/save [post]
+func (a *AdminMenuController) Save(c *response.Context) {
+	params := dao.BuildParams(c)
+	m := &models.Menu{}
+	if err := c.ShouldBind(&m); err != nil {
+		amis.WriteJsonError(c, err)
+		return
+	}
+	err := m.Save(params, func(db *gorm.DB) *gorm.DB {
+		return db
+	})
+	if err != nil {
+		amis.WriteJsonError(c, err)
+		return
+	}
+	amis.WriteJsonOK(c)
+}
+
+// @Summary 获取菜单历史记录
+// @Description 获取菜单修改历史记录，按时间倒序排列
+// @Security BearerAuth
+// @Success 200 {object} []models.Menu
+// @Router /admin/menu/history [get]
+func (a *AdminMenuController) History(c *response.Context) {
+	params := dao.BuildParams(c)
+	m := &models.Menu{}
+	params.PerPage = 100000
+	items, _, err := m.List(params, func(db *gorm.DB) *gorm.DB {
+		return db.Order("created_at DESC") // 按创建时间倒序排序
+	})
+	if err != nil {
+		amis.WriteJsonError(c, err)
+		return
+	}
+	amis.WriteJsonData(c, items)
+}
+
+// @Summary 删除菜单
+// @Description 根据ID批量删除菜单版本
+// @Security BearerAuth
+// @Param ids path string true "菜单ID，多个用逗号分隔"
+// @Success 200 {object} string
+// @Router /admin/menu/delete/{ids} [post]
+func (a *AdminMenuController) Delete(c *response.Context) {
+	ids := c.Param("ids")
+	params := dao.BuildParams(c)
+	m := &models.Menu{}
+
+	err := m.Delete(params, ids)
+	if err != nil {
+		amis.WriteJsonError(c, err)
+		return
+	}
+	amis.WriteJsonOK(c)
+}
+
+// @Summary 删除菜单历史记录
+// @Description 根据ID删除单个菜单历史记录
+// @Security BearerAuth
+// @Param id path int true "菜单历史记录ID"
+// @Success 200 {object} string
+// @Router /admin/menu/history/delete/{id} [delete]
+func (a *AdminMenuController) DeleteHistory(c *response.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		amis.WriteJsonError(c, err)
+		return
+	}
+
+	m := &models.Menu{}
+	err = m.DeleteByID(id)
+	if err != nil {
+		amis.WriteJsonError(c, err)
+		return
+	}
+	amis.WriteJsonOK(c)
+}

@@ -1,0 +1,30 @@
+---
+description: "This rule provides detailed descriptions of the available MCP tools to help the AI make better decisions about which tool to use for specific tasks."
+alwaysApply: true
+---
+
+## Echo MCP
+
+The Echo MCP provides simple echo functionality for testing purposes. Use this tool when:
+- You want to test if MCP communication is working
+
+## Playwright MCP
+
+The Playwright MCP provides powerful browser automation capabilities. Use this tool when:
+- You need precise, deterministic browser control
+- You want to automate specific UI interactions (clicks, typing, navigation)
+- You need to take screenshots of specific elements
+- You're testing a web application with predetermined steps
+- You require frame-by-frame control over browser actions
+
+## When to Use Which Tool
+
+- **Echo**: For testing and debugging MCP connectivity
+- **Playwright**: For precise, step-by-step browser automation when you know exactly what actions to take
+
+Example tasks for Playwright:
+- "Take a screenshot of the login button on example.com"
+- "Click the submit button after filling out the form"
+- "Check if element #results-container is visible"
+- "Fill in the registration form with test data"
+- "Navigate through a multi-step checkout process"

@@ -1,0 +1,4 @@
+{
+  "output": "# Reference: refs/heads/new-branch-from-branch\n\n**Branch Name:** new-branch-from-branch  \n**Full Reference:** refs/heads/new-branch-from-branch  \n**SHA:** 6f4e312c2e1478d5a59fc11d1bb0d14209db21f9  \n**Type:** commit  \n**URL:** https://api.github.com/repos/geropl/github-mcp-go-test/git/refs/heads/new-branch-from-branch  \n",
+  "err": ""
+}

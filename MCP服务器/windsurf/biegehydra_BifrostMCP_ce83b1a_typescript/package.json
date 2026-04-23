@@ -1,0 +1,84 @@
+{
+  "name": "bifrost-mcp",
+  "displayName": "Bifrost - VSCode Dev Tools MCP Server",
+  "description": "An MCP server that exposes features of VSCode dev tools to the MCP clients",
+  "version": "0.0.14",
+  "publisher": "ConnorHallman",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/biegehydra/csharplangmcpserver"
+  },
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages",
+    "Language Packs"
+  ],
+  "keywords": [
+    "C#",
+    "MCP",
+    "dotnet",
+    "AI",
+    "find references"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "bifrost-mcp.startServer",
+        "title": "Bifrost MCP: Start Server"
+      },
+      {
+        "command": "bifrost-mcp.startServerOnPort",
+        "title": "Bifrost MCP: Start Server on Port"
+      },
+      {
+        "command": "bifrost-mcp.stopServer",
+        "title": "Bifrost MCP: Stop Server"
+      },
+      {
+        "command": "bifrost-mcp.openDebugPanel",
+        "title": "Bifrost MCP: Open Debug Panel"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.93.0",
+    "@typescript-eslint/eslint-plugin": "^8.25.0",
+    "@typescript-eslint/parser": "^8.25.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.21.0",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.7.3",
+    "vscode-languageclient": "^9.0.1",
+    "webpack": "^5.98.0",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "cors": "^2.8.5",
+    "express": "^5.0.1"
+  }
+}

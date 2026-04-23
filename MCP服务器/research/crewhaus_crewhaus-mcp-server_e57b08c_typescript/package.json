@@ -1,0 +1,40 @@
+{
+  "name": "crewhaus-mcp-server",
+  "version": "1.2.0",
+  "mcpName": "io.github.crewhaus/validation",
+  "description": "MCP server for CrewHaus startup validation services. Lets AI agents discover, price, and submit validation requests.",
+  "type": "module",
+  "bin": {
+    "crewhaus-mcp": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod 755 build/index.js",
+    "start": "node build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "keywords": [
+    "mcp",
+    "ai-agent",
+    "startup-validation",
+    "crewhaus",
+    "a2a"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/crewhaus/crewhaus-mcp-server"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.35",
+    "typescript": "^5.9.3"
+  }
+}

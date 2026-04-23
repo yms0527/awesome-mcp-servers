@@ -1,0 +1,4 @@
+{
+  "output": "# Issues\n\nFound 3 issues.\n\n## 1. Test Issue with Labels\n\n**Number:** #14  \n**State:** open  \n**Created:** Fri, 07 Mar 2025 12:23:33 UTC  \n**URL:** https://github.com/geropl/github-mcp-go-test/issues/14  \n\nThis is a test issue with labels created by the test suite.\n\n**Labels:** bug, enhancement  \n**Comments:** 0  \n\n## 2. Test Issue\n\n**Number:** #13  \n**State:** open  \n**Created:** Fri, 07 Mar 2025 12:23:22 UTC  \n**URL:** https://github.com/geropl/github-mcp-go-test/issues/13  \n\nThis is a test issue created by the test suite.\n\n**Comments:** 0  \n\n## 3. Test PR\n\n**Number:** #1  \n**State:** open  \n**Created:** Fri, 07 Mar 2025 07:45:38 UTC  \n**URL:** https://github.com/geropl/github-mcp-go-test/pull/1  \n\nTest PR body\n\n**Comments:** 1  \n\n",
+  "err": ""
+}

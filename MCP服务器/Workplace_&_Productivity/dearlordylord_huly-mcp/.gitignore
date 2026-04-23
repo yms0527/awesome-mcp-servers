@@ -1,0 +1,15 @@
+node_modules
+.reference/
+dist/
+*.tsbuildinfo
+.ralph/
+.ralph-tests/
+.mcpregistry_*
+COMPARISON.md
+.env.production
+CLAUDE.local.md
+.worktrees/
+.huly-local/
+.env.local
+.claude/settings.local.json
+.pnpm-store/

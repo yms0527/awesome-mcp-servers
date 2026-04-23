@@ -1,0 +1,12 @@
+[project]
+name = "mcp-servers"
+version = "0.1.0"
+description = "My MCP servers"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.28.1",
+    "libzim>=3.7.0",
+    "mcp[cli]>=1.2.0",
+    "strip-tags>=0.6",
+]

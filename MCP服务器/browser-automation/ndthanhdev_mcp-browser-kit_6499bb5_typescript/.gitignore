@@ -1,0 +1,31 @@
+# editors
+.vscode/
+
+# typescript
+*.tsbuildinfo
+
+# moon
+.moon/cache
+.moon/docker
+.moon/hooks
+
+node_modules/
+
+# target
+target/
+
+# Yarn zero install
+.yarn/*
+!.yarn/cache
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+.tmp/
+
+# playwright
+playwright-report/
+test-results/
+playwright/.cache/

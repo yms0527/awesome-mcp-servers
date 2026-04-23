@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "rad-security": {
+      "command": "npx",
+      "args": ["-y", "@rad-security/mcp-server"],
+      "env": {
+        "RAD_SECURITY_ACCESS_KEY_ID": "",
+        "RAD_SECURITY_SECRET_KEY": "",
+        "RAD_SECURITY_ACCOUNT_ID": ""
+      }
+    }
+  }
+}

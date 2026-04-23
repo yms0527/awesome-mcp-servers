@@ -1,0 +1,21 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    "helpers:pinGitHubActionDigestsToSemver"
+  ],
+  timezone: "Asia/Tokyo",
+  automerge: true,
+  platformAutomerge: true,
+  minimumReleaseAge : "7 days",
+  labels: [
+    "dependency upgrade"
+  ],
+  ignoreDeps: [
+    "zod"
+  ],
+  // To prevent libraries in optionalDependencies from being removed from the lock file
+  constraints: {
+    npm: "11.6.0"
+  }
+}

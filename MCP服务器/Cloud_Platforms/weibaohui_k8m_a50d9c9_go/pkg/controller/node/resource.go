@@ -1,0 +1,81 @@
+package node
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/weibaohui/k8m/pkg/comm/utils/amis"
+	"github.com/weibaohui/k8m/pkg/response"
+	"github.com/weibaohui/kom/kom"
+	v1 "k8s.io/api/core/v1"
+)
+
+type ResourceController struct{}
+
+func RegisterResourceRoutes(r chi.Router) {
+	ctrl := &ResourceController{}
+	r.Get("/node/top/list", response.Adapter(ctrl.TopList))
+	r.Get("/node/usage/name/{name}", response.Adapter(ctrl.Usage))
+}
+
+// @Summary 获取节点资源使用情况
+// @Security BearerAuth
+// @Param cluster query string true "集群名称"
+// @Param name path string true "节点名称"
+// @Success 200 {object} string
+// @Router /k8s/cluster/{cluster}/node/usage/name/{name} [get]
+func (nc *ResourceController) Usage(c *response.Context) {
+	name := c.Param("name")
+	ctx := amis.GetContextWithUser(c)
+	selectedCluster, err := amis.GetSelectedCluster(c)
+	if err != nil {
+		amis.WriteJsonError(c, err)
+		return
+	}
+
+	usage, err := kom.Cluster(selectedCluster).WithContext(ctx).Resource(&v1.Node{}).Name(name).
+		Ctl().Node().ResourceUsageTable()
+	if err != nil {
+		amis.WriteJsonError(c, err)
+		return
+	}
+	// todo 增加其他资源用量
+	amis.WriteJsonData(c, usage)
+}
+
+// @Summary 返回所有节点的资源使用率（top指标），包括CPU和内存的用量及其数值化表示，便于前端排序和展示
+// @Security BearerAuth
+// @Param cluster query string true "集群名称"
+// @Success 200 {object} string
+// @Router /k8s/cluster/{cluster}/node/top/list [get]
+func (nc *ResourceController) TopList(c *response.Context) {
+	ctx := amis.GetContextWithUser(c)
+	selectedCluster, err := amis.GetSelectedCluster(c)
+	if err != nil {
+		amis.WriteJsonError(c, err)
+		return
+	}
+
+	nodeMetrics, err := kom.Cluster(selectedCluster).WithContext(ctx).Resource(&v1.Node{}).
+		WithCache(time.Second * 30).
+		Ctl().Node().Top()
+	if err != nil {
+		amis.WriteJsonError(c, err)
+		return
+	}
+	// 转换为map 前端排序使用，usage.cpu这种前端无法正确排序
+	var result []map[string]string
+	for _, item := range nodeMetrics {
+		result = append(result, map[string]string{
+			"name":            item.Name,
+			"cpu":             item.Usage.CPU,
+			"memory":          item.Usage.Memory,
+			"cpu_nano":        fmt.Sprintf("%d", item.Usage.CPUNano),
+			"memory_byte":     fmt.Sprintf("%d", item.Usage.MemoryByte),
+			"cpu_fraction":    item.Usage.CPUFraction,
+			"memory_fraction": item.Usage.MemoryFraction,
+		})
+	}
+	amis.WriteJsonList(c, result)
+}
