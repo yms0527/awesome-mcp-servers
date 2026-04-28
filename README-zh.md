@@ -2,7 +2,7 @@
 
 # 🌐 MCP安全服务器与攻击后的恶意MCP服务器数据集
 
-**Model Context Protocol 服务器集合与安全攻击样本**
+**Model Context Protocol 服务器集合**
 
 [![English](https://img.shields.io/badge/English-Click-yellow)](README.md)
 [![简体中文](https://img.shields.io/badge/简体中文-点击查看-orange)](README-zh.md)
