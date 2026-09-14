@@ -1,8 +1,8 @@
 <div align="center">
 
-# MCP Security Servers and Malicious MCP Servers Dataset
+# Reference MCP Servers and Malicious MCP Variants Dataset
 
-**ツール拡張型 LLM システムのセキュリティ研究向けに、786 件の参照 MCP Server と 190 件の悪意ある MCP Server 変種を収録したデータセットです。**
+**ツール拡張型 LLM システムのセキュリティ研究向けに、786 件の参照 MCP Server と 190 件の悪意ある MCP 変種を収録したデータセットです。**
 
 [English](README.md) · [简体中文](README-zh.md) · [繁體中文](README-zh_TW.md) · [日本語](README-ja.md) · [한국어](README-ko.md)
 
@@ -12,7 +12,7 @@
 
 ## Disclaimer
 
-このリポジトリに含まれる悪意ある MCP Server 変種は、セキュリティ研究、データセット構築、防御評価、教育目的に限って提供されています。不正アクセス、認証情報の窃取、マルウェア配布、サービス妨害、第三者のシステムやデータを害する行為には使用しないでください。
+このリポジトリに含まれる悪意ある MCP 変種は、セキュリティ研究、データセット構築、防御評価、教育目的に限って提供されています。不正アクセス、認証情報の窃取、マルウェア配布、サービス妨害、第三者のシステムやデータを害する行為には使用しないでください。
 
 ---
 
@@ -20,11 +20,11 @@
 
 | Dataset | Count | Description |
 |---|---:|---|
-| `MCP服务器/` | 786 | MCP Server の識別・フィルタリング規則に基づく参照サーバールート。 |
-| `MCP攻击版/` | 190 | 実際の MCP Server から派生した悪意あるサーバー変種。 |
+| `reference-mcp-servers/` | 786 | MCP Server の識別・フィルタリング規則に基づく参照サーバールート。 |
+| `malicious-mcp-variants/` | 190 | 実際の MCP Server から派生した悪意あるサーバー変種。 |
 | Total experimental samples | 976 | 786 reference servers + 190 malicious variants. |
 
-786 は単純な物理ディレクトリ数ではなく、MCP Server ルートの識別とフィルタリングに基づく実験上の統計値です。悪意ある変種のディレクトリ名は元の server/project 名を保持し、攻撃タイプや DTPE final impact location は `MCP攻击版/variant_name_mapping.csv` に記録されています。
+786 は単純な物理ディレクトリ数ではなく、MCP Server ルートの識別とフィルタリングに基づく実験上の統計値です。悪意ある変種のディレクトリ名は元の server/project 名を保持し、攻撃タイプや DTPE final impact location は `malicious-mcp-variants/variant_name_mapping.csv` に記録されています。
 
 ---
 
@@ -69,5 +69,5 @@
 
 ## Metadata
 
-Malicious variant directories under `MCP攻击版/` preserve the original MCP server/project names. Attack labels are stored in `variant_name_mapping.csv`, `variant_label_schema.json`, `attack_expansion_manifest.json`, and per-attack `attack_summary.md` files.
+Malicious variant directories under `malicious-mcp-variants/` preserve the original MCP server/project names. Attack labels are stored in `variant_name_mapping.csv`, `variant_label_schema.json`, `attack_expansion_manifest.json`, and per-attack `attack_summary.md` files.
 

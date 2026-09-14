@@ -1,8 +1,8 @@
 <div align="center">
 
-# MCP 安全服务器与恶意 MCP 服务器数据集
+# Reference MCP Servers 与 Malicious MCP Variants 数据集
 
-**面向工具增强型大语言模型安全研究的数据集，包含 786 个参考 MCP Server 和 190 个恶意 MCP Server 变体。**
+**面向工具增强型大语言模型安全研究的数据集，包含 786 个 reference-mcp-servers 样本和 190 个 malicious-mcp-variants 样本。**
 
 [English](README.md) · [简体中文](README-zh.md) · [繁體中文](README-zh_TW.md) · [日本語](README-ja.md) · [한국어](README-ko.md)
 
@@ -12,7 +12,7 @@
 
 ## 免责声明
 
-本仓库中的恶意 MCP Server 变体仅用于安全研究、数据集构建、防御评估和教学用途。
+本仓库中的恶意 MCP 变体仅用于安全研究、数据集构建、防御评估和教学用途。
 
 请勿将这些样本用于未授权访问、恶意软件部署、凭证窃取、服务破坏，或任何可能损害第三方系统、数据和用户权益的行为。使用本仓库内容即表示你同意遵守相关法律法规，并对使用行为承担责任。
 
@@ -24,11 +24,11 @@
 
 | 数据集 | 数量 | 说明 |
 |---|---:|---|
-| `MCP服务器/` | 786 | 经过 MCP Server 识别与筛选规则得到的参考服务器根目录。 |
-| `MCP攻击版/` | 190 | 基于真实 MCP Server 派生构造的恶意服务器变体。 |
+| `reference-mcp-servers/` | 786 | 经过 MCP Server 识别与筛选规则得到的参考服务器根目录。 |
+| `malicious-mcp-variants/` | 190 | 基于真实 MCP Server 派生构造的恶意服务器变体。 |
 | 实验样本总数 | 976 | 786 个参考服务器 + 190 个恶意变体。 |
 
-需要注意的是，786 个参考 MCP Server 不是简单的物理目录数量，而是依据 MCP Server 根目录识别与筛选规则统计得到的有效实验口径。恶意变体目录保留原始 server/project 名称，攻击类型、DTPE 最终影响位置、编号等元数据记录在 `MCP攻击版/variant_name_mapping.csv` 中。
+需要注意的是，786 个参考 MCP Server 不是简单的物理目录数量，而是依据 MCP Server 根目录识别与筛选规则统计得到的有效实验口径。恶意变体目录保留原始 server/project 名称，攻击类型、DTPE 最终影响位置、编号等元数据记录在 `malicious-mcp-variants/variant_name_mapping.csv` 中。
 
 ---
 
@@ -117,8 +117,8 @@
 
 ```text
 .
-├── MCP服务器/                         # 参考 MCP Server
-├── MCP攻击版/                         # 恶意 MCP Server 变体
+├── reference-mcp-servers/                         # 参考 MCP Server
+├── malicious-mcp-variants/                         # 恶意 MCP 变体
 │   ├── variant_name_mapping.csv       # 变体、攻击类型与元数据映射
 │   ├── variant_label_schema.json      # 元数据 schema
 │   ├── attack_expansion_manifest.json # 构造与分布清单
@@ -132,12 +132,12 @@
 
 ## 命名与元数据
 
-`MCP攻击版/` 中的恶意变体目录保留原始 MCP server/project 名称，不再把攻击类型或 DTPE 标签编码进目录名。请通过以下文件查看攻击类型、最终影响位置和变体编号：
+`malicious-mcp-variants/` 中的恶意变体目录保留原始 MCP server/project 名称，不再把攻击类型或 DTPE 标签编码进目录名。请通过以下文件查看攻击类型、最终影响位置和变体编号：
 
-- `MCP攻击版/variant_name_mapping.csv`
-- `MCP攻击版/variant_label_schema.json`
-- `MCP攻击版/attack_expansion_manifest.json`
-- `MCP攻击版/<Attack Type>/attack_summary.md`
+- `malicious-mcp-variants/variant_name_mapping.csv`
+- `malicious-mcp-variants/variant_label_schema.json`
+- `malicious-mcp-variants/attack_expansion_manifest.json`
+- `malicious-mcp-variants/<Attack Type>/attack_summary.md`
 
 ---
 

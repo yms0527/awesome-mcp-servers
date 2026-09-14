@@ -1,8 +1,8 @@
 <div align="center">
 
-# MCP Security Servers and Malicious MCP Servers Dataset
+# Reference MCP Servers and Malicious MCP Variants Dataset
 
-**A curated dataset of 786 reference MCP servers and 190 malicious MCP server variants for security research on tool-augmented LLM systems.**
+**A curated dataset of 786 reference MCP servers and 190 malicious MCP variants for security research on tool-augmented LLM systems.**
 
 [English](README.md) · [简体中文](README-zh.md) · [繁體中文](README-zh_TW.md) · [日本語](README-ja.md) · [한국어](README-ko.md)
 
@@ -12,7 +12,7 @@
 
 ## Disclaimer
 
-The malicious MCP server variants in this repository are provided only for security research, dataset construction, defensive evaluation, and educational purposes.
+The malicious MCP variants in this repository are provided only for security research, dataset construction, defensive evaluation, and educational purposes.
 
 Do not use the samples for unauthorized access, malware deployment, credential theft, service disruption, or any activity that may harm third-party systems, data, or users. By using this repository, you agree to comply with applicable laws and to use the dataset responsibly.
 
@@ -24,11 +24,11 @@ This repository contains two complementary MCP server datasets:
 
 | Dataset | Count | Description |
 |---|---:|---|
-| `MCP服务器/` | 786 | Reference MCP server roots selected by MCP-specific filtering rules. |
-| `MCP攻击版/` | 190 | Malicious MCP server variants derived from real reference servers. |
+| `reference-mcp-servers/` | 786 | Reference MCP server roots selected by MCP-specific filtering rules. |
+| `malicious-mcp-variants/` | 190 | Malicious MCP variants derived from real reference servers. |
 | Total experimental samples | 976 | 786 reference servers + 190 malicious variants. |
 
-The 786 reference-server count is not a simple physical directory count. It is computed after identifying and filtering MCP server roots from the collected repository structure. The malicious variants preserve the original server/project directory names; attack labels and metadata are recorded in `MCP攻击版/variant_name_mapping.csv`.
+The 786 reference-server count is not a simple physical directory count. It is computed after identifying and filtering MCP server roots from the collected repository structure. The malicious variants preserve the original server/project directory names; attack labels and metadata are recorded in `malicious-mcp-variants/variant_name_mapping.csv`.
 
 ---
 
@@ -117,8 +117,8 @@ The malicious dataset contains 190 variants covering 15 implemented attack types
 
 ```text
 .
-├── MCP服务器/                         # Reference MCP servers
-├── MCP攻击版/                         # Malicious MCP server variants
+├── reference-mcp-servers/                         # Reference MCP servers
+├── malicious-mcp-variants/                         # Malicious MCP variants
 │   ├── variant_name_mapping.csv       # Mapping between variants, attack types, and metadata
 │   ├── variant_label_schema.json      # Metadata schema
 │   ├── attack_expansion_manifest.json # Construction and distribution manifest
@@ -134,10 +134,10 @@ The malicious dataset contains 190 variants covering 15 implemented attack types
 
 Malicious variant directories preserve the original MCP server/project names. Attack-related labels are not encoded in the directory names. Use the metadata files to identify the attack type and final impact location:
 
-- `MCP攻击版/variant_name_mapping.csv`
-- `MCP攻击版/variant_label_schema.json`
-- `MCP攻击版/attack_expansion_manifest.json`
-- `MCP攻击版/<Attack Type>/attack_summary.md`
+- `malicious-mcp-variants/variant_name_mapping.csv`
+- `malicious-mcp-variants/variant_label_schema.json`
+- `malicious-mcp-variants/attack_expansion_manifest.json`
+- `malicious-mcp-variants/<Attack Type>/attack_summary.md`
 
 ---
 

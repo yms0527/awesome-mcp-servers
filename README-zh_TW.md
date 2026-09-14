@@ -1,8 +1,8 @@
 <div align="center">
 
-# MCP 安全伺服器與惡意 MCP 伺服器資料集
+# Reference MCP Servers 與 Malicious MCP Variants 資料集
 
-**面向工具增強型大型語言模型安全研究的資料集，包含 786 個參考 MCP Server 與 190 個惡意 MCP Server 變體。**
+**面向工具增強型大型語言模型安全研究的資料集，包含 786 個 reference-mcp-servers 樣本與 190 個 malicious-mcp-variants 樣本。**
 
 [English](README.md) · [简体中文](README-zh.md) · [繁體中文](README-zh_TW.md) · [日本語](README-ja.md) · [한국어](README-ko.md)
 
@@ -12,7 +12,7 @@
 
 ## 免責聲明
 
-本倉庫中的惡意 MCP Server 變體僅供安全研究、資料集建構、防禦評估與教學用途。請勿將樣本用於未授權存取、憑證竊取、惡意軟體部署、服務破壞或任何可能損害第三方系統與資料的行為。
+本倉庫中的惡意 MCP 變體僅供安全研究、資料集建構、防禦評估與教學用途。請勿將樣本用於未授權存取、憑證竊取、惡意軟體部署、服務破壞或任何可能損害第三方系統與資料的行為。
 
 ---
 
@@ -20,11 +20,11 @@
 
 | 資料集 | 數量 | 說明 |
 |---|---:|---|
-| `MCP服务器/` | 786 | 依 MCP Server 識別與篩選規則得到的參考伺服器根目錄。 |
-| `MCP攻击版/` | 190 | 由真實 MCP Server 派生的惡意伺服器變體。 |
+| `reference-mcp-servers/` | 786 | 依 MCP Server 識別與篩選規則得到的參考伺服器根目錄。 |
+| `malicious-mcp-variants/` | 190 | 由真實 MCP Server 派生的惡意伺服器變體。 |
 | 實驗樣本總數 | 976 | 786 個參考伺服器 + 190 個惡意變體。 |
 
-786 是經過 MCP Server 根目錄識別與篩選後的統計口徑，不等於單純的物理目錄數。惡意變體目錄保留原始 server/project 名稱，攻擊類型與 DTPE 最終影響位置記錄在 `MCP攻击版/variant_name_mapping.csv`。
+786 是經過 MCP Server 根目錄識別與篩選後的統計口徑，不等於單純的物理目錄數。惡意變體目錄保留原始 server/project 名稱，攻擊類型與 DTPE 最終影響位置記錄在 `malicious-mcp-variants/variant_name_mapping.csv`。
 
 ---
 
@@ -69,5 +69,5 @@
 
 ## 命名與元資料
 
-`MCP攻击版/` 中的惡意變體目錄保留原始 MCP server/project 名稱；攻擊標籤不寫入目錄名。請透過 `variant_name_mapping.csv`、`variant_label_schema.json`、`attack_expansion_manifest.json` 與各攻擊目錄下的 `attack_summary.md` 查看元資料。
+`malicious-mcp-variants/` 中的惡意變體目錄保留原始 MCP server/project 名稱；攻擊標籤不寫入目錄名。請透過 `variant_name_mapping.csv`、`variant_label_schema.json`、`attack_expansion_manifest.json` 與各攻擊目錄下的 `attack_summary.md` 查看元資料。
 
