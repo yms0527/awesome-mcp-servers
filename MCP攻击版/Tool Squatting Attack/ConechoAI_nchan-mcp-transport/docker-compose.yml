@@ -1,0 +1,51 @@
+version: "3"
+
+services:
+  nchan:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.nchan
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ./docker/nchan.conf:/etc/nginx/conf.d/nchan.conf
+    ports:
+      - "80:80"
+    environment:
+      - HTTP_PORT=8000  # set default HTTP port, then nchan.conf can using 80
+    restart: always
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.python
+    volumes:
+      - ./python/examples/app.py:/app/app.py
+    ports:
+      - "8000"
+    environment:
+      - VIRTUAL_HOST=notion.mcp.io,notion_user.mcp.io,httmcp.mcp.io
+    restart: always
+
+  jinareader:
+    extends:
+      service: app
+    environment:
+      - VIRTUAL_HOST=jinareader.mcp.io
+
+  testadd:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    volumes:
+      - ./typescript/server.js:/app/server.js
+    environment:
+      - VIRTUAL_HOST=testadd.mcp.io
+
+  jinareader1:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    volumes:
+      - ./typescript/jinareader1.js:/app/server.js
+    environment:
+      - VIRTUAL_HOST=jinareader1.mcp.io

@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "tilt": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "${HOME}/.tilt-dev:/home/mcp-user/.tilt-dev",
+        "-v",
+        "${HOME}/.tilt-mcp:/home/mcp-user/.tilt-mcp",
+        "--network=host",
+        "ghcr.io/rrmistry/tilt-mcp:latest"
+      ],
+      "env": {}
+    }
+  }
+}

@@ -1,0 +1,18 @@
+[project]
+name = "mcp-rag"
+version = "0.1.0"
+description = "A Simple MCP RAG with GroundX integration"
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+    "groundx>=2.3.0",
+    "mcp[cli]>=1.6.0",
+    "openai>=1.75.0",
+    "pyyaml>=6.0",        # For reading YAML files
+    "jinja2>=3.1.3",      # For rendering templates
+    "pydantic>=2.6.4",    # For SearchConfig and QueryResult models
+    "ipykernel>=6.29.5"   # For local interactive testing
+]
+
+ 

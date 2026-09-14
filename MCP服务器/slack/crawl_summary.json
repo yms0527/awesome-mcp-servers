@@ -1,0 +1,166 @@
+{
+  "total_servers": 22,
+  "successful": 14,
+  "failed": 8,
+  "results": [
+    {
+      "name": "SSlackChannelmanagementandmessagingcapabilities",
+      "github_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/slack",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "SSlackMCPServerslack",
+      "github_url": "https://github.com/edrigu1989/slack-mcp-server",
+      "owner": "edrigu1989",
+      "repo": "slack-mcp-server",
+      "status": "success",
+      "local_dir": "slack/edrigu1989_slack-mcp-server"
+    },
+    {
+      "name": "Mmcp-slackmcpserverforslack",
+      "github_url": "https://github.com/dustinliu/mcp-slack",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "SSlackAdminMCPServerMCPserverforSlackchanneladministrationcreaterenamearchive",
+      "github_url": "https://github.com/xiujiang1987/slack-admin-mcp",
+      "owner": "xiujiang1987",
+      "repo": "slack-admin-mcp",
+      "status": "success",
+      "local_dir": "slack/xiujiang1987_slack-admin-mcp"
+    },
+    {
+      "name": "SSlackMCPHostMCPHostServerApplicationforSlack",
+      "github_url": "https://github.com/jexp/slack-mcp-host",
+      "owner": "jexp",
+      "repo": "slack-mcp-host",
+      "status": "success",
+      "local_dir": "slack/jexp_slack-mcp-host"
+    },
+    {
+      "name": "Sslack-mcp-serverMirrorof",
+      "github_url": "https://github.com/MCP-Mirror/ubie-oss_slack-mcp-server",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "MMCPDemoMcpserverofslackwithpython",
+      "github_url": "https://github.com/sunithvs/mcp-slack-python",
+      "owner": "sunithvs",
+      "repo": "mcp-slack-python",
+      "status": "success",
+      "local_dir": "slack/sunithvs_mcp-slack-python"
+    },
+    {
+      "name": "SSyncedCalendarAI-poweredmeetingschedulingviaMCPLetClaudecheckyourcalendarfindmutualavailabilityacrosscompaniesandbookmeetingsallthroughnaturalconversation6toolsget_meetingsget_contactsget_availabilityschedule_meetingget_recommended_slotsnatural_language_scheduleWorkswithGoogleCalendarandMicrosoftOutlookFreetouse",
+      "github_url": "https://github.com/awasero/synced_calendar",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "SSlackbotMCPASlackbotLLMagentthatallowsconnectingtoanLLMandMCPservers",
+      "github_url": "https://github.com/adamkleingit/slackagent",
+      "owner": "adamkleingit",
+      "repo": "slackagent",
+      "status": "success",
+      "local_dir": "slack/adamkleingit_slackagent"
+    },
+    {
+      "name": "SSlackMCPClientinGoASlackbotandMCPclientactsasabridgebetweenSlackandModelContextProtocolMCPserversUsingSlackastheinterfaceitenableslargelanguagemodelsLLMstoconnectandinteractwithvariousMCPserversthroughstandardizedMCPtools",
+      "github_url": "https://github.com/tuannvm/slack-mcp-client",
+      "owner": "tuannvm",
+      "repo": "slack-mcp-client",
+      "status": "success",
+      "local_dir": "slack/tuannvm_slack-mcp-client"
+    },
+    {
+      "name": "FFromSlackLogstoSmartSearchPoweredbyMCPandClaudeDesktopUsingModelContextProtocolMCPtobuildalocalSlackthreadsearcherwithClaudeDesktopandalightweightPythonserver",
+      "github_url": "https://github.com/AdilFayyaz/Slack-Search",
+      "owner": "AdilFayyaz",
+      "repo": "Slack-Search",
+      "status": "success",
+      "local_dir": "slack/AdilFayyaz_Slack-Search"
+    },
+    {
+      "name": "SSlackMCPServerThemostpowerfulMCPSlackServerwithStdioandSSEtransportsProxysupportandnopermissionrequirementsonSlackWorkspaceassistantsllmmcpmcp-serverslackslack-api",
+      "github_url": "https://github.com/unwieldymaste/slack-mcp-server",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "KKlavisAIKlavisAIYCX25OpenSourceeasytouseMCPsonSlackDiscordandWeb",
+      "github_url": "https://github.com/alexgolemelectrico/klavis",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "ZZhookMcpServerTheofficialModelContextProtocolMCPserverforhttpszhookdevenablingAIagentstointeractwithyourZhookwebhookseventsandmetricsCreateHooksCreatenewwebhooksorMQTThooksdirectlyfromyouragentListHooksRetrievealistofyourconfiguredwebhooksInspectEventsViewrecenteventsforaspecifichookWaitforEventPauseexecutionandwaitforaspecificeventtooccurMetricsAccessdetailedmetricsaboutyourwebhookperformance",
+      "github_url": "https://github.com/zhookteam/zhook-mcp",
+      "owner": "zhookteam",
+      "repo": "zhook-mcp",
+      "status": "success",
+      "local_dir": "slack/zhookteam_zhook-mcp"
+    },
+    {
+      "name": "GhostWriterAI代筆システム-Phase5MCP完全統合版AI-poweredghostwritingsystemwithGPT-4ointegrationandMCParchitecture-代筆さんAI統合版",
+      "github_url": "https://github.com/esminc/ghostwriter-ai-system",
+      "owner": "esminc",
+      "repo": "ghostwriter-ai-system",
+      "status": "success",
+      "local_dir": "slack/esminc_ghostwriter-ai-system"
+    },
+    {
+      "name": "Sslack-mcp-server-by-cdataThisread-onlyMCPServerallowsyoutoconnecttoSlackdatafromClaudeDesktopthroughCDataJDBCDriversFreebetareadwriteserversavailableat",
+      "github_url": "https://github.com/CDataSoftware/slack-mcp-server-by-cdata",
+      "owner": "CDataSoftware",
+      "repo": "slack-mcp-server-by-cdata",
+      "status": "success",
+      "local_dir": "slack/CDataSoftware_slack-mcp-server-by-cdata"
+    },
+    {
+      "name": "SSlackMCPServerThemostpowerfulMCPSlackServerwithStdioandSSEtransportsProxysupportandnopermissionrequirementsonSlackWorkspace",
+      "github_url": "https://github.com/korotovsky/slack-mcp-server",
+      "owner": "korotovsky",
+      "repo": "slack-mcp-server",
+      "status": "success",
+      "local_dir": "slack/korotovsky_slack-mcp-server"
+    },
+    {
+      "name": "PPerfectWikiEffortlesslyturnyourcompanyknowledgeintoapowerfulalways-evolvingAIagentthatunderstandsandsupportsyourcolleaguesandcustomersrightinMicrosoftTeamsSlack",
+      "status": "failed",
+      "reason": "no_github_url"
+    },
+    {
+      "name": "LLocalMCPLMCP143localtoolsforClaudeCursorChatGPTMailiMessageMicrosoftTeamsSlackWhatsAppCalendarOneDriveOutlookOmniFocusNotesFinderandOfficedocs100localnoAPIkeysReacheswhatcloudconnectorscantMacWindows",
+      "github_url": "https://github.com/lanchuske/local-mcp-releases",
+      "owner": "lanchuske",
+      "repo": "local-mcp-releases",
+      "status": "success",
+      "local_dir": "slack/lanchuske_local-mcp-releases"
+    },
+    {
+      "name": "CChamadeHostedMCPgatewaythatletsAIagentsjoinvoicemeetingsandDMsonDiscordMicrosoftTeamsGoogleMeetNextcloudTalkZoomTelegramWhatsAppandSIPphonesYouragentonlydealswithtextChamadehandlestheaudiolayerjoiningtheroomSTTTTSchatrelay13tools1resource",
+      "github_url": "https://github.com/chamade-io/mcp-server",
+      "owner": "chamade-io",
+      "repo": "mcp-server",
+      "status": "success",
+      "local_dir": "slack/chamade-io_mcp-server"
+    },
+    {
+      "name": "PPingfyrScheduledDeliveryAPI-OneAPIcallSevenchannelsYourremindersfireautomaticallynoexternalcronnopollingnobabysitting",
+      "github_url": "https://github.com/Pingfyr/mcp",
+      "owner": "Pingfyr",
+      "repo": "mcp",
+      "status": "success",
+      "local_dir": "slack/Pingfyr_mcp"
+    },
+    {
+      "name": "DDummyMCPServerCreatinganMCPserverinordertoplugitwithaslack-bot",
+      "github_url": "https://github.com/AngeloBoggio/dummy-mcp-server",
+      "status": "failed",
+      "reason": "clone_failed"
+    }
+  ]
+}

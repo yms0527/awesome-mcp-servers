@@ -1,0 +1,180 @@
+{
+  "total_servers": 23,
+  "successful": 18,
+  "failed": 5,
+  "results": [
+    {
+      "name": "Ccyn_testTestrepositorycreatedviaMCPserver",
+      "github_url": "https://github.com/cynthiaxhe/cyn_test",
+      "owner": "cynthiaxhe",
+      "repo": "cyn_test",
+      "status": "success",
+      "local_dir": "math-solver/cynthiaxhe_cyn_test"
+    },
+    {
+      "name": "IInstadevMCPServerforNextGenerationSoftwareDevelopment",
+      "github_url": "https://github.com/prosandmusic/Instadev",
+      "owner": "prosandmusic",
+      "repo": "Instadev",
+      "status": "success",
+      "local_dir": "math-solver/prosandmusic_Instadev"
+    },
+    {
+      "name": "MMCPThinkToolServerMCPThinkToolServer",
+      "github_url": "https://github.com/abhinav-mangla/think-tool-mcp",
+      "owner": "abhinav-mangla",
+      "repo": "think-tool-mcp",
+      "status": "success",
+      "local_dir": "math-solver/abhinav-mangla_think-tool-mcp"
+    },
+    {
+      "name": "MMCPClaudeDesktopProjectDemoThisprojectdemonstratestheuseofthemcpModularClaudeProtocolserverwiththeFastMCPframeworktocreateasetofprogrammabletoolsandresourcesItincludesabasiccalculatornote-takingfunctionalityandreal-timecurrencyexchangeratelookupDesignedtointegrateeasilywithClaudeDesktop",
+      "github_url": "https://github.com/Samm-OB/MCP-Claude-Desktop-Project-Demo",
+      "owner": "Samm-OB",
+      "repo": "MCP-Claude-Desktop-Project-Demo",
+      "status": "success",
+      "local_dir": "math-solver/Samm-OB_MCP-Claude-Desktop-Project-Demo"
+    },
+    {
+      "name": "MMCP-Server-Research-ToolUsesanMCPserverAPIkeyandclaudetosearchthousandsofsourcesandcompileanytopicintoneatlyformattednotesinmarkdown",
+      "github_url": "https://github.com/atimmeny27/MCP-Server-Research-Tool",
+      "owner": "atimmeny27",
+      "repo": "MCP-Server-Research-Tool",
+      "status": "success",
+      "local_dir": "math-solver/atimmeny27_MCP-Server-Research-Tool"
+    },
+    {
+      "name": "MMulti-MCPAIAgentAnAIagentwhichutilizesmultipleMCPserversincludinginternaltoolslikemathtoolsandexternaltoolslikeGoogleservicesandwebscraping",
+      "github_url": "https://github.com/aviban15/multi-mcp-agent",
+      "owner": "aviban15",
+      "repo": "multi-mcp-agent",
+      "status": "success",
+      "local_dir": "math-solver/aviban15_multi-mcp-agent"
+    },
+    {
+      "name": "DDROMAMCPServerAModelContextProtocolMCPserverforDROMADrugResponseOmicsassociationMAp-enablingnaturallanguageinteractionswithdrug-omicsassociationanalysis",
+      "github_url": "https://github.com/mugpeng/DROMA_MCP",
+      "owner": "mugpeng",
+      "repo": "DROMA_MCP",
+      "status": "success",
+      "local_dir": "math-solver/mugpeng_DROMA_MCP"
+    },
+    {
+      "name": "AAzureRevisorMCPServerMirrorof",
+      "github_url": "https://github.com/MCP-Mirror/mikhael-abdallah_mcp-revisor-server",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "RResumeMCPusefultoolsforjobhuntingincludingresumeanalysiscoverlettergenerationjobmarketmonitoring",
+      "github_url": "https://github.com/gavinHuang/resume2mcp",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "MMCPFromZeroQuickDataPromptfocusedMCPServerforjsonandcsvagenticdataanalyticsforClaudeCode",
+      "github_url": "https://github.com/disler/quick-data-mcp",
+      "owner": "disler",
+      "repo": "quick-data-mcp",
+      "status": "success",
+      "local_dir": "math-solver/disler_quick-data-mcp"
+    },
+    {
+      "name": "AAcademiaMCPAcademiaMCPserver",
+      "github_url": "https://github.com/IlyaGusev/academia_mcp",
+      "owner": "IlyaGusev",
+      "repo": "academia_mcp",
+      "status": "success",
+      "local_dir": "math-solver/IlyaGusev_academia_mcp"
+    },
+    {
+      "name": "MMCP-SSE1111createdfromMCPserverdemo",
+      "github_url": "https://github.com/biswapm/MCP-SSE1111",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "Ccline_testRepositorycreatedviaMCPserver",
+      "github_url": "https://github.com/clee74/cline_test",
+      "owner": "clee74",
+      "repo": "cline_test",
+      "status": "success",
+      "local_dir": "math-solver/clee74_cline_test"
+    },
+    {
+      "name": "Mmcp-maximaModelContextProtocolMCPserverofMaxima",
+      "github_url": "https://github.com/toms74209200/mcp-maxima",
+      "owner": "toms74209200",
+      "repo": "mcp-maxima",
+      "status": "success",
+      "local_dir": "math-solver/toms74209200_mcp-maxima"
+    },
+    {
+      "name": "MMathMcpServerThisprojectimplementsamathMCPserverwiththehelpoffastmcpaimingtoprovidetoolsforLLMstoperformcomplexmathematicalcalculationsandanalyses",
+      "github_url": "https://github.com/111-test-111/math-mcp-server",
+      "owner": "111-test-111",
+      "repo": "math-mcp-server",
+      "status": "success",
+      "local_dir": "math-solver/111-test-111_math-mcp-server"
+    },
+    {
+      "name": "MMcpServer使用JavaSpring框架的MCP使用实验",
+      "github_url": "https://github.com/skybaiyujing/McpServer",
+      "owner": "skybaiyujing",
+      "repo": "McpServer",
+      "status": "success",
+      "local_dir": "math-solver/skybaiyujing_McpServer"
+    },
+    {
+      "name": "SScryfallMCPServerMCPServerforScryfall",
+      "github_url": "https://github.com/bmurdock/scryfall-mcp",
+      "owner": "bmurdock",
+      "repo": "scryfall-mcp",
+      "status": "success",
+      "local_dir": "math-solver/bmurdock_scryfall-mcp"
+    },
+    {
+      "name": "VVibeMathMcpAhigh-performanceModelContextProtocolMCPserverformath-ingwhilstvibingwithLLMsBuiltwithPolarsPandasNumPySciPyandSymPyforoptimalcalculationspeedandcomprehensivemathematicalcapabilitiesfrombasicarithmetictoadvancedcalculusandlinearalgebra",
+      "github_url": "https://github.com/apetta/vibe-math-mcp",
+      "owner": "apetta",
+      "repo": "vibe-math-mcp",
+      "status": "success",
+      "local_dir": "math-solver/apetta_vibe-math-mcp"
+    },
+    {
+      "name": "RRRMCPServerforNETAnalysisRRMCPServerforAIagentsforNETAnalysis",
+      "status": "failed",
+      "reason": "no_github_url"
+    },
+    {
+      "name": "Ccline_testTestrepositorycreatedviaMCPserver",
+      "github_url": "https://github.com/eden950822/cline_test",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "GGettingStartedSupersimpleTanStackStartMCPserver",
+      "github_url": "https://github.com/jherr/ts-mcp",
+      "owner": "jherr",
+      "repo": "ts-mcp",
+      "status": "success",
+      "local_dir": "math-solver/jherr_ts-mcp"
+    },
+    {
+      "name": "Aai_project_mayaRepositóriodoprojetoAI_MAYAcriadoviaMCPGitHubServerparatestesdeautomação",
+      "github_url": "https://github.com/andre-sa-fortes/ai_project_maya",
+      "owner": "andre-sa-fortes",
+      "repo": "ai_project_maya",
+      "status": "success",
+      "local_dir": "math-solver/andre-sa-fortes_ai_project_maya"
+    },
+    {
+      "name": "Ssample-repoSamplerepositorycreatedviaMCPserverautomation",
+      "github_url": "https://github.com/SaiKrishnaReddy-Signant/sample-repo",
+      "owner": "SaiKrishnaReddy-Signant",
+      "repo": "sample-repo",
+      "status": "success",
+      "local_dir": "math-solver/SaiKrishnaReddy-Signant_sample-repo"
+    }
+  ]
+}

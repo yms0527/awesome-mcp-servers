@@ -1,0 +1,93 @@
+{
+  "total_servers": 12,
+  "successful": 7,
+  "failed": 5,
+  "results": [
+    {
+      "name": "WWebSocketMCPModelContextProtocolMCPserverandclientwithacustomwebsockettransportlayer",
+      "github_url": "https://github.com/zeropointo/websocket_mcp",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "EESP32MCPServerAllowAImodelsconnecttoESP32exposedinterfacesAIgeneratedMCPserverforESP32",
+      "github_url": "https://github.com/navado/ESP32MCPServer",
+      "owner": "navado",
+      "repo": "ESP32MCPServer",
+      "status": "success",
+      "local_dir": "websocket/navado_ESP32MCPServer"
+    },
+    {
+      "name": "MMCPServerRunnerMirrorof",
+      "github_url": "https://github.com/MCP-Mirror/yonaka15_mcp-server-runner",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "Mmcp-server-serverMirrorof",
+      "github_url": "https://github.com/MCP-Mirror/rgarcia_mcp-server-server",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "BBinanceMCPServerMirrorof",
+      "github_url": "https://github.com/MCP-Mirror/qeinfinity_binance-mcp-server",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "NchanMCPTransportThebestwaytodeploymcpserverAhigh-performanceWebSocketSSEtransportlayergatewayforAnthropicsMCPModelContextProtocolpoweredbyNginxNchanandFastAPI",
+      "github_url": "https://github.com/ConechoAI/nchan-mcp-transport",
+      "owner": "ConechoAI",
+      "repo": "nchan-mcp-transport",
+      "status": "success",
+      "local_dir": "websocket/ConechoAI_nchan-mcp-transport"
+    },
+    {
+      "name": "GGreptileMCPServerGreptileMCPServer-Multi-ContextProtocolServerforGreptile",
+      "github_url": "https://github.com/sosacrazy126/greptile",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "MMcpTodoAPIdegerenciamentodetarefasviaWebSocketcomexecuçãomodulardecomandosesuporteaferramentasdesenvolvidaemTypeScriptcombancoSQLiteProjetadaparaintegraçãocomagentesdeinteligênciaartificial",
+      "github_url": "https://github.com/br-silvano/mcp-todo",
+      "owner": "br-silvano",
+      "repo": "mcp-todo",
+      "status": "success",
+      "local_dir": "websocket/br-silvano_mcp-todo"
+    },
+    {
+      "name": "AAiderMCPWebSocketServerWebSocketserverthatexposesAidersAIcodingcapabilitiesthroughtheModelContextProtocolMCPforprogrammaticaccess",
+      "github_url": "https://github.com/larock22/aider-mcp",
+      "owner": "larock22",
+      "repo": "aider-mcp",
+      "status": "success",
+      "local_dir": "websocket/larock22_aider-mcp"
+    },
+    {
+      "name": "LLiveblocksMcpServerMCPserverforLiveblocks",
+      "github_url": "https://github.com/liveblocks/liveblocks-mcp-server",
+      "owner": "liveblocks",
+      "repo": "liveblocks-mcp-server",
+      "status": "success",
+      "local_dir": "websocket/liveblocks_liveblocks-mcp-server"
+    },
+    {
+      "name": "AAlrisAlrisisanAIautomationtoolthattransformsnaturallanguagecommandsintotaskexecution",
+      "github_url": "https://github.com/Daniel-16/alris",
+      "owner": "Daniel-16",
+      "repo": "alris",
+      "status": "success",
+      "local_dir": "websocket/Daniel-16_alris"
+    },
+    {
+      "name": "OOctonetMcp1MCPserver13databaseszeroconfigConnectAIagentstoPostgreSQLMySQLMongoDBSQLiteOracleSQLServerDB2SAPHANAMariaDBCockroachDBCloudSpannerHSQLDBSybase15toolsperentity4AIpromptsAuthRBACincluded11transportsRESTGraphQLgRPCWebSocketSSEtRPCMCPODataArrowFlightJSON-RPCNATS",
+      "github_url": "https://github.com/apolocine/mosta-net",
+      "owner": "apolocine",
+      "repo": "mosta-net",
+      "status": "success",
+      "local_dir": "websocket/apolocine_mosta-net"
+    }
+  ]
+}

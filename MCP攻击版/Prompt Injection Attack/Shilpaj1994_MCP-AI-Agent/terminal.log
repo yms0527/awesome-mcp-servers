@@ -1,0 +1,152 @@
+$ uv run agent.py 
+
+Welcome to the MCP-Powered Multi-Service AI Assistant! Type 'exit' to quit.
+
+Enter your query: Calculate the sum of exponential of first five fibonacci numbers. Write the answer in the slide and download it in png file, and send it to me over an email
+2025-04-23 21:16:27,106 - __main__ - INFO - Establishing connections to MCP servers...
+========== Starting Server: math ==========
+========== Starting Server: slides ==========
+========== Starting Server: gmail ==========
+
+Starting Gmail authorization process. Please wait for the authorization URL...
+Waiting for all servers to initialize (this may take a moment for Gmail authorization)...
+2025-04-23 21:16:27,185 - __main__ - INFO - Project root directory: /media/shilpaj/2A42A8EC42A8BDC7/Udacity/ERA3/Assignment25
+2025-04-23 21:16:27,801 - __main__ - INFO - Connected to math server
+2025-04-23 21:16:27,802 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
+2025-04-23 21:16:27,805 - __main__ - INFO - Retrieved 17 tools from math server
+2025-04-23 21:16:27,941 - __main__ - INFO - Successfully initialized display: :1
+2025-04-23 21:16:27,946 - __main__ - INFO - Starting MCP Slides server...
+2025-04-23 21:16:27,960 - __main__ - INFO - Connected to slides server
+2025-04-23 21:16:27,961 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
+2025-04-23 21:16:27,962 - __main__ - INFO - Retrieved 3 tools from slides server
+Still waiting for servers... (1/10)
+2025-04-23 21:16:28,151 - __main__ - INFO - Gmail MCP server initialized successfully
+2025-04-23 21:16:28,157 - __main__ - INFO - Available MCP tools: []
+2025-04-23 21:16:28,169 - __main__ - INFO - Connected to gmail server
+2025-04-23 21:16:28,171 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
+2025-04-23 21:16:28,173 - __main__ - INFO - Retrieved 6 tools from gmail server
+Gmail server connected successfully!
+Tools description: add(a: integer, b: integer) - Add two numbers
+add_list(l: array) - Add all numbers in a list
+subtract(a: integer, b: integer) - Subtract two numbers
+multiply(a: integer, b: integer) - Multiply two numbers
+divide(a: integer, b: integer) - Divide two numbers with validation
+power(a: integer, b: integer) - Power of two numbers
+sqrt(a: integer) - Square root of a number
+cbrt(a: integer) - Cube root of a number
+factorial(a: integer) - Factorial of a number
+log(a: integer) - Log of a number
+remainder(a: integer, b: integer) - Remainder of two numbers division
+sin(a: integer) - Sin of a number
+cos(a: integer) - Cos of a number
+tan(a: integer) - Tan of a number
+strings_to_chars_to_int(string: string) - Return the ASCII values of the characters in a word
+int_list_to_exponential_sum(int_list: array) - Return sum of exponentials of numbers in a list
+fibonacci_numbers(n: integer) - Return the first n Fibonacci Numbers
+create_new_presentation() - Creates a new Google Slides presentation in the browser
+add_text_to_slide(text: string, use_secondary_screen: boolean) - Adds text to the current slide. Parameters: text (string) - The text to add, use_secondary_screen (boolean) - If True, use the secondary screen
+save_slide_as_png(use_secondary_screen: boolean) - Saves the current slide as a PNG image and moves it to PROJECT_ROOT/content/slide.png
+send_email(recipient_id: string, subject: string, message: string, attachments: array) - 
+    Send an email to a recipient with optional attachments
+
+    :param recipient_id: Email address of the recipient
+    :param subject: Subject of the email
+    :param message: Body content of the email
+    :param attachments: List of file paths to attach to the email
+    
+get_unread_emails() - Retrieve unread emails from inbox
+read_email(email_id: string) - Read contents of a specific email
+trash_email(email_id: string) - Move an email to trash
+mark_email_as_read(email_id: string) - Mark an email as read
+open_email(email_id: string) - Open an email in browser
+
+--- Iteration 1/7 ---
+Preparing to generate LLM response...
+LLM Response: FUNCTION_CALL: fibonacci_numbers|5
+
+DEBUG: Function name: fibonacci_numbers
+DEBUG: Raw parameters: ['5']
+DEBUG: Calling tool fibonacci_numbers with arguments: {'n': 5}
+2025-04-23 21:16:31,959 - mcp.server.lowlevel.server - INFO - Processing request of type CallToolRequest
+DEBUG: Raw result: meta=None content=[TextContent(type='text', text='0', annotations=None), TextContent(type='text', text='1', annotations=None), TextContent(type='text', text='1', annotations=None), TextContent(type='text', text='2', annotations=None), TextContent(type='text', text='3', annotations=None)] isError=False
+DEBUG: Result has content attribute
+DEBUG: Final iteration result: ['0', '1', '1', '2', '3']
+
+--- Iteration 2/7 ---
+Preparing to generate LLM response...
+LLM Response: FUNCTION_CALL: int_list_to_exponential_sum|[0,1,1,2,3]
+
+DEBUG: Function name: int_list_to_exponential_sum
+DEBUG: Raw parameters: ['[0,1,1,2,3]']
+DEBUG: Calling tool int_list_to_exponential_sum with arguments: {'int_list': [0, 1, 1, 2, 3]}
+2025-04-23 21:16:33,216 - mcp.server.lowlevel.server - INFO - Processing request of type CallToolRequest
+DEBUG: Raw result: meta=None content=[TextContent(type='text', text='33.91115667903641', annotations=None)] isError=False
+DEBUG: Result has content attribute
+DEBUG: Final iteration result: ['33.91115667903641']
+
+--- Iteration 3/7 ---
+Preparing to generate LLM response...
+LLM Response: FUNCTION_CALL: create_new_presentation
+
+DEBUG: Function name: create_new_presentation
+DEBUG: Raw parameters: []
+DEBUG: Calling tool create_new_presentation with arguments: {}
+2025-04-23 21:16:33,959 - mcp.server.lowlevel.server - INFO - Processing request of type CallToolRequest
+2025-04-23 21:16:33,959 - __main__ - INFO - Opening new presentation...
+DEBUG: Raw result: meta=None content=[TextContent(type='text', text='New presentation created successfully', annotations=None)] isError=False
+DEBUG: Result has content attribute
+DEBUG: Final iteration result: ['New presentation created successfully']
+
+--- Iteration 4/7 ---
+Preparing to generate LLM response...
+LLM Response: FUNCTION_CALL: add_text_to_slide|33.91115667903641|False
+
+DEBUG: Function name: add_text_to_slide
+DEBUG: Raw parameters: ['33.91115667903641', 'False']
+DEBUG: Calling tool add_text_to_slide with arguments: {'text': '33.91115667903641', 'use_secondary_screen': 'False'}
+2025-04-23 21:16:34,818 - mcp.server.lowlevel.server - INFO - Processing request of type CallToolRequest
+DEBUG: Raw result: meta=None content=[TextContent(type='text', text='Successfully added text: 33.91115667903641', annotations=None)] isError=False
+DEBUG: Result has content attribute
+DEBUG: Final iteration result: ['Successfully added text: 33.91115667903641']
+
+--- Iteration 5/7 ---
+Preparing to generate LLM response...
+LLM Response: FUNCTION_CALL: save_slide_as_png|False
+
+DEBUG: Function name: save_slide_as_png
+DEBUG: Raw parameters: ['False']
+DEBUG: Calling tool save_slide_as_png with arguments: {'use_secondary_screen': 'False'}
+2025-04-23 21:16:50,258 - mcp.server.lowlevel.server - INFO - Processing request of type CallToolRequest
+2025-04-23 21:17:10,784 - __main__ - INFO - Waiting for download at: /home/shilpaj/Downloads/Untitled presentation.png
+2025-04-23 21:17:10,784 - __main__ - INFO - Content directory: /media/shilpaj/2A42A8EC42A8BDC7/Udacity/ERA3/Assignment25/content
+2025-04-23 21:17:12,846 - __main__ - INFO - Moved file to: /media/shilpaj/2A42A8EC42A8BDC7/Udacity/ERA3/Assignment25/content/slide.png
+DEBUG: Raw result: meta=None content=[TextContent(type='text', text='Slide saved and moved to /media/shilpaj/2A42A8EC42A8BDC7/Udacity/ERA3/Assignment25/content/slide.png', annotations=None)] isError=False
+DEBUG: Result has content attribute
+DEBUG: Final iteration result: ['Slide saved and moved to /media/shilpaj/2A42A8EC42A8BDC7/Udacity/ERA3/Assignment25/content/slide.png']
+
+--- Iteration 6/7 ---
+Preparing to generate LLM response...
+LLM Response: FUNCTION_CALL: send_email|shilpajbhalerao@gmail.com|Calculation Result|Please find the attached image of the calculated result.|['/media/shilpaj/2A42A8EC42A8BDC7/Udacity/ERA3/Assignment25/content/slide.png']
+
+DEBUG: Function name: send_email
+DEBUG: Raw parameters: ['shilpajbhalerao@gmail.com', 'Calculation Result', 'Please find the attached image of the calculated result.', "['/media/shilpaj/2A42A8EC42A8BDC7/Udacity/ERA3/Assignment25/content/slide.png']"]
+DEBUG: Calling tool send_email with arguments: {'recipient_id': 'shilpajbhalerao@gmail.com', 'subject': 'Calculation Result', 'message': 'Please find the attached image of the calculated result.', 'attachments': ["'/media/shilpaj/2A42A8EC42A8BDC7/Udacity/ERA3/Assignment25/content/slide.png'"]}
+2025-04-23 21:17:13,842 - mcp.server.lowlevel.server - INFO - Processing request of type CallToolRequest
+2025-04-23 21:17:13,842 - __main__ - INFO - Using credentials file: /media/shilpaj/2A42A8EC42A8BDC7/Udacity/ERA3/Assignment25/mcp_servers/credentials.json
+2025-04-23 21:17:13,842 - __main__ - INFO - Using token file: /media/shilpaj/2A42A8EC42A8BDC7/Udacity/ERA3/Assignment25/mcp_servers/token.json
+2025-04-23 21:17:13,842 - __main__ - INFO - Attempting to get token from /media/shilpaj/2A42A8EC42A8BDC7/Udacity/ERA3/Assignment25/mcp_servers/token.json or authorize with /media/shilpaj/2A42A8EC42A8BDC7/Udacity/ERA3/Assignment25/mcp_servers/credentials.json
+2025-04-23 21:17:13,843 - __main__ - INFO - Loading token from file
+2025-04-23 21:17:13,848 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-23 21:17:19,650 - __main__ - INFO - Gmail service initialized successfully for shilpajbhalerao@gmail.com
+2025-04-23 21:17:20,625 - __main__ - INFO - Message sent: 19663550dc12c151
+DEBUG: Raw result: meta=None content=[TextContent(type='text', text='{"status": "success", "message_id": "19663550dc12c151"}', annotations=None)] isError=False
+DEBUG: Result has content attribute
+DEBUG: Final iteration result: ['{"status": "success", "message_id": "19663550dc12c151"}']
+
+--- Iteration 7/7 ---
+Preparing to generate LLM response...
+LLM Response: FINAL_ANSWER: [Calculation result sent to shilpajbhalerao@gmail.com with attachment.]
+
+=== Agent Execution Complete ===
+
+Final Result: [Calculation result sent to shilpajbhalerao@gmail.com with attachment.]

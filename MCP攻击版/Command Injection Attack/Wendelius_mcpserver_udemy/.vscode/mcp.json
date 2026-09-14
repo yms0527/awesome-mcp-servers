@@ -1,0 +1,9 @@
+{
+    "servers": {
+        "run_command": {
+            "type": "stdio",
+            "command": "C:\\Users\\Wendy.Gasperazzo\\.localbin\\uv.exe",
+            "args": ["--directory", "C:\\Code\\Training\\mcp-servers\\shellserver", "run", "server.py"]
+        }
+    }
+}
