@@ -1,0 +1,114 @@
+{
+  "total_servers": 14,
+  "successful": 12,
+  "failed": 2,
+  "results": [
+    {
+      "name": "FFluxImageGenerationServerfluximagegenerationmcpserver",
+      "github_url": "https://github.com/caok/replicate-image-generate",
+      "owner": "caok",
+      "repo": "replicate-image-generate",
+      "status": "success",
+      "local_dir": "flux/caok_replicate-image-generate"
+    },
+    {
+      "name": "MMCPServers-OpenAIandFluxIntegrationMirrorof",
+      "github_url": "https://github.com/MCP-Mirror/AllAboutAI-YT_mcp-servers",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "DDiffuGen-AdvancedLocalImageGeneratorwithMCPIntegrationDiffuGenisapowerfulyetuser-friendlyinterfaceforlocaledgeimagegenerationBuiltontheModelControlProtocolMCPitprovidesaseamlesswaytointeractwithvariousStableDiffusionmodelsincludingFluxSDXLSD3andSD15DiffugenalsofeaturesanOpenAPIServerforAPIusageanddesignedtosupportOpenWebUIOpenAPITooluse",
+      "github_url": "https://github.com/CLOUDWERX-DEV/DiffuGen",
+      "owner": "CLOUDWERX-DEV",
+      "repo": "DiffuGen",
+      "status": "success",
+      "local_dir": "flux/CLOUDWERX-DEV_DiffuGen"
+    },
+    {
+      "name": "Mmcp-flux-schnellMCPServermcpserverforcloudflarefluxschnellworkerapi",
+      "github_url": "https://github.com/bytefer/mcp-flux-schnell",
+      "owner": "bytefer",
+      "repo": "mcp-flux-schnell",
+      "status": "success",
+      "local_dir": "flux/bytefer_mcp-flux-schnell"
+    },
+    {
+      "name": "IImageGenerationMCPServerMCPserverenablinghigh-qualityimagegenerationviaTogetherAIsFlux1Schnellmodel",
+      "github_url": "https://github.com/manascb1344/together-mcp-server",
+      "owner": "manascb1344",
+      "repo": "together-mcp-server",
+      "status": "success",
+      "local_dir": "flux/manascb1344_together-mcp-server"
+    },
+    {
+      "name": "Mmcp-neo4j-server-sse-javamcp-neo4j-server-sse-javaisanMCPserverimplementedbyJavausingSSEServer-SentEventsservertransportorSTDIOtransportasthetransportprotocol",
+      "github_url": "https://github.com/dsimile/mcp-neo4j-server-sse-java",
+      "owner": "dsimile",
+      "repo": "mcp-neo4j-server-sse-java",
+      "status": "success",
+      "local_dir": "flux/dsimile_mcp-neo4j-server-sse-java"
+    },
+    {
+      "name": "MMcpollinationsAModelContextProtocolMCPserverthatenablesAIassistantstogenerateimagestextandaudiothroughthePollinationsAPIsSupportscustomizableparametersimagesavingandmultiplemodeloptions",
+      "github_url": "https://github.com/pinkpixel-dev/MCPollinations",
+      "owner": "pinkpixel-dev",
+      "repo": "MCPollinations",
+      "status": "success",
+      "local_dir": "flux/pinkpixel-dev_MCPollinations"
+    },
+    {
+      "name": "SiliconFlowFLUXMCP服务器APython-basedMCPserverforSiliconFlowFLUXimagegeneration一个基于Python的MCP服务器用于SiliconFlowFLUX图像生成",
+      "github_url": "https://github.com/snakeying/Flux-mcp-server-python",
+      "owner": "snakeying",
+      "repo": "Flux-mcp-server-python",
+      "status": "success",
+      "local_dir": "flux/snakeying_Flux-mcp-server-python"
+    },
+    {
+      "name": "Fflux-operatorFluxOperatorisaKubernetescontrollerformanagingthelifecycleofFluxCD",
+      "github_url": "https://github.com/controlplaneio-fluxcd/flux-operator",
+      "owner": "controlplaneio-fluxcd",
+      "repo": "flux-operator",
+      "status": "success",
+      "local_dir": "flux/controlplaneio-fluxcd_flux-operator"
+    },
+    {
+      "name": "SSunraaiMcpServerSunraaiisagenerativemediaplatformbuiltfordevelopersprovidinghigh-performanceAImodelinferencecapabilitiesItspecializesinrunningdiffusionmodelsthroughproduction-readyAPIsandinteractiveUIplaygrounds",
+      "status": "failed",
+      "reason": "no_github_url"
+    },
+    {
+      "name": "MMCPollinationsMultimodalMCPServerAModelContextProtocolMCPserverthatenablesAIassistantstogenerateimagestextandaudiothroughthePollinationsAPIsSupportscustomizableparametersimagesavingandmultiplemodeloptions",
+      "github_url": "https://github.com/pinkpixel-dev/MCPollinations",
+      "owner": "pinkpixel-dev",
+      "repo": "MCPollinations",
+      "status": "success",
+      "local_dir": "flux/pinkpixel-dev_MCPollinations"
+    },
+    {
+      "name": "VVapAgentimagesFluxvideosVeo31andmusicSunoV5mediaproductionVAPisanMCPserverforAImediagenerationwithcostcontrolGenerateimagesEditingFlux2ProvideosVeo31andmusicSunoV5withdeterministicpricingFeaturesPre-commitpricingKnowexactcostbeforeexecutionBudgetenforcementReserveBurnRefundmodelDeterministicretrybehaviorNorunawaycostsProduction-readyoutputsNormalizedtobroadcaststandardshttpsvapagentcomAvailabletoolsgenerate_imagegenerate_videogenerate_musicestimate_costcheck_balanceget_tasklist_tasksRequirementsAPIkeyfromapivapagentcomminimum1deposit",
+      "github_url": "https://github.com/elestirelbilinc-sketch/vap-showcase",
+      "owner": "elestirelbilinc-sketch",
+      "repo": "vap-showcase",
+      "status": "success",
+      "local_dir": "flux/elestirelbilinc-sketch_vap-showcase"
+    },
+    {
+      "name": "PPromptibusMcpModelintelligenceforAIagentssyntaxparameterspricingandroutingfor67generativeAImodelsMidjourneyFluxSunoRunwayDALL-EStableDiffusion7toolsthatletanyMCPclientrecommendcompareoptimizeandpriceAImodelcalls",
+      "github_url": "https://github.com/promptibus/mcp",
+      "owner": "promptibus",
+      "repo": "mcp",
+      "status": "success",
+      "local_dir": "flux/promptibus_mcp"
+    },
+    {
+      "name": "FFLUXOfficialBlackForestLabsMCPserverforFLUXimagegenerationandeditingtext-to-imageimage-to-imageandmulti-referenceeditingviathehostedendpointatmcpbflai",
+      "github_url": "https://github.com/black-forest-labs/flux-mcp",
+      "owner": "black-forest-labs",
+      "repo": "flux-mcp",
+      "status": "success",
+      "local_dir": "flux/black-forest-labs_flux-mcp"
+    }
+  ]
+}

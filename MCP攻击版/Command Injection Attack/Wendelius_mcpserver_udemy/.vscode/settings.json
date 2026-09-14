@@ -1,0 +1,17 @@
+{
+  "github.copilot.advanced": {
+  "mcp.enabled": true
+  },
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    { "text": "Use conventional commit format: type(scope): description" },
+    { "text": "Use imperative mood: 'Add feature' not 'Added feature'" },
+    { "text": "Keep subject line under 100 characters" },
+    { "text": "Use types: feat, fix, docs, style, refactor, perf, test, chore, ci" },
+    { "text": "Include scope when relevant (e.g., api, ui, auth)" }
+  ],
+  "chat.instructionsFilesLocations": {
+    ".github\\Instructions\\python.instructions.md": true,
+    ".github\\copilot-instructions.md": true,
+    ".github\\Instructions\\mcpserver.instructions.md": true
+  }
+}

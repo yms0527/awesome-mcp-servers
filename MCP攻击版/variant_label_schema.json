@@ -1,0 +1,18 @@
+{
+  "schema": "<OriginalServerName>",
+  "fields": {
+    "FinalImpactLocation": [
+      "Decision",
+      "Transmission",
+      "Protocol",
+      "Execution"
+    ],
+    "AttackUnit": "CamelCase attack-unit label without spaces",
+    "NN": "two-digit index within each attack directory",
+    "OriginalServerName": "original server/project directory name used directly as the variant directory name"
+  },
+  "total_variants": 190,
+  "mapping_file": "variant_name_mapping.csv",
+  "distribution_policy": "Add-only rebalance for a small malicious dataset. Counts are intentionally non-uniform where possible within the 150--200 total-size constraint; high-priority attacks receive more variants.",
+  "directory_naming": "Malicious variant directories preserve the original server/project directory names."
+}

@@ -1,0 +1,73 @@
+{
+  "total_servers": 10,
+  "successful": 4,
+  "failed": 6,
+  "results": [
+    {
+      "name": "Ffrontend-review-mcpMCPserverthatvisuallyreviewsyouragentsdesignedits",
+      "github_url": "https://github.com/zueai/frontend-review-mcp",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "FFrontend-AgnosticMCPServerTestrepositoryforMCPserver",
+      "github_url": "https://github.com/tonton2006/test-mcp-repo",
+      "owner": "tonton2006",
+      "repo": "test-mcp-repo",
+      "status": "success",
+      "local_dir": "frontend/tonton2006_test-mcp-repo"
+    },
+    {
+      "name": "MMCPSVGtoFontMCPServerthatconvertsSVGiconsintowebfontswithCSSandTypeScriptsupportGenerateiconfontsfromdirectoriesofSVGfiles",
+      "github_url": "https://github.com/omy13/mcp-svg-to-fonts",
+      "owner": "omy13",
+      "repo": "mcp-svg-to-fonts",
+      "status": "success",
+      "local_dir": "frontend/omy13_mcp-svg-to-fonts"
+    },
+    {
+      "name": "CClaspItPickanyelementonanywebpageandsenditsHTMLCSSReactpropsconsolelogsandnetworkcontexttoClaudeCodeCursororWindsurfviaMCPinoneclick",
+      "status": "failed",
+      "reason": "no_github_url"
+    },
+    {
+      "name": "FFeuseMcpFrontendUsefulMCPTools-EssentialutilitiesforwebdeveloperstoautomateAPIintegrationandcodegeneration",
+      "github_url": "https://github.com/Panzer-Jack/feuse-mcp",
+      "owner": "Panzer-Jack",
+      "repo": "feuse-mcp",
+      "status": "success",
+      "local_dir": "frontend/Panzer-Jack_feuse-mcp"
+    },
+    {
+      "name": "WWebToMcpSendanywebsitecomponenttoCursororClaudeCodeinoneclickNomorescreenshotsdescriptionsorguessworkjustseamlessvisualhandoffsthatyourAIcodingassistantunderstandsperfectlyBridgethegapbetweendesignandcode",
+      "status": "failed",
+      "reason": "no_github_url"
+    },
+    {
+      "name": "TThinkBrowseConnectClaudeCodeCursorandanyMCPclienttoyourrealChromebrowserRealsessionsrealcookiesnoheadlessconflictsWorksalongsideyourbrowsernoprofilefightsnofreshsessions",
+      "github_url": "https://github.com/dundas/mech-browse",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "MMCPSVGtoFontsThisrepositoryprovidesatoolforconvertingSVGfilesintovariousfontformatsstreamliningiconmanagementWithfeatureslikeautomaticCSSgenerationandTypeScriptsupportitsimplifiestheprocessfordevelopers",
+      "github_url": "https://github.com/Supr3me0/mcp-svg-to-fonts",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "AppDogEffortlessMCPServerGenerationComposeandgenerateeffortlesslyMCPserversfromanyOpenAPIspecifications",
+      "github_url": "https://github.com/Arya711139/appdog",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "TTypeuiBuildbetterinterfaceswithTypeUIdesignsystemsUIpromptsandlayoutvariations",
+      "github_url": "https://github.com/bergside/typeui",
+      "owner": "bergside",
+      "repo": "typeui",
+      "status": "success",
+      "local_dir": "frontend/bergside_typeui"
+    }
+  ]
+}

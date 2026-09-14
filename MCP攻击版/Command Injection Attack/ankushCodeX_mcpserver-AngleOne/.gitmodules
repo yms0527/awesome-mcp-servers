@@ -1,0 +1,3 @@
+[submodule "angelone-client"]
+	path = angelone-client
+	url = https://github.com/angel-one/smartapi-python.git

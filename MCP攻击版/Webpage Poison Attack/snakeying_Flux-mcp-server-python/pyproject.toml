@@ -1,0 +1,26 @@
+[project]
+name = "flux-mcp-server-python"
+version = "0.1.0"
+description = "MCP server for SiliconFlow FLUX image generation (Python version), supporting multiple API keys and HTTP transport."
+authors = [
+    { name = "snakeying", email = "ying@ying.cn" },
+]
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" } 
+
+dependencies = [
+    "mcp>=1.5.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+    "uvicorn[standard]>=0.29.0",
+]
+
+[project.scripts]
+flux-mcp-server = "flux_mcp_server_python.main:run_server_cli"
+
+[build-system]
+requires = ["uv_build>=0.1.0"]
+build-backend = "uv_build"
+backend-path = ["."]

@@ -1,0 +1,191 @@
+attack_directory,final_impact_location,attack_unit,variant_index,original_server_name,labelled_variant_directory
+Backdoor Attack,Execution,BackdoorAttack,01,2niuhe_qrcode_mcp,2niuhe_qrcode_mcp
+Backdoor Attack,Execution,BackdoorAttack,02,akseyh_bear-mcp-server,akseyh_bear-mcp-server
+Backdoor Attack,Execution,BackdoorAttack,03,aviban15_multi-mcp-agent,aviban15_multi-mcp-agent
+Backdoor Attack,Execution,BackdoorAttack,04,giuseppe-coco_Google-Workspace-MCP-Server,giuseppe-coco_Google-Workspace-MCP-Server
+Backdoor Attack,Execution,BackdoorAttack,05,gpaw-computation,gpaw-computation
+Backdoor Attack,Execution,BackdoorAttack,06,graphiti-mcp,graphiti-mcp
+Backdoor Attack,Execution,BackdoorAttack,07,itisaevalex_financial-reports-mcp-server,itisaevalex_financial-reports-mcp-server
+Backdoor Attack,Execution,BackdoorAttack,08,movva09_Agent-MCP-Math-Email,movva09_Agent-MCP-Math-Email
+Backdoor Attack,Execution,BackdoorAttack,09,ruliana_mcp-pkm-logseq,ruliana_mcp-pkm-logseq
+Backdoor Attack,Execution,BackdoorAttack,10,sujithadr_MCP-RAG,sujithadr_MCP-RAG
+Backdoor Attack,Execution,Backdoor,11,securityfortech_secops-mcp,securityfortech_secops-mcp
+Backdoor Attack,Execution,Backdoor,12,Darkroaster_pubmed-MCP-server,Darkroaster_pubmed-MCP-server
+Command Injection Attack,Execution,CommandInjection,01,ahujasid_blender-mcp,ahujasid_blender-mcp
+Command Injection Attack,Execution,CommandInjection,02,alpacahq_alpaca-mcp-server,alpacahq_alpaca-mcp-server
+Command Injection Attack,Execution,CommandInjection,03,carterlasalle_system_information_mcp,carterlasalle_system_information_mcp
+Command Injection Attack,Execution,CommandInjection,04,ffpy_my-mcp-ssh,ffpy_my-mcp-ssh
+Command Injection Attack,Execution,CommandInjection,05,m-ahmed-elbeskeri_UltimateCoderMCP,m-ahmed-elbeskeri_UltimateCoderMCP
+Command Injection Attack,Execution,CommandInjection,06,mathematica-check,mathematica-check
+Command Injection Attack,Execution,CommandInjection,07,stat-guy_terminal,stat-guy_terminal
+Command Injection Attack,Execution,CommandInjection,08,walnashgit_EAGS4-MCP-Server-Client,walnashgit_EAGS4-MCP-Server-Client
+Command Injection Attack,Execution,CommandInjection,09,zhkzly_mcp_leanring,zhkzly_mcp_leanring
+Command Injection Attack,Execution,CommandInjection,10,Wendelius_mcpserver_udemy,Wendelius_mcpserver_udemy
+Command Injection Attack,Execution,CommandInjection,11,evrenyal_mcpsecurity,evrenyal_mcpsecurity
+Command Injection Attack,Execution,CommandInjection,13,mark-oori_mcpserve,mark-oori_mcpserve
+Command Injection Attack,Execution,CommandInjection,15,Jaldekoa_mcp-fredapi,Jaldekoa_mcp-fredapi
+Command Injection Attack,Execution,CommandInjection,16,Nebula-Block-Data_nebulablock-mcp-server,Nebula-Block-Data_nebulablock-mcp-server
+Command Injection Attack,Execution,CommandInjection,17,Operative-Sh_web-eval-agent,Operative-Sh_web-eval-agent
+Command Injection Attack,Execution,CommandInjection,18,PhungXuanAnh_selenium-mcp-server,PhungXuanAnh_selenium-mcp-server
+Command Injection Attack,Execution,CommandInjection,19,ankushCodeX_mcpserver-AngleOne,ankushCodeX_mcpserver-AngleOne
+Command Injection Attack,Execution,CommandInjection,20,antonio-mello-ai_mcp-pfsense,antonio-mello-ai_mcp-pfsense
+Credential Leakage,Transmission,CredentialLeakage,01,amazon-qindex-mcp-server,amazon-qindex-mcp-server
+Credential Leakage,Transmission,CredentialLeakage,02,cloudbet_sports-mcp-server,cloudbet_sports-mcp-server
+Credential Leakage,Transmission,CredentialLeakage,03,espressif_esp-rainmaker-mcp,espressif_esp-rainmaker-mcp
+Credential Leakage,Transmission,CredentialLeakage,04,gomarble-ai_facebook-ads-mcp-server,gomarble-ai_facebook-ads-mcp-server
+Credential Leakage,Transmission,CredentialLeakage,05,kukapay_pumpswap-mcp,kukapay_pumpswap-mcp
+Credential Leakage,Transmission,CredentialLeakage,06,MatiousCorp_google-ad-manager-mcp,MatiousCorp_google-ad-manager-mcp
+Credential Leakage,Transmission,CredentialLeakage,07,musclesworked-mcp,musclesworked-mcp
+Credential Leakage,Transmission,CredentialLeakage,08,rrmistry_tilt-mcp,rrmistry_tilt-mcp
+Credential Leakage,Transmission,CredentialLeakage,09,Shilpaj1994_MCP-AI-Agent,Shilpaj1994_MCP-AI-Agent
+Credential Leakage,Transmission,CredentialLeakage,10,timestream-for-influxdb-mcp-server,timestream-for-influxdb-mcp-server
+Credential Leakage,Transmission,CredentialLeakage,11,aviban15_multi-mcp-agent,aviban15_multi-mcp-agent
+Credential Leakage,Transmission,CredentialLeakage,13,alpacahq_alpaca-mcp-server,alpacahq_alpaca-mcp-server
+Credential Leakage,Transmission,CredentialLeakage,14,sujithadr_MCP-RAG,sujithadr_MCP-RAG
+Credential Leakage,Transmission,CredentialLeakage,15,movva09_Agent-MCP-Math-Email,movva09_Agent-MCP-Math-Email
+Credential Leakage,Transmission,CredentialLeakage,16,amazon-kendra-index-mcp-server,amazon-kendra-index-mcp-server
+Prompt Injection Attack,Decision,PromptInjection,01,bhuvanmdev_Sentinel-Core-Agent,bhuvanmdev_Sentinel-Core-Agent
+Prompt Injection Attack,Decision,PromptInjection,02,Code-Trees_Agentic_search,Code-Trees_Agentic_search
+Prompt Injection Attack,Decision,PromptInjection,03,Darkroaster_pubmed-MCP-server,Darkroaster_pubmed-MCP-server
+Prompt Injection Attack,Decision,PromptInjection,04,Ginga1402_Model-Context-Protocol-MCP-Demo-with-langchain-MCP-ADAPTERS-Ollama,Ginga1402_Model-Context-Protocol-MCP-Demo-with-langchain-MCP-ADAPTERS-Ollama
+Prompt Injection Attack,Decision,PromptInjection,05,guinacio_langchain-mcp-client,guinacio_langchain-mcp-client
+Prompt Injection Attack,Decision,PromptInjection,06,hirokiyn_mcp-langgraph,hirokiyn_mcp-langgraph
+Prompt Injection Attack,Decision,PromptInjection,07,mcp-ollama-agent,mcp-ollama-agent
+Prompt Injection Attack,Decision,PromptInjection,08,open-strategy-partners_osp_marketing_tools,open-strategy-partners_osp_marketing_tools
+Prompt Injection Attack,Decision,PromptInjection,09,shettysaish20_MSPaint-MCP-Server-V2,shettysaish20_MSPaint-MCP-Server-V2
+Prompt Injection Attack,Decision,PromptInjection,10,whatsapp-mcp,whatsapp-mcp
+Prompt Injection Attack,Decision,PromptInjection,11,Operative-Sh_web-eval-agent,Operative-Sh_web-eval-agent
+Prompt Injection Attack,Decision,PromptInjection,12,Shilpaj1994_MCP-AI-Agent,Shilpaj1994_MCP-AI-Agent
+Prompt Injection Attack,Decision,PromptInjection,13,aegntic-knowledge-engine,aegntic-knowledge-engine
+Prompt Injection Attack,Decision,PromptInjection,14,alpacahq_alpaca-mcp-server,alpacahq_alpaca-mcp-server
+Prompt Injection Attack,Decision,PromptInjection,15,amazon-kendra-index-mcp-server,amazon-kendra-index-mcp-server
+Prompt Injection Attack,Decision,PromptInjection,16,brandon-powers_mcp-kafka,brandon-powers_mcp-kafka
+Prompt Injection Attack,Decision,PromptInjection,17,chigwell_telegram-mcp,chigwell_telegram-mcp
+Puppet Attack,Decision,PuppetAttack,01,aegntic-knowledge-engine,aegntic-knowledge-engine
+Puppet Attack,Decision,PuppetAttack,02,blazickjp_shell-mcp-server,blazickjp_shell-mcp-server
+Puppet Attack,Decision,PuppetAttack,03,ianks_terminal-mcp,ianks_terminal-mcp
+Puppet Attack,Decision,PuppetAttack,04,ma-pony_mcp-playwright,ma-pony_mcp-playwright
+Puppet Attack,Decision,PuppetAttack,05,martinbowling_thoughtful-claude,martinbowling_thoughtful-claude
+Puppet Attack,Decision,PuppetAttack,06,Operative-Sh_web-eval-agent,Operative-Sh_web-eval-agent
+Puppet Attack,Decision,PuppetAttack,07,PhungXuanAnh_selenium-mcp-server,PhungXuanAnh_selenium-mcp-server
+Puppet Attack,Decision,PuppetAttack,08,sidharthrajaram_time-mcp,sidharthrajaram_time-mcp
+Puppet Attack,Decision,PuppetAttack,09,stat-guy_chain-of-draft,stat-guy_chain-of-draft
+Puppet Attack,Decision,PuppetAttack,10,xspadex_bilibili-mcp,xspadex_bilibili-mcp
+Remote Listener Attack,Execution,RemoteListener,01,antonio-mello-ai_mcp-pfsense,antonio-mello-ai_mcp-pfsense
+Remote Listener Attack,Execution,RemoteListener,02,core-mcp-server,core-mcp-server
+Remote Listener Attack,Execution,RemoteListener,03,evrenyal_mcpsecurity,evrenyal_mcpsecurity
+Remote Listener Attack,Execution,RemoteListener,04,healthimaging-mcp-server,healthimaging-mcp-server
+Remote Listener Attack,Execution,RemoteListener,05,iam-mcp-server,iam-mcp-server
+Remote Listener Attack,Execution,RemoteListener,06,jonnadul_mcpsshclient,jonnadul_mcpsshclient
+Remote Listener Attack,Execution,RemoteListener,07,junfanz1_MCP-AI-Infra-Real-Time-Agent,junfanz1_MCP-AI-Infra-Real-Time-Agent
+Remote Listener Attack,Execution,RemoteListener,08,junfanz1_MCP-MultiServer-Interoperable-Agent2Agent-LangGraph-AI-System,junfanz1_MCP-MultiServer-Interoperable-Agent2Agent-LangGraph-AI-System
+Remote Listener Attack,Execution,RemoteListener,09,ssh-exec,ssh-exec
+Remote Listener Attack,Execution,RemoteListener,10,well-architected-security-mcp-server,well-architected-security-mcp-server
+Rug Pulls Attacks,Protocol,RugPulls,01,AgentDeskAI_browser-tools-mcp,AgentDeskAI_browser-tools-mcp
+Rug Pulls Attacks,Protocol,RugPulls,02,aparajithn_agent-deploy-dashboard-mcp,aparajithn_agent-deploy-dashboard-mcp
+Rug Pulls Attacks,Protocol,RugPulls,03,aws-documentation-mcp-server,aws-documentation-mcp-server
+Rug Pulls Attacks,Protocol,RugPulls,04,aws-pricing-mcp-server,aws-pricing-mcp-server
+Rug Pulls Attacks,Protocol,RugPulls,05,flothjl_usaspending-mcp,flothjl_usaspending-mcp
+Rug Pulls Attacks,Protocol,RugPulls,06,mendableai_firecrawl-mcp-server,mendableai_firecrawl-mcp-server
+Rug Pulls Attacks,Protocol,RugPulls,07,modelcontextprotocol_servers,modelcontextprotocol_servers
+Rug Pulls Attacks,Protocol,RugPulls,08,seang1121_sports-betting-mcp,seang1121_sports-betting-mcp
+Rug Pulls Attacks,Protocol,RugPulls,09,skysqlinc_skysql-mcp,skysqlinc_skysql-mcp
+Rug Pulls Attacks,Protocol,RugPulls,10,UvrajSB_PrivAgent,UvrajSB_PrivAgent
+Rug Pulls Attacks,Protocol,RugPulls,12,movva09_Agent-MCP-Math-Email,movva09_Agent-MCP-Math-Email
+Sandbox Escape,Execution,SandboxEscape,01,benhaotang_mcp-serverman,benhaotang_mcp-serverman
+Sandbox Escape,Execution,SandboxEscape,02,CoderGamester_mcp-unity,CoderGamester_mcp-unity
+Sandbox Escape,Execution,SandboxEscape,03,Coding-Solo_godot-mcp,Coding-Solo_godot-mcp
+Sandbox Escape,Execution,SandboxEscape,04,Jaldekoa_mcp-fredapi,Jaldekoa_mcp-fredapi
+Sandbox Escape,Execution,SandboxEscape,05,jupyter-act,jupyter-act
+Sandbox Escape,Execution,SandboxEscape,06,m4s1t4_webSearch-Tools,m4s1t4_webSearch-Tools
+Sandbox Escape,Execution,SandboxEscape,07,mtct_journaling_mcp,mtct_journaling_mcp
+Sandbox Escape,Execution,SandboxEscape,08,sawantudayan_document-search-mcp-server,sawantudayan_document-search-mcp-server
+Sandbox Escape,Execution,SandboxEscape,09,shellserver,shellserver
+Sandbox Escape,Execution,SandboxEscape,10,txyz-search,txyz-search
+Sandbox Escape,Execution,SandboxEscape,12,gomarble-ai_facebook-ads-mcp-server,gomarble-ai_facebook-ads-mcp-server
+Sandbox Escape,Execution,SandboxEscape,13,aegntic-knowledge-engine,aegntic-knowledge-engine
+Sandbox Escape,Execution,SandboxEscape,15,espressif_esp-rainmaker-mcp,espressif_esp-rainmaker-mcp
+Tool Chain Exploitation Attack,Decision,ToolchainExploitation,01,code-doc-gen-mcp-server,code-doc-gen-mcp-server
+Tool Chain Exploitation Attack,Decision,ToolchainExploitation,02,DionBenFernandes-Dev_SimpleCalculator-using-MCP-Server---Docker,DionBenFernandes-Dev_SimpleCalculator-using-MCP-Server---Docker
+Tool Chain Exploitation Attack,Decision,ToolchainExploitation,03,EdenYavin_Garak-MCP,EdenYavin_Garak-MCP
+Tool Chain Exploitation Attack,Decision,ToolchainExploitation,04,hannesrudolph_imessage-query-fastmcp-mcp-server,hannesrudolph_imessage-query-fastmcp-mcp-server
+Tool Chain Exploitation Attack,Decision,ToolchainExploitation,05,materials-project,materials-project
+Tool Chain Exploitation Attack,Decision,ToolchainExploitation,06,MatthewDailey_mcp-starter,MatthewDailey_mcp-starter
+Tool Chain Exploitation Attack,Decision,ToolchainExploitation,07,Nebula-Block-Data_nebulablock-mcp-server,Nebula-Block-Data_nebulablock-mcp-server
+Tool Chain Exploitation Attack,Decision,ToolchainExploitation,08,securityfortech_secops-mcp,securityfortech_secops-mcp
+Tool Chain Exploitation Attack,Decision,ToolchainExploitation,09,siliconuy_mcp-server-vscode-extensions,siliconuy_mcp-server-vscode-extensions
+Tool Chain Exploitation Attack,Decision,ToolchainExploitation,10,sontallive_mcp-server-python-template,sontallive_mcp-server-python-template
+Tool Poisoning Attack,Execution,ToolPoisoning,01,aarthiem_MCPServerTest,aarthiem_MCPServerTest
+Tool Poisoning Attack,Execution,ToolPoisoning,02,Alcova-AI_perplexity-mcp,Alcova-AI_perplexity-mcp
+Tool Poisoning Attack,Execution,ToolPoisoning,03,ankushCodeX_mcpserver-AngleOne,ankushCodeX_mcpserver-AngleOne
+Tool Poisoning Attack,Execution,ToolPoisoning,04,baidu-maps_mcp,baidu-maps_mcp
+Tool Poisoning Attack,Execution,ToolPoisoning,05,chatmcp_mcprouter,chatmcp_mcprouter
+Tool Poisoning Attack,Execution,ToolPoisoning,06,davidwynter_qdrant_mcpserver,davidwynter_qdrant_mcpserver
+Tool Poisoning Attack,Execution,ToolPoisoning,07,glifxyz_mymcpspace-mcp-server,glifxyz_mymcpspace-mcp-server
+Tool Poisoning Attack,Execution,ToolPoisoning,08,golf-mcp_golf,golf-mcp_golf
+Tool Poisoning Attack,Execution,ToolPoisoning,09,joslat_mcpserver-semantickernel-client-demo,joslat_mcpserver-semantickernel-client-demo
+Tool Poisoning Attack,Execution,ToolPoisoning,10,ShadowCloneLabs_GlutamateMCPServers,ShadowCloneLabs_GlutamateMCPServers
+Tool Poisoning Attack,Execution,ToolPoisoning,11,unmuktoai_Wazuh-MCP-Server,unmuktoai_Wazuh-MCP-Server
+Tool Poisoning Attack,Execution,ToolPoisoning,12,unsimpledev_mcpserver-coingecko,unsimpledev_mcpserver-coingecko
+Tool Poisoning Attack,Execution,ToolPoisoning,13,Vinayak9769_mcpserver,Vinayak9769_mcpserver
+Tool Poisoning Attack,Execution,ToolPoisoning,14,Wendelius_mcpserver_udemy,Wendelius_mcpserver_udemy
+Tool Poisoning Attack,Execution,ToolPoisoning,15,z-waterking_MCPServer,z-waterking_MCPServer
+Tool Poisoning Attack,Execution,ToolPoisoning,16,aegntic-knowledge-engine,aegntic-knowledge-engine
+Tool Poisoning Attack,Execution,ToolPoisoning,17,amazon-qindex-mcp-server,amazon-qindex-mcp-server
+Tool Poisoning Attack,Execution,ToolPoisoning,18,graphiti-mcp,graphiti-mcp
+Tool Poisoning Attack,Execution,ToolPoisoning,19,m4s1t4_webSearch-Tools,m4s1t4_webSearch-Tools
+Tool Poisoning Attack,Execution,ToolPoisoning,20,open-strategy-partners_osp_marketing_tools,open-strategy-partners_osp_marketing_tools
+Tool Preference Manipulation Attack,Decision,PreferenceManipulation,01,ChintanDiwakar_zentickr-yahoo-query-mcp,ChintanDiwakar_zentickr-yahoo-query-mcp
+Tool Preference Manipulation Attack,Decision,PreferenceManipulation,02,coledie_yfinancemcp,coledie_yfinancemcp
+Tool Preference Manipulation Attack,Decision,PreferenceManipulation,03,iefnaf_akshare-mcp,iefnaf_akshare-mcp
+Tool Preference Manipulation Attack,Decision,PreferenceManipulation,04,jkingsman_qanon-mcp-server,jkingsman_qanon-mcp-server
+Tool Preference Manipulation Attack,Decision,PreferenceManipulation,05,karthiks3000_figma-mcp-server,karthiks3000_figma-mcp-server
+Tool Preference Manipulation Attack,Decision,PreferenceManipulation,06,mugpeng_DROMA_MCP,mugpeng_DROMA_MCP
+Tool Preference Manipulation Attack,Decision,PreferenceManipulation,07,nemad,nemad
+Tool Preference Manipulation Attack,Decision,PreferenceManipulation,08,netket,netket
+Tool Preference Manipulation Attack,Decision,PreferenceManipulation,09,tinydb,tinydb
+Tool Preference Manipulation Attack,Decision,PreferenceManipulation,10,web-fetch,web-fetch
+Tool Shadowing Attack,Execution,ToolShadowing,01,adhikasp_mcp-twikit,adhikasp_mcp-twikit
+Tool Shadowing Attack,Execution,ToolShadowing,02,AdilFayyaz_Slack-Search,AdilFayyaz_Slack-Search
+Tool Shadowing Attack,Execution,ToolShadowing,03,aparajithn_agent-scraper-mcp,aparajithn_agent-scraper-mcp
+Tool Shadowing Attack,Execution,ToolShadowing,04,assafelovic_gptr-mcp,assafelovic_gptr-mcp
+Tool Shadowing Attack,Execution,ToolShadowing,05,bedrock-kb-retrieval-mcp-server,bedrock-kb-retrieval-mcp-server
+Tool Shadowing Attack,Execution,ToolShadowing,06,brave-search,brave-search
+Tool Shadowing Attack,Execution,ToolShadowing,07,chigwell_telegram-mcp,chigwell_telegram-mcp
+Tool Shadowing Attack,Execution,ToolShadowing,08,firecrawl,firecrawl
+Tool Shadowing Attack,Execution,ToolShadowing,09,Pb-207_mcp-deep-research,Pb-207_mcp-deep-research
+Tool Shadowing Attack,Execution,ToolShadowing,10,python,python
+Tool Squatting Attack,Decision,ToolSquatting,01,billster45_mcp-chatgpt-responses,billster45_mcp-chatgpt-responses
+Tool Squatting Attack,Decision,ToolSquatting,02,carterlasalle_mac_messages_mcp,carterlasalle_mac_messages_mcp
+Tool Squatting Attack,Decision,ToolSquatting,03,ConechoAI_nchan-mcp-transport,ConechoAI_nchan-mcp-transport
+Tool Squatting Attack,Decision,ToolSquatting,04,edobez_mcp-memory-py,edobez_mcp-memory-py
+Tool Squatting Attack,Decision,ToolSquatting,05,hyperb1iss_lucidity-mcp,hyperb1iss_lucidity-mcp
+Tool Squatting Attack,Decision,ToolSquatting,06,mysql-mcp-server,mysql-mcp-server
+Tool Squatting Attack,Decision,ToolSquatting,07,pab1it0_chess-mcp,pab1it0_chess-mcp
+Tool Squatting Attack,Decision,ToolSquatting,08,postgres-mcp-server,postgres-mcp-server
+Tool Squatting Attack,Decision,ToolSquatting,09,wrale_mcp-server-make,wrale_mcp-server-make
+Tool Squatting Attack,Decision,ToolSquatting,10,yunfanye_hackernew-mcp,yunfanye_hackernew-mcp
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,01,amazon-kendra-index-mcp-server,amazon-kendra-index-mcp-server
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,02,amazon-keyspaces-mcp-server,amazon-keyspaces-mcp-server
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,03,brandon-powers_mcp-kafka,brandon-powers_mcp-kafka
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,04,cfn-mcp-server,cfn-mcp-server
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,05,git-repo-research-mcp-server,git-repo-research-mcp-server
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,06,google-ad-manager-mcp,google-ad-manager-mcp
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,07,nova-canvas-mcp-server,nova-canvas-mcp-server
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,08,osp-marketing-tools,osp-marketing-tools
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,09,prometheus-mcp-server,prometheus-mcp-server
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,10,Samm-OB_MCP-Claude-Desktop-Project-Demo,Samm-OB_MCP-Claude-Desktop-Project-Demo
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,11,MatiousCorp_google-ad-manager-mcp,MatiousCorp_google-ad-manager-mcp
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,12,Shilpaj1994_MCP-AI-Agent,Shilpaj1994_MCP-AI-Agent
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,13,aviban15_multi-mcp-agent,aviban15_multi-mcp-agent
+Unauthorized Invocation,Protocol,UnauthorizedInvocation,14,amazon-qindex-mcp-server,amazon-qindex-mcp-server
+Webpage Poison Attack,Execution,WebpagePoisoning,01,amazon-qbusiness-anonymous-mcp-server,amazon-qbusiness-anonymous-mcp-server
+Webpage Poison Attack,Execution,WebpagePoisoning,02,aws-bedrock-data-automation-mcp-server,aws-bedrock-data-automation-mcp-server
+Webpage Poison Attack,Execution,WebpagePoisoning,03,aws-location-mcp-server,aws-location-mcp-server
+Webpage Poison Attack,Execution,WebpagePoisoning,04,document-loader-mcp-server,document-loader-mcp-server
+Webpage Poison Attack,Execution,WebpagePoisoning,05,istarwyh_mcpadvisor,istarwyh_mcpadvisor
+Webpage Poison Attack,Execution,WebpagePoisoning,06,jhead_macos-screen-mcp,jhead_macos-screen-mcp
+Webpage Poison Attack,Execution,WebpagePoisoning,07,mahawi1992_mcp-documentation-server,mahawi1992_mcp-documentation-server
+Webpage Poison Attack,Execution,WebpagePoisoning,08,shiragannavar_MCP-Server---Weather,shiragannavar_MCP-Server---Weather
+Webpage Poison Attack,Execution,WebpagePoisoning,09,shridharMe_mcp-server-with-amazon-bedrock-agent,shridharMe_mcp-server-with-amazon-bedrock-agent
+Webpage Poison Attack,Execution,WebpagePoisoning,10,snakeying_Flux-mcp-server-python,snakeying_Flux-mcp-server-python

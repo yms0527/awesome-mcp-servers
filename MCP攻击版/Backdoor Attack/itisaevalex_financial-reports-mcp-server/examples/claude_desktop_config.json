@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "financial-reports": {
+      "command": "python",
+      "args": ["-m", "financial_reports_mcp_server"],
+      "env": {
+        "API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}

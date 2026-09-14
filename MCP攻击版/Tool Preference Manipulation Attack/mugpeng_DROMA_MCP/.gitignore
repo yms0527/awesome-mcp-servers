@@ -1,0 +1,11 @@
+# ignore
+# file
+.DS_Store
+
+# dir
+/Ref
+**/__pycache__/
+*.pyc
+.DS_Store
+/others
+/test

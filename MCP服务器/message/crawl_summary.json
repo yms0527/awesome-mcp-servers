@@ -1,0 +1,158 @@
+{
+  "total_servers": 21,
+  "successful": 14,
+  "failed": 7,
+  "results": [
+    {
+      "name": "MMCPServerResearchProjectresearchclaudecodeandmcpserver",
+      "github_url": "https://github.com/ckz/mcp_server_research",
+      "owner": "ckz",
+      "repo": "mcp_server_research",
+      "status": "success",
+      "local_dir": "message/ckz_mcp_server_research"
+    },
+    {
+      "name": "Mmcp-server-imessageMCPserverforinteractingwithiMessageonmacOS",
+      "github_url": "https://github.com/shirhatti/mcp-server-imessage",
+      "owner": "shirhatti",
+      "repo": "mcp-server-imessage",
+      "status": "success",
+      "local_dir": "message/shirhatti_mcp-server-imessage"
+    },
+    {
+      "name": "IiMessageQueryMCPServerMirrorof",
+      "github_url": "https://github.com/MCP-Mirror/hannesrudolph_imessage-query-fastmcp-mcp-server",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "LLocaliMessageRAGMCPServeriMessageRAGMCPServerfromAnthropicMCPHackathonNYC",
+      "github_url": "https://github.com/willccbb/imessage-mcp",
+      "owner": "willccbb",
+      "repo": "imessage-mcp",
+      "status": "success",
+      "local_dir": "message/willccbb_imessage-mcp"
+    },
+    {
+      "name": "RRabbitMQMCPServerMirrorof",
+      "github_url": "https://github.com/MCP-Mirror/kenliao94_mcp-server-rabbitmq",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "MMCPMessageControlProgramServersMCPMessageControlProgramServersCollection",
+      "github_url": "https://github.com/pocketkk/mcp",
+      "owner": "pocketkk",
+      "repo": "mcp",
+      "status": "success",
+      "local_dir": "message/pocketkk_mcp"
+    },
+    {
+      "name": "KKafkaMCPServerMirrorof",
+      "github_url": "https://github.com/MCP-Mirror/pavanjava_kafka_mcp_server",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "MMCPProjectMCPserversandclientssandbox",
+      "github_url": "https://github.com/ourdigital/mcp-project",
+      "owner": "ourdigital",
+      "repo": "mcp-project",
+      "status": "success",
+      "local_dir": "message/ourdigital_mcp-project"
+    },
+    {
+      "name": "HHands-onMCPMessageControlProtocolsGuideMCPbasic",
+      "github_url": "https://github.com/rubaiat-hossain/MCP-server-basic",
+      "owner": "rubaiat-hossain",
+      "repo": "MCP-server-basic",
+      "status": "success",
+      "local_dir": "message/rubaiat-hossain_MCP-server-basic"
+    },
+    {
+      "name": "CCommitMessagesMCPServerAnMCPserverthathelpsgeneratehigh-qualitycommitmessagesbasedonfilechanges",
+      "github_url": "https://github.com/aaronbassett/mcp-server-commit-messages",
+      "status": "failed",
+      "reason": "clone_failed"
+    },
+    {
+      "name": "SSendamessagetoyouriosdeviceSendanotificationtoadeviceviaNolet",
+      "status": "failed",
+      "reason": "no_github_url"
+    },
+    {
+      "name": "IIMCPAppleiMessageRemindersCalendarContactsandmoreAnativemacOSappthatprovidesanMCPservertoyouriMessagesCalendarContactsRemindersandmoreWritteninSwift",
+      "github_url": "https://github.com/loopwork-ai/imcp",
+      "owner": "loopwork-ai",
+      "repo": "imcp",
+      "status": "success",
+      "local_dir": "message/loopwork-ai_imcp"
+    },
+    {
+      "name": "MMCPServerWeChat基于MCP技术操作微信发送消息和获取历史记录",
+      "github_url": "https://github.com/panxingfeng/mcp_server_wechat",
+      "owner": "panxingfeng",
+      "repo": "mcp_server_wechat",
+      "status": "success",
+      "local_dir": "message/panxingfeng_mcp_server_wechat"
+    },
+    {
+      "name": "IInfobipInfobipMCPServersletyoubuildAIagentstointeractwiththeInfobipplatformthroughtheModelContextProtocolMCPConnecttoInfobipandenableyouragentstoperformactionssuchassendingmessagesoverchannelslikeSMSRCSWhatsApporViberormanagingcustomerdatainacontrolledproduction-gradeenvironment",
+      "github_url": "https://github.com/infobip/mcp",
+      "owner": "infobip",
+      "repo": "mcp",
+      "status": "success",
+      "local_dir": "message/infobip_mcp"
+    },
+    {
+      "name": "AAirmcpAirMCPconnectsAItotheentireAppleecosystemonmacOS253toolsacross25modulesNotesRemindersCalendarContactsMailMessagesMusicFinderSafariSystemPhotosShortcutsAppleIntelligenceTVScreenCaptureMapsPodcastsWeatherPagesNumbersKeynoteLocationBluetoothandGoogleWorkspaceFeaturesJXASwiftdual-pathautomationhuman-in-the-loopapprovalfordestructiveactionsandone-commandsetupvianpxairmcpinitWorkswithClaudeDesktopCursorWindsurfandanyMCPclient",
+      "github_url": "https://github.com/heznpc/AirMCP",
+      "owner": "heznpc",
+      "repo": "AirMCP",
+      "status": "success",
+      "local_dir": "message/heznpc_AirMCP"
+    },
+    {
+      "name": "SSinchMCPServerSinchprovidesaglobalscalablesecureplatformforbusinessestocommunicatewiththeircustomers-formessagingvoiceverificationandemailThesecommunicationcapabilitiesarevitalforanyonebuildingcustomer-connectedsolutionswithAIsystemsTheSinchMCPserverenablescustomerswhobuildagenticexperiencestoeasilyuseSinchservicesforcommunicationTheSinchMCPServerprovidesAIAssistantssuchasClaudeorcodebuildersuchasCursororagentbuilderssuchasGooglewitheasyaccesstovariousSinchservicesincludingMessagingVoiceEmailVerificationandmanymoreMessagingchannelsincludeRCSSMSMMSWhatsAppFacebookMessengerInstagramViberBusinessMessagesTelegramBotKakaoTalkLINEWeChatandSinchChat",
+      "github_url": "https://github.com/sinch/sinch-mcp-server",
+      "owner": "sinch",
+      "repo": "sinch-mcp-server",
+      "status": "success",
+      "local_dir": "message/sinch_sinch-mcp-server"
+    },
+    {
+      "name": "MMacMessagesMCPAnMCPserverthatsecurelyinterfaceswithyouriMessagedatabaseviatheModelContextProtocolMCPallowingLLMstoqueryandanalyzeiMessageconversationsItincludesrobustphonenumbervalidationattachmentprocessingcontactmanagementgroupchathandlingandfullsupportforsendingandreceivingmessages",
+      "github_url": "https://github.com/carterlasalle/mac_messages_mcp",
+      "owner": "carterlasalle",
+      "repo": "mac_messages_mcp",
+      "status": "success",
+      "local_dir": "message/carterlasalle_mac_messages_mcp"
+    },
+    {
+      "name": "LLocalMCPLMCP143localtoolsforClaudeCursorChatGPTMailiMessageMicrosoftTeamsSlackWhatsAppCalendarOneDriveOutlookOmniFocusNotesFinderandOfficedocs100localnoAPIkeysReacheswhatcloudconnectorscantMacWindows",
+      "github_url": "https://github.com/lanchuske/local-mcp-releases",
+      "owner": "lanchuske",
+      "repo": "local-mcp-releases",
+      "status": "success",
+      "local_dir": "message/lanchuske_local-mcp-releases"
+    },
+    {
+      "name": "AAgentDM-AgentToAgentDirectMessagingHostedmessagingserverforMCPagentsAnyagentcansenddirectmessagestoanyotheragentbyaliasSupportsDMsandchannelsgroupmessagingWorkswithClaudeCodeCursorWindsurfandanyMCP-compatibleclientTwotoolssend_messageandread_messages",
+      "status": "failed",
+      "reason": "no_github_url"
+    },
+    {
+      "name": "DDialogBrainUnifiedinboxMCPforWhatsAppTelegramEmailvoicereadsendmessagessearchconversationsmanagecontactsqueryknowledgegraphandtriggerAIagentsthroughnaturallanguage",
+      "github_url": "https://github.com/saloprj/dialogbrain-mcp",
+      "owner": "saloprj",
+      "repo": "dialogbrain-mcp",
+      "status": "success",
+      "local_dir": "message/saloprj_dialogbrain-mcp"
+    },
+    {
+      "name": "RRocksoMcpRocksoMCPconnectsyourRockworkspacetoanyMCPclientWithaPersonalAccessTokenyourAIassistantworksacrossallyourspacesasyouuniversalsearchplusreadandwriteformessagestasksnotesandfilesHostedoverStreamableHTTPwithBearerauthoneveryRockplanincludingFree",
+      "status": "failed",
+      "reason": "no_github_url"
+    }
+  ]
+}

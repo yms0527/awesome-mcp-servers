@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "financial-reports": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/financial-reports-mcp",
+        "run",
+        "server.py"
+      ],
+      "env": {
+        "API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
