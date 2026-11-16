@@ -1,26 +1,26 @@
-# MCP Tool Security Dataset
+# MCPツールセキュリティデータセット
 
-A tool-level dataset of reference MCP tools and safely simulated malicious variants.
+参照MCPツールと安全に模擬された悪性バリアントを含むツール単位のデータセットです。
 
 [English](https://github.com/yms0527/awesome-mcp-servers/tree/main) · [简体中文](https://github.com/yms0527/awesome-mcp-servers/tree/readme-zh-cn) · [繁體中文](https://github.com/yms0527/awesome-mcp-servers/tree/readme-zh-tw) · [日本語](https://github.com/yms0527/awesome-mcp-servers/tree/readme-ja) · [한국어](https://github.com/yms0527/awesome-mcp-servers/tree/readme-ko)
 
-## Responsible Use
+## 責任ある利用
 
-The malicious variants are provided only for defensive security research and education. Do not deploy them in production or use them against third-party systems.
+悪性バリアントは防御的なセキュリティ研究と教育専用です。本番環境や第三者システムへの攻撃に使用しないでください。
 
-## Dataset Overview
+## データセット概要
 
-| Statistic | Value |
+| 統計項目 | 値 |
 |---|---|
-| Physical source projects | 1,126 |
-| Logical MCP Servers | 1,450 |
-| Reference tool versions | 26,021 |
-| Variant-carrying Server directories | 263 |
-| Malicious variant tool versions | 1,513 |
-| Total tool versions | 27,534 |
-| Implemented attack types | 15 |
+| 物理ソースプロジェクト | 1,126 |
+| 論理MCPサーバー | 1,450 |
+| 参照ツールバージョン | 26,021 |
+| バリアントを含むサーバーディレクトリ | 263 |
+| 悪性バリアントツールバージョン | 1,513 |
+| ツールバージョン総数 | 27,534 |
+| 実装済み攻撃タイプ | 15 |
 
-## Directory Structure
+## ディレクトリ構成
 
 ```text
 dataset/
@@ -29,20 +29,20 @@ dataset/
 └── metadata/
 ```
 
-## Language Distribution
+## 言語分布
 
-| Reference Server language | Servers |
+| 参照サーバー言語 | サーバー数 |
 |---|---|
 | Python | 752 |
 | TypeScript | 532 |
 | Go | 75 |
 | JavaScript | 44 |
 | Java | 17 |
-| Other | 30 |
+| その他 | 30 |
 
-## Malicious Variant Distribution
+## 悪性バリアント分布
 
-| Attack type | DTPE stage | Tools |
+| 攻撃タイプ | DTPE段階 | ツール数 |
 |---|---|---|
 | Tool Preference Manipulation Attack | Decision | 92 |
 | Puppet Attack | Decision | 89 |
@@ -60,7 +60,7 @@ dataset/
 | Sandbox Escape | Execution | 101 |
 | Backdoor Attack | Execution | 99 |
 
-## Documentation and Metadata
+## ドキュメントとメタデータ
 
 - `dataset/README.md`
 - `dataset/reference-tools/README.md`
@@ -68,10 +68,10 @@ dataset/
 - `dataset/malicious-variant-tools/<Attack Type>/README.md`
 - `dataset/metadata/`
 
-## Intended Use
+## 利用目的
 
-The dataset supports tool-level static analysis, machine-learning evaluation, attack-pattern studies, and MCP security research.
+ツール単位の静的解析、機械学習評価、攻撃パターン研究、MCPセキュリティ研究に利用できます。
 
-## Licensing
+## ライセンス
 
-Source projects retain their original licenses. Check the license and provenance metadata before redistributing individual files.
+各ソースプロジェクトの元ライセンスが維持されます。再配布前にライセンスと来歴メタデータを確認してください。
