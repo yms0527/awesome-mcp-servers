@@ -1,0 +1,1 @@
+A sample MCP server

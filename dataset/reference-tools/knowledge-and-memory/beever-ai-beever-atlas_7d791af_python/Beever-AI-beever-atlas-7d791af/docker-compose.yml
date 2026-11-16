@@ -1,0 +1,240 @@
+services:
+  beever-atlas:
+    build: .
+    # The ExtractionWorker runs in-process with the API (uvicorn). During
+    # multi-channel syncs its memory footprint scales with concurrent LLM
+    # batches + image OCR + embeddings, and on a small host (e.g. 4 GiB
+    # demo box) it can exhaust system RAM: first the kernel OOM-kills
+    # uvicorn (and with no restart policy the site stays down), and if the
+    # backlog resumes on a host without swap, total memory exhaustion can
+    # freeze the host OS outright. Same protection pattern as the bot's
+    # RES-286 block below: `mem_limit` caps the API in cgroup-land so the
+    # host and datastores are never at risk; `restart` self-heals after
+    # any exit. Limits are overridable per deployment via .env — see
+    # "3.8 Ingestion concurrency & rate limits" in .env.example for
+    # low-memory tuning.
+    restart: unless-stopped
+    mem_limit: ${ATLAS_API_MEM_LIMIT:-2048m}
+    memswap_limit: ${ATLAS_API_MEMSWAP_LIMIT:-3072m}
+    ports: ["8000:8000"]
+    depends_on:
+      weaviate:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      WEAVIATE_URL: http://weaviate:8080
+      WEAVIATE_API_KEY: ${WEAVIATE_API_KEY:?WEAVIATE_API_KEY must be set}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
+      MONGODB_URI: mongodb://mongodb:27017/beever_atlas
+      REDIS_URL: redis://redis:6379
+      BRIDGE_URL: http://bot:3001
+      BRIDGE_API_KEY: ${BRIDGE_API_KEY:-}
+      # Public URL where the bot's inbound webhooks are reachable from the
+      # internet (tunnel in local dev, real domain in prod). Surfaced read-only
+      # in the Settings → connection wizard so users know the exact Slack
+      # Request URL / Teams messaging endpoint to paste. Optional: Discord,
+      # Mattermost, and Slack Socket Mode do not need it.
+      PUBLIC_BOT_URL: ${PUBLIC_BOT_URL:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # Cold start (ADK init, store connections, migration shim) can exceed
+      # interval*retries on a small host. Without start_period the container is
+      # marked unhealthy mid-boot, which aborts `docker compose up` and leaves
+      # depends_on services (the bot) unstarted. Give boot up to 3 min before
+      # failures count.
+      start_period: 180s
+
+  web:
+    build:
+      context: ./web
+      args:
+        # Single source of truth: root ``.env`` feeds these into Vite at
+        # build time. Add new ``VITE_*`` vars in two places — here AND
+        # ``web/Dockerfile`` ARG list — then they ship in the bundle.
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_BEEVER_API_KEY: ${VITE_BEEVER_API_KEY:-}
+        VITE_BEEVER_ADMIN_TOKEN: ${VITE_BEEVER_ADMIN_TOKEN:-}
+    # Issue #39 — web container now runs as nginx-unprivileged listening on
+    # 8080 (CIS Docker Benchmark — non-root). Host port 3000 unchanged so
+    # existing dev URLs (http://localhost:3000/) keep working.
+    ports: ["3000:8080"]
+    restart: unless-stopped
+    depends_on:
+      - beever-atlas
+
+  # Datastores + web get `restart: unless-stopped` so the whole stack
+  # comes back by itself after a host reboot or daemon restart — without
+  # it, only containers that happen to have a policy (previously just the
+  # bot) survive a reboot and everything else needs manual `docker start`.
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:1.28.0@sha256:58b576d36eace6a33f1a0866b9fd13fd58abfb9ce1eaaa419758c70b6a427e36
+    restart: unless-stopped
+    ports: ["127.0.0.1:8080:8080", "127.0.0.1:50051:50051"]
+    volumes: [weaviate_data:/var/lib/weaviate]
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "false"
+      AUTHENTICATION_APIKEY_ENABLED: "true"
+      AUTHENTICATION_APIKEY_ALLOWED_KEYS: ${WEAVIATE_API_KEY:?WEAVIATE_API_KEY must be set}
+      AUTHENTICATION_APIKEY_USERS: admin@beever.local
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      CLUSTER_HOSTNAME: node1
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  neo4j:
+    image: neo4j:5.26-community@sha256:f66304b9511c60d33555a2c451f88e03d82d1ebc893f32d84c98a6b326096435
+    restart: unless-stopped
+    ports: ["127.0.0.1:7474:7474", "127.0.0.1:7687:7687"]
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
+      NEO4J_PLUGINS: '["apoc"]'
+    volumes: [neo4j_data:/data]
+    healthcheck:
+      test: ["CMD", "neo4j", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Issue #50 — MongoDB and Redis run without auth by default. The
+  # 127.0.0.1 host bindings prevent external access, but any container
+  # added to this compose network can read/write freely. Apply the
+  # `docker-compose.auth.yml` overlay for password auth in shared-host
+  # or pre-prod environments:
+  #   docker compose -f docker-compose.yml -f docker-compose.auth.yml up
+  mongodb:
+    image: mongo:7.0@sha256:43fddee7e532a920f3dfdee9e8f4834398c155c26bcb92d790cc1cd3c630fc40
+    restart: unless-stopped
+    ports: ["127.0.0.1:27017:27017"]
+    volumes: [mongo_data:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine@sha256:7aec734b2bb298a1d769fd8729f13b8514a41bf90fcdd1f38ec52267fbaa8ee6
+    restart: unless-stopped
+    ports: ["127.0.0.1:6380:6379"]
+    # AOF persistence + volume mount so cached state (Teams adapter's
+    # `chat-sdk:cache:teams:channelContext:*` entries, in particular) survives
+    # `docker compose restart redis` AND `docker compose down && up -d`.
+    # Without this, a Redis restart wiped the only durable record of the team
+    # AAD group ids that TeamsBridge.listChannels uses to enumerate channels
+    # via Microsoft Graph, and the Teams workspace vanished from the sidebar
+    # until the next inbound webhook re-cached it. Slack/Discord/Mattermost
+    # are unaffected because their `listChannels` calls the platform API
+    # directly using the bot token in MongoDB — no Redis dependency. Teams
+    # is the outlier because there is no app-only Graph endpoint to list
+    # "teams this bot is installed in"; identity is observed from incoming
+    # Bot Framework activities and must be persisted somewhere durable.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    build: ./bot
+    # Bind bot bridge to localhost only — it's an internal management
+    # surface (adapter registration, sync triggers, credential lookup),
+    # not user-facing. Datastores already bind to 127.0.0.1; the bot
+    # bridge was the outlier (issue #34). Backend (8000) and web (3000)
+    # remain on 0.0.0.0 since they're behind a reverse proxy in prod.
+    ports: ["127.0.0.1:3001:3001"]
+    # RES-286 — bot self-heals after any exit (OOM, crash, SIGKILL).
+    # On a t4g.medium (4 GiB, no swap) running 6 hot services, an
+    # unrestricted bot can leak past the host's free-memory headroom in
+    # ~18 h via the long-lived chat-adapter-mattermost WebSocket and take
+    # everything down with it. `mem_limit` caps the bot in cgroup-land;
+    # `NODE_OPTIONS --max-old-space-size` keeps V8 GCing aggressively
+    # below the cgroup line so SIGTERM/graceful shutdown still fires.
+    restart: unless-stopped
+    mem_limit: 768m
+    memswap_limit: 768m
+    depends_on:
+      redis:
+        condition: service_healthy
+      beever-atlas:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      BACKEND_URL: http://beever-atlas:8000
+      REDIS_URL: redis://redis:6379
+      BOT_PORT: "3001"
+      BRIDGE_API_KEY: ${BRIDGE_API_KEY:-}
+      NODE_OPTIONS: "--max-old-space-size=512"
+      # Structural leak fix — rebuild the chat-adapter set every 6 h so
+      # accumulated WebSocket state in chat-adapter-mattermost (1.1.2 has
+      # a slow leak in its long-lived ws + unbounded handler closures) is
+      # discarded long before it threatens the cgroup limit. Set to 0 to
+      # disable (e.g. local dev).
+      ADAPTER_RECYCLE_INTERVAL_MS: "21600000"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+
+  # Profile-gated: only starts with `docker compose --profile minio up`, so the
+  # OSS default (GridFS) needs zero extra infra. Select it with
+  # CHANNEL_MEDIA_BACKEND=minio + the CHANNEL_MEDIA_MINIO_* env vars.
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    profiles: ["minio"]
+    command: server /data --console-address ":9001"
+    ports:
+      - "127.0.0.1:9000:9000"   # S3 API
+      - "127.0.0.1:9001:9001"   # web console
+    environment:
+      MINIO_ROOT_USER: ${CHANNEL_MEDIA_MINIO_ACCESS_KEY:-minioadmin}
+      # A default keeps the (profile-gated) service from blocking the OSS
+      # default `docker compose up` interpolation; override in `.env` for any
+      # real MinIO use — `minioadmin` is a dev-only credential.
+      MINIO_ROOT_PASSWORD: ${CHANNEL_MEDIA_MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # One-shot: create the PRIVATE bucket on first boot, then exit.
+  minio-init:
+    image: minio/mc:9.6@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    profiles: ["minio"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${CHANNEL_MEDIA_MINIO_ACCESS_KEY:-minioadmin} ${CHANNEL_MEDIA_MINIO_SECRET_KEY} &&
+      mc mb --ignore-existing local/${CHANNEL_MEDIA_MINIO_BUCKET:-atlas-media} &&
+      mc anonymous set none local/${CHANNEL_MEDIA_MINIO_BUCKET:-atlas-media}
+      "
+
+volumes:
+  weaviate_data:
+  neo4j_data:
+  mongo_data:
+  redis_data:
+  minio_data:

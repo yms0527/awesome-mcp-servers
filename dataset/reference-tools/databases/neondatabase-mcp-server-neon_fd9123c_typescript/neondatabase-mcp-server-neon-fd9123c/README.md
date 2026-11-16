@@ -1,0 +1,530 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://neon.com/brand/neon-logo-dark-color.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://neon.com/brand/neon-logo-light-color.svg">
+  <img width="250px" alt="Neon Logo fallback" src="https://neon.com/brand/neon-logo-dark-color.svg">
+</picture>
+
+# Neon MCP Server
+
+[![Install MCP Server in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=Neon&config=eyJ1cmwiOiJodHRwczovL21jcC5uZW9uLnRlY2gvbWNwP2NhdGVnb3J5PXByb2plY3RzJmNhdGVnb3J5PWJyYW5jaGVzJmNhdGVnb3J5PWVuZHBvaW50cyZjYXRlZ29yeT1xdWVyeWluZyZjYXRlZ29yeT1zY2hlbWEifQ%3D%3D)
+[![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=Neon&config=%7B%22url%22%3A%22https%3A%2F%2Fmcp.neon.tech%2Fmcp%3Fcategory%3Dprojects%26category%3Dbranches%26category%3Dendpoints%26category%3Dquerying%26category%3Dschema%22%7D)
+
+**Neon MCP Server** is an open-source tool that lets you interact with your Lakebase Postgres databases on Neon in **natural language**.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+The Model Context Protocol (MCP) is a [standardized protocol](https://modelcontextprotocol.io) designed to manage context between large language models (LLMs) and external systems. This repository provides a remote MCP Server for [Neon](https://neon.com).
+
+Neon's MCP server acts as a bridge between natural language requests and the [Neon API](https://neon.com/docs/reference/api). Built upon MCP, it translates your requests into the necessary API calls, enabling you to manage tasks such as creating projects and branches, running queries, and performing database migrations seamlessly.
+
+Some of the key features of the Neon MCP server include:
+
+- **Natural language interaction:** Manage Neon databases using intuitive, conversational commands.
+- **Simplified database management:** Perform complex actions without writing SQL or directly using the Neon API.
+- **Accessibility for non-developers:** Empower users with varying technical backgrounds to interact with Neon databases.
+- **Database migration support:** Leverage Neon's branching capabilities for database schema changes initiated via natural language.
+
+For example, in Claude Code, or any MCP Client, you can use natural language to accomplish things with Neon, such as:
+
+- `Let's create a new Postgres database, and call it "my-database". Let's then create a table called users with the following columns: id, name, email, and password.`
+- `I want to run a migration on my project called "my-project" that alters the users table to add a new column called "created_at".`
+- `Can you give me a summary of all of my Neon projects and what data is in each one?`
+
+> [!WARNING]  
+> **Neon MCP Server Security Considerations**  
+> The Neon MCP Server grants powerful database management capabilities through natural language requests. **Always review and authorize actions requested by the LLM before execution.** Ensure that only authorized users and applications have access to the Neon MCP Server.
+>
+> The Neon MCP Server is intended for local development and IDE integrations only. **We do not recommend using the Neon MCP Server in production environments.** It can execute powerful operations that may lead to accidental or unauthorized changes.
+>
+> For more information, see [MCP security guidance →](https://neon.com/docs/ai/neon-mcp-server#mcp-security-guidance).
+
+## Setting up Neon MCP Server
+
+There are a few options for setting up the Neon MCP Server:
+
+1. **Quick Setup with API Key (Cursor, VS Code, and Claude Code):** Run [`neon@latest init`](https://neon.com/docs/cli/init) to automatically configure Neon's MCP Server, [agent skills](https://github.com/neondatabase/agent-skills), and VS Code extension with one command.
+2. **Remote MCP Server (OAuth Based Authentication):** Connect to Neon's managed MCP server using OAuth for authentication. This method is more convenient as it eliminates the need to manage API keys. Additionally, you will automatically receive the latest features and improvements as soon as they are released.
+3. **Remote MCP Server (API Key Based Authentication):** Connect to Neon's managed MCP server using API key for authentication. This method is useful if you want to connect a remote agent to Neon where OAuth is not available. Additionally, you will automatically receive the latest features and improvements as soon as they are released.
+
+### Prerequisites
+
+- An MCP Client application.
+- A [Neon account](https://console.neon.tech/signup).
+- **Node.js (>= v18.0.0):** Download from [nodejs.org](https://nodejs.org).
+- If [IP Allow](https://neon.com/docs/introduction/ip-allow) is enabled, add `34.192.103.46` and `23.22.233.166` to your allowlist (`mcp.neon.tech` static IPs).
+
+For development, you'll need Node.js 22+ (pnpm is provided via Corepack — run `corepack enable` to activate it).
+
+### Option 1. Quick Setup with API Key
+
+**Don't want to manually create an API key?**
+
+Run [`neon@latest init`](https://neon.com/docs/cli/init) to automatically configure Neon's MCP Server with one command:
+
+```bash
+npx neon@latest init
+```
+
+This works with Cursor, VS Code (GitHub Copilot), and Claude Code. It will authenticate via OAuth, create a Neon API key for you, and configure your editor automatically.
+
+### Option 2. Remote Hosted MCP Server (OAuth Based Authentication)
+
+Connect to Neon's managed MCP server using OAuth for authentication. This is the easiest setup, requires no local installation of this server, and doesn't need a Neon API key configured in the client.
+
+Run the following command to add the Neon MCP Server for all detected agents and editors in your workspace:
+
+```bash
+npx add-mcp "https://mcp.neon.tech/mcp?category=projects&category=branches&category=endpoints&category=querying&category=schema"
+```
+
+That URL publishes projects, branches, compute endpoints, querying, and schema. Preview it with `/api/list-tools?category=projects&category=branches&category=endpoints&category=querying&category=schema`. The unfiltered URL publishes every category:
+
+```bash
+npx add-mcp https://mcp.neon.tech/mcp
+```
+
+Add the `-g` flag to add the Neon MCP Server to the global MCP server list instead of project-scoped.
+
+Alternatively, you can add the following "Neon" entry to your client's MCP server configuration file (e.g., `mcp.json`, `mcp_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "Neon": {
+      "type": "http",
+      "url": "https://mcp.neon.tech/mcp?category=projects&category=branches&category=endpoints&category=querying&category=schema"
+    }
+  }
+}
+```
+
+**Kiro:** Add the following to your Kiro MCP config file (`~/.kiro/settings/mcp.json` for global, or `.kiro/settings/mcp.json` for project-scoped):
+
+```json
+{
+  "mcpServers": {
+    "Neon": {
+      "url": "https://mcp.neon.tech/mcp?category=projects&category=branches&category=endpoints&category=querying&category=schema"
+    }
+  }
+}
+```
+
+Or use the one-click install button at the top of this README. For more information, see the [Kiro MCP documentation](https://kiro.dev/docs/mcp/).
+
+- Restart or refresh your MCP client.
+- An OAuth window will open in your browser. Follow the prompts to authorize your MCP client to access your Neon account.
+
+> With OAuth-based authentication, the MCP server will, by default, operate on projects under your personal Neon account. To access or manage projects that belong to an organization, you must explicitly provide either the `org_id` or the `project_id` in your prompt to MCP client.
+
+### Option 3. Remote Hosted MCP Server (API Key Based Authentication)
+
+Remote MCP Server also supports authentication using an API key in the `Authorization` header if your client supports it.
+
+[Create a Neon API key](https://console.neon.tech/app/settings?modal=create_api_key) in the Neon Console. Next, run the following command to add the Neon MCP Server for all detected agents and editors in your workspace:
+
+```bash
+npx add-mcp "https://mcp.neon.tech/mcp?category=projects&category=branches&category=endpoints&category=querying&category=schema" --header "Authorization: Bearer <$NEON_API_KEY>"
+```
+
+Alternatively, you can add the following "Neon" entry to your client's MCP server configuration file (e.g., `mcp.json`, `mcp_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "Neon": {
+      "type": "http",
+      "url": "https://mcp.neon.tech/mcp?category=projects&category=branches&category=endpoints&category=querying&category=schema",
+      "headers": {
+        "Authorization": "Bearer <$NEON_API_KEY>"
+      }
+    }
+  }
+}
+```
+
+> Provide an organization's API key to limit access to projects under the organization only.
+
+### Scopes and Read-Only Mode
+
+Neon MCP advertises OAuth scopes `read` and `write`. Your MCP client can request these, or you can make the selection in the OAuth permissions UI. `*` is treated as write if a client still sends it.
+
+**Read-only mode** restricts which tools are available, disabling write operations like creating projects, branches, or running migrations. Read-only tools include listing projects, describing schemas, querying data, and viewing performance metrics.
+
+You can set read-only mode in two ways:
+
+1. **Default MCP URL (editable consent):** Connect with `https://mcp.neon.tech/mcp` and uncheck **Allow writes** on the authorization page. You can also choose one project, a Postgres role for SQL, and a subset of tool categories there.
+2. **Parameterized MCP URL (fixed consent):** Put `readonly`, `projectId`, `category`, and/or `roleName` on the MCP server URL. The authorization page confirms that grant and does not offer editors. Change the URL and authorize again to change the grant.
+
+```json
+{
+  "mcpServers": {
+    "Neon": {
+      "url": "https://mcp.neon.tech/mcp?readonly=true"
+    }
+  }
+}
+```
+
+How the query param behaves:
+
+- **API key flow:** `readonly=true` is the way to enable read-only mode (there is no OAuth scope exchange in this flow). URL changes apply on the next request.
+- **OAuth flow:** `projectId`, `category`, `readonly`, and `roleName` on the MCP URL are a fixed grant confirmed at authorization. `readonly=true` cannot be widened to writes on that page. After a token is issued, changing the URL does not widen that token; authorize again.
+
+For OAuth registration, `x-read-only` is an initial Allow-writes default on editable consent. It does not lock confirmation, and it does not reduce a parameterized URL that includes `readonly=false`. API-key requests still honor `x-read-only` per request, below the `readonly` query param.
+
+> **Note:** Read-only mode restricts which _tools_ are available. `run_sql` stays available and runs each query in a `READ ONLY` transaction. `run_sql_transaction` is not available; run each statement with `run_sql`. Those calls run separately and do not share a transaction. For transaction semantics, use a connection with writes allowed.
+
+### URL Query Params for Access Control
+
+Grant context (scope categories, project scoping, read-only mode, pinned Postgres role) is configured via URL query params on the MCP server URL. API-key requests apply those params on each request. OAuth tokens store the grant confirmed or edited at authorization.
+
+| Param       | Description                                            | Example                              |
+| ----------- | ------------------------------------------------------ | ------------------------------------ |
+| `readonly`  | Enable read-only mode (`true`/`false`)                 | `?readonly=true`                     |
+| `category`  | Restrict to specific tool categories (repeated or CSV) | `?category=querying&category=schema` |
+| `projectId` | Scope all operations to a single project               | `?projectId=proj-123`                |
+| `roleName`  | Run all SQL as this Postgres role instead of the owner | `?roleName=app_reader`               |
+
+**Read-only + project-scoped example:**
+
+```json
+{
+  "mcpServers": {
+    "Neon": {
+      "url": "https://mcp.neon.tech/mcp?readonly=true&projectId=my-project-id"
+    }
+  }
+}
+```
+
+**Category-filtered example (only querying and schema tools):**
+
+```json
+{
+  "mcpServers": {
+    "Neon": {
+      "url": "https://mcp.neon.tech/mcp?category=querying&category=schema"
+    }
+  }
+}
+```
+
+**Pinned Postgres role example (read-only, one project, SQL as `app_reader`):**
+
+```json
+{
+  "mcpServers": {
+    "Neon": {
+      "url": "https://mcp.neon.tech/mcp?readonly=true&projectId=my-project-id&roleName=app_reader"
+    }
+  }
+}
+```
+
+`roleName` pins the Postgres login role for the whole connection. Every SQL the server runs for you (`run_sql`, `run_sql_transaction`, `explain_sql_statement`, `get_database_tables`, `describe_table_schema`, `describe_branch`, `list_slow_queries`, `inspect_database`, and the SQL inside migrations and query tuning) logs in as that role, so Postgres grants decide what the agent can read or change. Without it, SQL runs as the database owner. Read-only mode still wraps queries in a `READ ONLY` transaction; the pinned role adds a limit that Postgres enforces on the login itself, so SQL that gets out of the transaction still has only the role's privileges.
+
+- The server resolves the role's credentials internally and never returns them. `get_connection_string` is not available on a pinned connection.
+- A `role_name` tool argument that differs from the pinned role is rejected. Omitting it uses the pinned role, never the owner.
+- If the role does not exist or cannot log in (for example `ALTER ROLE … NOLOGIN`), the call fails before any SQL runs. It does not retry as another role.
+- The value must be one exact Postgres role name: letters, digits, `_` or `$`, starting with a letter or `_`, at most 63 characters. Anything else (empty, repeated, quoted, hyphenated) is rejected with `400`, not ignored.
+- The role must be able to log in (`LOGIN`) and must exist on each branch you query. Roles created in SQL (`CREATE ROLE app_reader LOGIN PASSWORD '…'`) work, as do roles created in the Neon Console or API. A role with the privileges it needs, and no more, is what makes the pin useful: for read-only agents, grant `SELECT` on the tables they should see and do not add it to `neon_superuser`.
+- **OAuth:** `roleName` on the MCP URL makes a fixed grant. The authorization page shows the role, and the issued token keeps it through refresh. Changing the URL later does not change the token; authorize again. With the default URL (editable consent), enter the role in the optional **Postgres role** field instead; leave it empty to keep the database owner. Tokens issued before this option have no pinned role and behave as before.
+- **API key:** the role is read from the URL on each request. Anyone who can edit the connection URL and holds the API key can change or remove it, so keep the URL in configuration the agent does not control.
+- The pin applies to SQL connections only. Management API tools still act with the API key or OAuth token's own access; `compare_database_schema`, for example, is computed by the Neon API and is not limited by the role's grants. Combine `roleName` with `readonly=true` and `category` to limit those tools too.
+
+You can preview which tools are visible for any configuration using the `/api/list-tools` endpoint (no auth required):
+
+```bash
+curl "https://mcp.neon.tech/api/list-tools?readonly=true&category=querying"
+```
+
+<details>
+<summary><strong>Tools available in read-only mode</strong></summary>
+
+Host tools: `list_organizations`, `describe_branch`, `run_sql`, `get_database_tables`, `describe_table_schema`, `list_slow_queries`, `explain_sql_statement`, `inspect_database`, `get_neon_auth_config`, `search`, `fetch`, `search_docs`, `get_doc`, `send_feedback`.
+
+Generated Management API tools that are GET and do not return secrets, plus `query_logs` (POST, read-only). Preview the exact set with `/api/list-tools?readonly=true`.
+
+**Tools requiring write access:**
+
+- Generated Management API writes (`create_project`, `create_branch`, `delete_project`, …)
+- `get_connection_string` (the connection string carries a privileged role password, so it is withheld in read-only mode; copy it from the [Neon Console](https://console.neon.tech) instead)
+- `run_sql_transaction` (its statements run in one session, so a `COMMIT` or `SET TRANSACTION READ WRITE` statement would end the read-only transaction)
+- `prepare_database_migration`, `complete_database_migration`
+- `prepare_query_tuning`, `complete_query_tuning`
+
+</details>
+
+### Server-Sent Events (SSE) Transport (Deprecated)
+
+MCP supports two remote server transports: the deprecated Server-Sent Events (SSE) and the newer, recommended Streamable HTTP. If your LLM client doesn't support Streamable HTTP yet, you can switch the endpoint from `https://mcp.neon.tech/mcp` to `https://mcp.neon.tech/sse` to use SSE instead.
+
+Run the following command to add the Neon MCP Server for all detected agents and editors in your workspace using the SSE transport:
+
+```bash
+npx add-mcp https://mcp.neon.tech/sse --type sse
+```
+
+## Remote Server Architecture
+
+The remote server runs as a Next.js App Router application on Vercel at `mcp.neon.tech`.
+
+> [!NOTE]
+> The root `/` path redirects to [Neon MCP Server docs](https://neon.com/docs/ai/neon-mcp-server). There is no landing page.
+
+Core implementation areas:
+
+- `app/api/[transport]/route.ts`: MCP transport endpoint for Streamable HTTP (`/mcp`) and SSE (`/sse`)
+- `app/api/authorize/`, `app/callback/`, `app/api/token/`, `app/api/revoke/`: OAuth flow endpoints
+- `app/.well-known/`: OAuth discovery metadata endpoints
+- `mcp/`: MCP server, tools, handlers, analytics, and Sentry integration
+- `lib/`: Next.js-compatible helpers (OAuth, configuration, error handling)
+- `mcp/utils/read-only.ts`: read-only mode and scope handling
+
+## Guides
+
+- [Neon MCP Server Guide](https://neon.com/docs/ai/neon-mcp-server)
+- [Connect MCP Clients to Neon](https://neon.com/docs/ai/connect-mcp-clients-to-neon)
+- [Cursor with Neon MCP Server](https://neon.com/guides/cursor-mcp-neon)
+- [Claude Code with Neon MCP Server](https://neon.com/guides/claude-code-mcp-neon)
+- [Claude Desktop with Neon MCP Server](https://neon.com/guides/neon-mcp-server)
+- [Cline with Neon MCP Server](https://neon.com/guides/cline-mcp-neon)
+- [Windsurf with Neon MCP Server](https://neon.com/guides/windsurf-mcp-neon)
+- [Zed with Neon MCP Server](https://neon.com/guides/zed-mcp-neon)
+
+## Features
+
+### Supported Tools
+
+The Neon MCP Server provides the following actions, which are exposed as "tools" to MCP Clients. You can use these tools to interact with your Neon projects and databases using natural language commands.
+
+#### Tool Scope Metadata
+
+Each tool definition includes a `scope` category used for grant-based tool filtering and consent UX. Current categories are:
+
+- `projects`
+- `branches`
+- `endpoints`
+- `snapshots`
+- `schema`
+- `querying`
+- `neon_auth`
+- `data_api`
+- `observability`
+- `docs`
+- `functions`
+- `storage`
+- `realtime`
+- `null` (tools without a scope category: `search`, `fetch`, `send_feedback`)
+
+Notes:
+
+- Management API tools come from `@neon/tools`. Selectors are SDK paths (`projects.list`); published MCP names are verb-first (`list_projects`, `delete_project`, `query_logs`). Historical names stay where they already existed (`describe_project`, `create_branch`, `reset_from_parent`, `compare_database_schema`, `provision_neon_auth`, `provision_neon_data_api`, `list_branch_computes`).
+- `?category=branches` includes branch, role, and database tools (`list_postgres_roles`, `create_postgres_database`, …). A token already issued for `branches` gains those writes. Compute listing is `?category=endpoints`. Snapshot restore is `?category=snapshots`.
+- Project member and permission writes are not published. `list_project_members` and `list_project_permissions` are reads.
+- Schema tools (`?category=schema`) are the host tools `get_database_tables` and `describe_table_schema`, plus generated `compare_database_schema`.
+- Read-only enforcement still relies on `readOnlySafe` and server-side read-only logic; `scope` is category metadata, not a standalone read/write switch.
+- In project-scoped mode (`?projectId=...`), tools without a project path (`list_projects`, `create_project`, `list_organizations`, `list_regions`, `search`, `fetch`, …) are hidden. `delete_project` is also hidden.
+
+**Project Management:**
+
+- **`list_projects`**: Lists Neon projects. `limit` caps how many items come back.
+- **`describe_project`**: Fetches a Neon project by id (`{ "project_id": "…" }`).
+- **`create_project`**: Creates a Neon project and waits for the default compute. Does not return a connection string. Arguments are `{ "name": "…", "org_id": "…", "region_id": "…" }`. Call `get_connection_string` after it succeeds.
+- **`delete_project`**: Deletes an existing Neon project. Arguments are `{ "project_id": "…" }`.
+- **`list_organizations`**: Lists all organizations that the current user has access to. Optionally filter by organization name or ID using the search parameter.
+
+**Branch Management:**
+
+- **`list_branches`**: Lists branches in a project. Use it to resolve a branch name to a `br-…` id.
+- **`list_credentials`**, **`create_credential`**, **`revoke_credential`**, **`rotate_credential`**: Branch-scoped credentials for Object Storage and the AI Gateway. `reveal` is not a tool; rotation replaces secrets in place and is not idempotent.
+- **`create_branch`**: Creates a branch with a read-write compute and waits until it is ready. Does not return a connection string. Arguments are `{ "project_id": "…", "name": "feature-x" }`. Pass `no_compute: true` to skip the endpoint. Call `get_connection_string` after it succeeds.
+- **`reset_from_parent`**: Resets a branch to its parent's current HEAD (`{ "project_id": "…", "branch_id": "br-…" }`). Discards writes since the branch diverged. `preserve_under_name` is required when the branch has children; those children move to the new branch. Parent HEAD only; point-in-time restore is `restore_snapshot`.
+- **`delete_branch`**: Deletes a branch (`{ "project_id": "…", "branch_id": "br-…" }`).
+- **`describe_branch`**: Retrieves a tree of databases, schemas, tables, views, and functions on a branch.
+- Generated branch tools take `branch_id` as a branch id (`br-...`), not a name.
+- **`restore_snapshot`**: Restores a snapshot. Pass `target_branch_id` to restore onto an existing branch; omit it to create a new one.
+
+**Compute endpoints** (`?category=endpoints`):
+
+- **`list_postgres_endpoints`**, **`list_branch_computes`**, **`get_postgres_endpoint`**, **`create_postgres_endpoint`**, **`update_postgres_endpoint`**, **`delete_postgres_endpoint`**, **`start_postgres_endpoint`**, **`suspend_postgres_endpoint`**, **`restart_postgres_endpoint`**
+
+**Snapshots** (`?category=snapshots`):
+
+- **`list_snapshots`**, **`get_snapshot_schedule`**, **`set_snapshot_schedule`**, **`create_snapshot`**, **`update_snapshot`**, **`delete_snapshot`**, **`restore_snapshot`**
+
+**Schema** (`?category=schema`):
+
+- **`get_database_tables`**, **`describe_table_schema`**
+- **`compare_database_schema`**: SQL schema diff of one database against another branch. `database_name` is required. Omitting `base_branch_id` compares against the parent. Optional `lsn`, `timestamp`, `base_lsn`, `base_timestamp` are point-in-time only.
+
+**SQL Query Execution:**
+
+- **`get_connection_string`**: Returns your database connection string.
+- **`run_sql`**: Executes a single SQL query against a specified Neon database. Supports both read and write operations. Optional `role_name` logs in as that Postgres role instead of the database owner, and `compute_id` picks the compute; credentials stay on the server. On a connection with `?roleName=`, `role_name` must be omitted or match it.
+- **`run_sql_transaction`**: Executes a series of SQL queries within a single transaction against a Neon database. Takes the same optional `role_name` and `compute_id` as `run_sql`.
+- **`get_database_tables`**: Lists all tables within a specified Neon database.
+- **`describe_table_schema`**: Retrieves the schema definition of a specific table, detailing columns, data types, and constraints.
+
+**Database Migrations (Schema Changes):**
+
+- **`prepare_database_migration`**: Initiates a database migration process. Critically, it creates a temporary branch to apply and test the migration safely before affecting the main branch.
+- **`complete_database_migration`**: Finalizes and applies a prepared database migration to the main branch. This action merges changes from the temporary migration branch and cleans up temporary resources.
+
+**SQL Querying and Optimization:**
+
+- **`inspect_database`**: Runs one of 15 predefined read-only Postgres diagnostics against a branch — relation and index sizes, index and sequential-scan usage, active queries and locks, the heaviest and most frequent queries, cache hit rate and working-set size, autovacuum and bloat estimates, and replication state. Same checks as the `neon inspect db` CLI command. Omit `database_name` to cover every database on the branch; pass a name to inspect one. Four of them need the `pg_stat_statements` or `neon` extension.
+- **`list_slow_queries`**: Identifies performance bottlenecks by finding the slowest queries in a database. Requires the pg_stat_statements extension.
+- **`explain_sql_statement`**: Provides detailed execution plans for SQL queries to help identify performance bottlenecks.
+- **`prepare_query_tuning`**: Analyzes query performance and suggests optimizations, like index creation. Creates a temporary branch for safely testing these optimizations.
+- **`complete_query_tuning`**: Finalizes query tuning by either applying optimizations to the main branch or discarding them. Cleans up the temporary tuning branch.
+
+**Neon Auth** (`?category=neon_auth`):
+
+- **`provision_neon_auth`**, **`get_auth`**, **`disable_auth`**, **`update_auth_config`**
+- **`get_neon_auth_config`**: host tool; secrets redacted. Use generated Auth write tools to change settings.
+- **`list_auth_oauth_providers`**, **`add_auth_oauth_provider`**, **`update_auth_oauth_provider`**, **`delete_auth_oauth_provider`**
+- **`list_auth_trusted_domains`**, **`add_auth_trusted_domain`**, **`delete_auth_trusted_domain`**
+- **`create_auth_user`**, **`delete_auth_user`**, **`update_auth_user_role`**
+
+**Neon Data API** (`?category=data_api`):
+
+- **`provision_neon_data_api`**, **`get_data_api`**, **`update_data_api`**, **`delete_data_api`**: Manage the Data API for a branch database.
+
+**Search and Discovery:**
+
+- **`search`**: Searches across organizations, projects, and branches matching a query. Returns IDs, titles, and direct links to the Neon Console.
+- **`fetch`**: Fetches detailed information about a specific organization, project, or branch using an ID (typically from the search tool).
+
+**Feedback** (always available, including the no-login `?category=docs` endpoint):
+
+- **`send_feedback`**: Sends anonymous feedback to the Neon team. Only the feedback text is sent, with no account, project, or connection details. Messages are limited to 10,000 characters.
+
+**Observability** (`?category=observability`): these tools require the Neon Platform Beta and are currently only available for projects in the `aws-us-east-2` region. A branch without logs access returns HTTP 404 with reason `telemetry_not_enabled`.
+
+- **`query_logs`**: Queries OpenTelemetry logs for a branch. POST in the Management API; treated as read-only by this server.
+- **`list_log_fields`**: Lists the log fields you can enumerate values for on a branch.
+- **`list_log_field_values`**: Lists the distinct values of a log field within a branch and time window.
+
+**Documentation and Resources** (`?category=docs`):
+
+- **`search_docs`**: Searches neon.com (docs, API reference, PostgreSQL tutorial, guides, FAQs, changelog, and blog) with the same search as the neon.com search box. Takes `query`, optional `categories` (`docs`, `api`, `postgresql`, `guides`, `faqs`, `blog`, `changelog`), and optional `limit` (1-40, default 10). Returns ranked pages with `title`, `url`, `slug`, `category`, `breadcrumb`, `heading`, and `excerpt`; pass `slug` to `get_doc` to read the page.
+- **`get_doc`**: Fetches one neon.com page as markdown. Takes `slug` from a `search_docs` hit (for example `docs/guides/prisma` or `postgresql/tutorial/inner-join`).
+
+**Functions** (`?category=functions`):
+
+- **`list_functions`**, **`get_function`**, **`update_function`**, **`delete_function`**, **`deploy_function`**
+- **`list_functions_custom_domains`**, **`register_functions_custom_domain`**, **`delete_functions_custom_domain`**
+- **`list_triggers`**, **`get_trigger`**, **`create_trigger`**, **`update_trigger`**, **`delete_trigger`**: Scheduled function triggers (`type: "schedule"`, five-field UTC cron).
+
+**Storage** (`?category=storage`):
+
+- **`list_storage_buckets`**, **`create_storage_bucket`**, **`delete_storage_bucket`**
+- **`list_storage_objects`**, **`delete_storage_object`**, **`delete_storage_objects_by_prefix`**
+- **`presign_storage_object`**, **`get_storage`**
+
+**Realtime** (`?category=realtime`):
+
+- **`get_realtime`**, **`enable_realtime`**, **`disable_realtime`**: Branch Realtime state, enable (optional `allowed_origins`), and disable. Enable and disable wait until the change is applied.
+- **`get_realtime_secret`**: The shared secret the application backend issues Realtime tokens with. Not available in read-only mode.
+- **`rotate_realtime_secret`**: Replaces the shared secret and waits until the change is applied. Not idempotent. Call `get_realtime_secret` afterwards for the new value.
+
+### Migrations
+
+Migrations are a way to manage changes to your database schema over time. With the Neon MCP server, LLMs are empowered to do migrations safely with separate "Start" (`prepare_database_migration`) and "Commit" (`complete_database_migration`) commands.
+
+The "Start" command accepts a migration and runs it in a new temporary branch. Upon returning, this command hints to the LLM that it should test the migration on this branch. The LLM can then run the "Commit" command to apply the migration to the original branch.
+
+## Development
+
+This project uses [pnpm](https://pnpm.io) as the package manager, pinned via Corepack.
+
+### Project Structure
+
+The MCP server code lives at the repository root, a Next.js application deployed to Vercel at `mcp.neon.tech`.
+
+```bash
+corepack enable
+pnpm install
+```
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to add tools. Tool arguments are `snake_case`.
+
+### Local Development
+
+```bash
+# Start the Next.js dev server (for the remote MCP server)
+pnpm dev
+```
+
+### Linting and Type Checking
+
+```bash
+pnpm lint
+pnpm typecheck
+```
+
+### Environment Variables
+
+Required for remote server runtime:
+
+| Variable              | Description                           |
+| --------------------- | ------------------------------------- |
+| `SERVER_HOST`         | Server URL (defaults to `VERCEL_URL`) |
+| `UPSTREAM_OAUTH_HOST` | Neon OAuth provider URL               |
+| `CLIENT_ID`           | OAuth client ID                       |
+| `CLIENT_SECRET`       | OAuth client secret                   |
+| `KV_URL`              | Vercel KV (Upstash Redis) URL         |
+| `OAUTH_DATABASE_URL`  | Postgres URL for token storage        |
+
+Optional:
+
+| Variable                     | Description                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| `LOG_LEVEL`                  | Winston log level: `error`, `warn`, `info` (default), `debug`, `verbose`, `silly` |
+| `NEON_MCP_DISABLE_ANALYTICS` | Set to `1` to disable product analytics                                           |
+
+### Testing Pyramid
+
+All tests run from the repository root.
+
+```bash
+# Unit tests
+pnpm test:unit
+
+# Integration tests
+pnpm test:integration
+
+# MCP protocol end-to-end tests (real MCP client/server tool calls)
+pnpm test:e2e:mcp
+
+# Website end-to-end tests (Playwright; provisions/validates ephemeral DB first)
+pnpm test:e2e:web
+
+# Full end-to-end suite
+pnpm test:e2e
+
+# Full test pyramid (unit + integration + e2e; used in CI)
+pnpm test
+```
+
+Testing strategy:
+
+- Prefer **E2E** for transport/protocol and user-visible behavior.
+- Use **integration** tests for deterministic tool contracts and workflow behavior.
+- Use **unit** tests for pure logic and edge cases.
+- Avoid relying on third-party uptime in merge-gating tests; mock external dependencies in integration/unit tiers.
+
+### Deployment
+
+Vercel deploys the remote server automatically from the repository branch configuration. Preview environments are available for pull requests.
+
+## Telemetry
+
+The Neon MCP server collects product analytics and error reports to help us understand usage and improve reliability:
+
+- **Product analytics (Segment):** when you connect with an authenticated account, the server sends an `identify` event with your Neon account ID, name, and email address. It also tracks session start (`server_init`), each tool call (`tool_call`), and unexpected server errors (`server_error`). A tool-call event includes the tool name, auth method, and client, not the tool arguments or query results. Docs-only tool calls without an account are tracked anonymously. Events go to `track.neon.tech`, Neon's own analytics endpoint.
+- **Error reporting (Sentry):** unexpected server errors are reported with stack traces and request context.
+
+This collection is covered by the [Neon Privacy Policy](https://neon.com/privacy-policy). To disable analytics when running the server yourself, set `NEON_MCP_DISABLE_ANALYTICS=1`. That flag does not disable Sentry.

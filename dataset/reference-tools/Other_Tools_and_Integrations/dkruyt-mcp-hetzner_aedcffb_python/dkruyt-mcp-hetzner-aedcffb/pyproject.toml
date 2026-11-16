@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-hetzner"
+version = "0.1.0"
+description = "A Model Context Protocol (MCP) server for Hetzner Cloud API"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Dennis Kruyt", email = "dennis@kruyt.org"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "mcp",
+    "hcloud>=1.24.0",
+    "python-dotenv>=1.0.0",
+]
+
+[tool.setuptools]
+packages = ["mcp_hetzner"]
+
+[project.urls]
+"Homepage" = "https://github.com/denniskruyt/mcp-hetzner"
+"Bug Tracker" = "https://github.com/denniskruyt/mcp-hetzner/issues"
+
+[project.scripts]
+mcp-hetzner = "mcp_hetzner.server:main"

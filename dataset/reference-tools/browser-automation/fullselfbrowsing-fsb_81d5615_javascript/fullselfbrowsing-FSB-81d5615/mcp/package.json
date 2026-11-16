@@ -1,0 +1,79 @@
+{
+  "name": "fsb-mcp-server",
+  "version": "0.11.2",
+  "description": "FSB Browser Automation MCP Server",
+  "license": "MIT",
+  "author": "Lakshman Turlapati",
+  "contributors": [
+    {
+      "name": "OpenAI Codex"
+    }
+  ],
+  "mcpName": "io.github.fullselfbrowsing/fsb-mcp-server",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fullselfbrowsing/FSB.git",
+    "directory": "mcp"
+  },
+  "keywords": [
+    "mcp",
+    "browser-automation",
+    "chrome",
+    "fsb",
+    "model-context-protocol",
+    "ai-agent"
+  ],
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "fsb-mcp-server": "build/index.js",
+    "fsb-mcp": "build/index.js"
+  },
+  "files": [
+    "build/",
+    "assets/",
+    "ai/",
+    "data/",
+    "native-host/",
+    "README.md",
+    "server.json"
+  ],
+  "engines": {
+    "node": ">=18.20.0"
+  },
+  "scripts": {
+    "prebuild": "node ../scripts/verify-agent-provider-flags.mjs && node ../scripts/verify-native-host-boundary.mjs --source",
+    "clean": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc && node ../scripts/verify-native-host-boundary.mjs --compiled && cp ../extension/ai/tool-definitions.js ai/tool-definitions.cjs",
+    "postbuild": "node -e \"try{require('fs').chmodSync('build/index.js',0o755)}catch{}\"",
+    "dev": "tsx src/index.ts",
+    "doctor": "node build/index.js doctor",
+    "serve": "node build/index.js serve",
+    "setup": "node build/index.js setup",
+    "status": "node build/index.js status",
+    "wait-for-extension": "node build/index.js wait-for-extension",
+    "prepublishOnly": "npm run build && node ../scripts/verify-native-host-boundary.mjs --all"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "smol-toml": "1.6.1",
+    "strip-json-comments": "5.0.3",
+    "ws": "8.19.0",
+    "yaml": "2.8.3",
+    "zod": "3.25.76"
+  },
+  "bundleDependencies": [
+    "@modelcontextprotocol/sdk",
+    "smol-toml",
+    "strip-json-comments",
+    "ws",
+    "yaml",
+    "zod"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,1 +1,0 @@
-export { definition, handler } from './writing-feedback.js';

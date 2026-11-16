@@ -1,9 +1,0 @@
-{
-    "servers": {
-        "diceRoller": {
-            "type": "stdio",
-            "command": "node",
-            "args": ["/workspaces/my-mcp-server/build/index.js"]
-        }
-    }
-}

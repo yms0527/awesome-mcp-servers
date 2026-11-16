@@ -1,0 +1,47 @@
+{
+  "manifest_version": "0.2",
+  "name": "@pinkpixel/web-scout-mcp",
+  "version": "1.5.8",
+  "description": "MCP server for web search and content extraction with multiple URL support and memory optimizations",
+  "author": {
+    "name": "Pink Pixel",
+    "email": "admin@pinkpixel.dev",
+    "url": "https://pinkpixel.dev"
+  },
+  "documentation": "https://github.com/pinkpixel-dev/web-scout-mcp/blob/main/README.md",
+  "icon": "./assets/logo.png",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/index.js"
+      ],
+      "env": {}
+    }
+  },
+  "tools": [
+    {
+      "name": "DuckDuckGoWebSearch",
+      "description": "Initiates a web search query using the DuckDuckGo search engine and returns a well-structured list of findings. Input the keywords, question, or topic you want to search for using DuckDuckGo as your query. Input the maximum number of search entries you'd like to receive using maxResults - defaults to 10 if not provided."
+    },
+    {
+      "name": "UrlContentExtractor",
+      "description": "Fetches and extracts content from a given webpage URL. Input the URL of the webpage you want to extract content from as a string using the url parameter. You can also input an array of URLs to fetch content from multiple pages at once."
+    }
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "web-search",
+    "web-content",
+    "web-scraping",
+    "content-extraction"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pinkpixel-dev/web-scout-mcp.git"
+  }
+}

@@ -1,0 +1,3 @@
+collection,path,lines,replacement,reason
+reference-tools,Other_Tools_and_Integrations/harishsg993010-damn-vulnerable-mcp-server_79734c1_python/harishsg993010-damn-vulnerable-MCP-server-79734c1/challenges/medium/challenge5/server.py,17;123,REDACTED_STRIPE_API_KEY,Credential-shaped teaching literal removed from the public release.
+reference-tools,developer-tools/lasso-security-mcp-gateway_7e7f1f6_python/lasso-security-mcp-gateway-7e7f1f6/README.md,174,REDACTED_HUGGING_FACE_TOKEN,Credential-shaped documentation example removed from the public release.

@@ -1,0 +1,296 @@
+# aworld-cli
+
+`aworld-cli` selects the full Rich interactive CLI by default when installed
+from a source checkout. Use
+`aworld-cli --minimal` (alias: `--session-run`) to select the minimal
+Session/Run CLI explicitly; `--rich` can be used to make the default choice
+explicit. Both modes accept `--model MODEL`, with the command-line value
+overriding `.env` model selection.
+
+The synchronized 1.x thin wheel does not bundle the historical Rich runtime.
+It falls back to the minimal CLI with a diagnostic; use a source checkout when
+the Rich UI, HUD, plugins and steering are needed.
+
+---
+
+## Historical documentation / 历史说明（源码保留，迁移待稳定后分步进行）
+
+以下是之前版本的原始说明；新版构建与入口以本文开头和新版打包文档为准。
+
+# AWorld CLI
+
+AWorld CLI is a command-line tool for interacting with AWorld agents.
+
+## Features
+
+- **Interactive CLI**: Rich terminal interface for agent interaction
+- **Agent Discovery**: Automatic discovery of agents using `@agent` decorator
+- **Built-in Agents**: Automatically loads built-in agents from `builtin_agents/*/agents` directories (no configuration required)
+- **Built-in FileX skill**: The AWorld Agent ships FileX instructions and execution assets, but keeps the skill disabled by default. Enable it explicitly with `--skill filex` or the skill state command when document or media parsing is required; execution requires a FileX-enabled sandbox.
+- **Multiple Sources**: Support for local and remote agents
+- **Streaming Output**: Real-time streaming of agent responses
+- **Agent Priority**: Built-in agents → Local agents → Remote agents
+
+
+## Installation
+
+```bash
+# Install dependencies with uv
+uv sync
+
+# Or install with pip
+pip install -e .
+```
+
+## Quick Start
+
+### Interactive Mode
+
+```bash
+# Start interactive CLI (automatically loads built-in Aworld agent)
+aworld-cli
+```
+
+### List Available Agents
+
+```bash
+aworld-cli list
+```
+
+### Run Tasks Directly
+
+```bash
+# Execute a task with built-in Aworld agent
+aworld-cli --task "Your task here" --agent Aworld
+
+# Limit number of runs
+aworld-cli --task "Your task" --agent Aworld --max-runs 5
+
+# Limit cost
+aworld-cli --task "Your task" --agent Aworld --max-cost 10.00
+
+# Limit duration
+aworld-cli --task "Your task" --agent Aworld --max-duration 2h
+```
+
+### Use Custom Agents
+
+```bash
+# Specify agent directory
+aworld-cli --agent-dir ./my_agents list
+
+# Execute task with custom agent
+aworld-cli --agent-dir ./my_agents --task "Your task" --agent MyAgent
+```
+
+### Use Remote Backend
+
+```bash
+# Connect to remote backend
+aworld-cli --remote-backend http://localhost:8000 list
+```
+
+
+## Command-Line Interface
+
+### Interactive Mode
+
+```bash
+# Start interactive mode (automatically loads built-in Aworld agent)
+aworld-cli
+```
+
+### List Agents
+
+```bash
+# List all available agents (including built-in agents)
+aworld-cli list
+
+# Example output:
+# 📦 Loading built-in agents from: .../builtin_agents/smllc/agents
+# 📚 Loaded 2 global skill(s): text2agent, optimizer
+#
+#                                                                   Available Agents
+#╭────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┬─────────╮
+#│ Name   │ Description                                                                                                                     │ Address │
+#├────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼─────────┤
+#│ Aworld │ Aworld is a versatile AI assistant that can execute tasks directly or delegate to specialized agent teams. Use when you need:   │ list    │
+#│        │ (1) General-purpose task execution, (2) Complex multi-step problem solving, (3) Coordination of specialized agent teams, (4)    │         │
+#│        │ Adaptive task handling that switches between direct execution and team delegation                                               │         │
+#╰────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┴─────────╯
+```
+
+### Direct Run Mode
+
+```bash
+# Run a task with built-in Aworld agent
+aworld-cli --task "Your task here" --agent Aworld --max-runs 5
+
+# Use custom agents alongside built-in agents
+aworld-cli --agent-dir ./my_agents --task "Your task" --agent MyAgent
+
+# Use remote agents
+aworld-cli --remote-backend http://localhost:8000 --task "Your task" --agent RemoteAgent
+```
+
+
+## Create Custom Agent
+
+Use the `@agent` decorator to register an agent:
+
+```python
+from aworld_cli.core.agent_registry import agent
+from aworld.core.agent.swarm import Swarm
+from aworld.agents.llm_agent import Agent
+
+@agent(
+    name="MyAgent",
+    desc="My agent description"
+)
+def build_my_swarm() -> Swarm:
+    agent = Agent(...)
+    return Swarm(agent)
+```
+
+Place the file in the directory specified by `LOCAL_AGENTS_DIR` or use `--agent-dir` parameter.
+
+
+
+## Agent Loading Priority
+
+1. 📦 **Built-in Agents** (`builtin_agents/*/agents`) - Always loaded first (no configuration required)
+   - Only loads `agents` directories from each plugin
+   - Skills are managed separately by `skill_registry`
+2. 📂 **Local Agents** (`LOCAL_AGENTS_DIR` or `--agent-dir`) - User-configured local agents
+3. 🌐 **Remote Agents** (`REMOTE_AGENTS_BACKEND` or `--remote-backend`) - Remote backend agents
+
+**Built-in Agents:**
+- **Aworld**: A versatile AI assistant that can execute tasks directly or delegate to specialized agent teams
+  - Location: `builtin_agents/smllc/agents/`
+  - Supports direct execution with MCP tools and skills
+  - Can delegate complex tasks to agent teams
+  - Includes agent creation skills
+
+
+## Environment Variables
+
+- `LOCAL_AGENTS_DIR`: Semicolon-separated list of local agent directories (in addition to built-in agents)
+- `REMOTE_AGENTS_BACKEND`: Semicolon-separated list of remote backend URLs
+- `SKILLS_PATH`: Semicolon-separated list of skill sources (local directories or GitHub URLs)
+  - Example: `SKILLS_PATH=./skills;https://github.com/user/repo;../custom-skills`
+- `SKILLS_DIR`: Single skills directory (legacy, for backward compatibility)
+- `SKILLS_CACHE_DIR`: Custom cache directory for GitHub skill repositories (default: ~/.aworld/skills)
+- `AWORLD_DISABLE_CONSOLE_LOG`: Disable console logging (set to 'true')
+- `AWORLD_CONTROL_ROOT`: Optional directory for framework-owned runtime state such as cron state, session workspaces, transcripts, plugin state, and Tool-call logs. It does not change the task working directory.
+- `AWORLD_CONTEXT_WINDOW_TOKENS`: Optional positive integer declaring the selected deployment's context window (`ModelConfig.max_model_len`). Unset or blank preserves model-aware resolution.
+- `AWORLD_CONTEXT_LIMIT_TOKENS`: Optional positive integer for an explicit compiler window (`context_compiler.context_limit`), which takes precedence over the deployment window. Unset or blank adds no compiler override.
+- `AWORLD_COMPLETION_MODE`: Optional direct-run completion contract mode: `off` (default), `observe`, or `enforce`. A generic contract is created only when `observe`/`enforce` is paired with explicit artifact paths or validation commands; blocking requires `enforce`.
+- `AWORLD_COMPLETION_MAX_REPAIRS`: Optional non-negative integer limiting model-driven completion repair turns. Unset or blank preserves the historical unbounded repair contract; `0` disables repair turns.
+- `AWORLD_REQUIRED_ARTIFACTS_JSON`: Optional JSON array of caller-supplied artifact paths. Task-text paths remain advisory and never populate this contract.
+- `AWORLD_VALIDATION_COMMANDS_JSON`: Optional JSON array of explicit validation command objects with `command_id`, `argv`, optional `cwd`, and optional `timeout_seconds`.
+- `AWORLD_TOOL_SURFACE_PROFILE`: Built-in root-agent lifecycle policy: `general` (default) or `one_shot`. `one_shot` excludes durable cron and background subagent-management actions; it does not change where local tools execute.
+- `AWORLD_TOOL_SURFACE_MODE`: Live-schema validation mode for the built-in root agent: `observe` (default) or `enforce`. Enforce fails before model execution when the required terminal schema was not registered.
+- `AWORLD_NATIVE_FILESYSTEM_TOOLS`: Direct model exposure for fine-grained filesystem schemas. It defaults to `off`; framework-owned filesystem operations remain available while the root model uses the terminal surface.
+- `AWORLD_BUILTIN_SUBAGENTS`: Built-in collaborator capability set. Unset or `none` creates no collaborator, leaving planning, execution, review, repair, and completion with the root agent. `core` explicitly exposes `developer`, `evaluator`, and the fresh-context, read-only `verifier`; `all`/legacy `auto` exposes every collaborator, and a comma-separated subset selects from `developer,evaluator,verifier,diffusion,avatar,audio,image`. Selection never inspects task text, and collaborators never receive hidden reward or grader data.
+- `AWORLD_SUCCESS_FIRST`: Enabled by default. Ordinary execution remains observational while the model owns strategy and delivery decisions. Setting it to false restores the full guided long-horizon protocol and should be treated as an explicit execution-policy change.
+- `AWORLD_SUCCESS_FIRST_TERMINAL_GATE`: Enabled by default when success-first is active. It retains the bounded terminal checkpoint/review/repair path without enabling ordinary replans; setting it to false is the exact rollback for terminal control.
+- `AWORLD_GENERATION_TOTAL_TIMEOUT_SECONDS`, `AWORLD_GENERATION_STREAM_IDLE_TIMEOUT_SECONDS`, `AWORLD_GENERATION_ACTIVE_TOOL_FREE_TIMEOUT_SECONDS`, and `AWORLD_GENERATION_ACTION_REPAIR_TIMEOUT_SECONDS`: Optional positive generation deadlines; `none` disables an individual deadline.
+- `AWORLD_REQUIRE_STREAM_FINISH_REASON`: When truthy, a streaming model response is incomplete unless the provider emits an explicit `finish_reason`. Benchmark runtimes enable this so a dropped stream cannot be mistaken for a usable response; it remains disabled by default for compatibility.
+- `AWORLD_GENERATION_ACTION_REPAIR_MAX_OUTPUT_TOKENS`, `AWORLD_GENERATION_PARTIAL_RESPONSE_CONTEXT_CHARS`, and `AWORLD_GENERATION_ACTION_REPAIR_ENABLED`: Optional bounds for the single action-oriented continuation after a healthy tool-free stream exceeds its budget.
+
+**Note:** Built-in agents from `builtin_agents/*/agents` directories are always loaded automatically, regardless of environment variable configuration. Only the `agents` subdirectories are scanned to avoid loading unnecessary files.
+
+Model profiles accept `max_model_len` (also `context_window` or `context_window_tokens`)
+and `context_compiler.context_limit`. The selected global default profile forwards
+both window declarations to the built-in agent. A profile switch clears only
+window values previously supplied by that profile bridge. These are per-request
+context capacities; they do not impose a total task token or time budget.
+
+The local sandbox always runs in the same operating-system environment as the
+`aworld-cli` process. On a user's workstation that means the workstation; when
+a benchmark runtime launches the CLI inside a task container, it means that task
+container. The local mode itself does not create an additional isolation layer.
+
+## Installed Skills
+
+The recommended way to make skills persistently available is the installed-skill root:
+
+```text
+~/.aworld/skills/installed/
+```
+
+AWorld scans this directory automatically on startup.
+Installed skill packages are stored as plugin-managed packages internally, but you still use the `aworld-cli skill ...` surface.
+
+### CLI-managed install
+
+```bash
+aworld-cli skill install https://github.com/example/skills.git
+aworld-cli skill install ./local-skills
+aworld-cli skill list
+aworld-cli skill disable <install-id>
+aworld-cli skill enable <install-id>
+aworld-cli skill remove <install-id>
+aworld-cli skill update <install-id>
+```
+
+### Manual install
+
+You can also manually place a directory or symlink under `~/.aworld/skills/installed/`.
+If you want it tracked in the manifest, run:
+
+```bash
+aworld-cli skill import ~/.aworld/skills/installed/<entry-name>
+```
+
+### Source layouts
+
+Both of these layouts are supported:
+
+```text
+repo/skills/<skill-name>/SKILL.md
+repo/<skill-name>/SKILL.md
+```
+
+### Scope
+
+Installed skills default to `global`, and `aworld-cli skill install --scope agent:<name>` limits them to a single agent.
+
+### Explicit selection
+
+Installed skills are auto-discovered on the next startup without requiring `--skill-path`.
+
+```bash
+# Force one or more installed skills for a direct task
+aworld-cli --agent Aworld --skill demo --task "use the demo skill explicitly"
+aworld-cli --agent Aworld --skill browser-use --skill code-review --task "review this PR"
+```
+
+In interactive mode:
+
+- `/skills` lists resolver-visible skills for the current agent
+- `/skills use <name>` forces that skill on the next task
+- `/skills clear` clears the pending explicit selection
+- `/<skill-name>` is generated automatically for each visible skill and behaves like a one-shot `/skills use <skill-name>`
+
+Example:
+
+```text
+/brainstorming
+```
+
+`--skill-path`, `SKILLS_PATH`, and `SKILLS_DIR` remain supported as compatibility and development overrides, but installed skill packages are now the default workflow.
+
+
+## More Help
+
+```bash
+# Show help
+aworld-cli --help
+
+# Show Chinese help
+aworld-cli --zh
+
+# Show usage examples
+aworld-cli --examples
+```

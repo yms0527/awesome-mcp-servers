@@ -1,0 +1,1400 @@
+mod comments;
+pub mod container;
+pub mod data;
+mod render;
+
+pub use container::*;
+pub use data::*;
+
+use gpui_kit::component::ActiveTheme;
+use gpui_kit::component::text::{SelectionFormat, TextView, TextViewState};
+use gpui_kit::prelude::*;
+use gpui_kit::{App, ClipboardItem, Context, Entity, FocusHandle, Pixels, SharedString, Task, px};
+
+use crate::tool_cards::diff_prepare::{DiffInput, PreparedDiff, SYNC_DIFF_MAX_BYTES};
+use crate::tool_cards::diff_syntax::language_for_path;
+
+use std::cell::Cell;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+pub use code_assistant_core::ui::ui_events::MessageRole;
+
+/// State of a tool block for rendering and interaction
+#[derive(Debug, Clone, PartialEq)]
+pub enum ToolBlockState {
+    /// Tool is collapsed - show parameters and output but collapsed
+    Collapsed,
+    /// Tool is expanded - show all content expanded
+    Expanded,
+}
+
+// ---------------------------------------------------------------------------
+// Tool-block collapse state helpers
+// ---------------------------------------------------------------------------
+
+use crate::shared::ui_state;
+
+/// Convenience helpers for tool-block collapse state.
+///
+/// These delegate to the app's [`UiStateStore`](ui_state::UiStateStore), which
+/// keeps an in-memory cache per session and debounces writes.
+pub struct ToolCollapseState;
+
+impl ToolCollapseState {
+    /// Look up a previously stored collapse override for a tool in a session.
+    pub fn get(session_id: &str, tool_id: &str, cx: &App) -> Option<ToolBlockState> {
+        ui_state::read(cx, |store| store.get_tool_collapsed(session_id, tool_id))
+            .flatten()
+            .map(|collapsed| {
+                if collapsed {
+                    ToolBlockState::Collapsed
+                } else {
+                    ToolBlockState::Expanded
+                }
+            })
+    }
+
+    /// Record a collapse state override for a tool in a session.
+    pub fn set(session_id: &str, tool_id: &str, state: ToolBlockState, cx: &App) {
+        let collapsed = matches!(state, ToolBlockState::Collapsed);
+        ui_state::update(cx, |store| {
+            store.set_tool_collapsed(session_id, tool_id, collapsed)
+        });
+    }
+}
+
+/// Convenience helpers for write_file diff mode state.
+///
+/// When a write_file tool overwrites an existing file, the card can show either
+/// a unified diff or the plain new-file content.  This persists the user's
+/// choice per tool block.
+pub struct ToolDiffModeState;
+
+impl ToolDiffModeState {
+    /// Look up a previously stored diff mode override for a tool in a session.
+    /// Returns `None` if no override exists (default = diff mode on).
+    pub fn get(session_id: &str, tool_id: &str, cx: &App) -> Option<bool> {
+        ui_state::read(cx, |store| store.get_tool_diff_mode(session_id, tool_id)).flatten()
+    }
+
+    /// Record a diff mode override for a tool in a session.
+    pub fn set(session_id: &str, tool_id: &str, diff_mode: bool, cx: &App) {
+        ui_state::update(cx, |store| {
+            store.set_tool_diff_mode(session_id, tool_id, diff_mode)
+        });
+    }
+}
+
+/// Animation configuration for expand/collapse
+#[derive(Clone)]
+pub struct AnimationConfig {
+    /// Animation frame rate (in milliseconds per frame)
+    pub frame_ms: u64,
+    /// Animation duration in milliseconds
+    pub duration_ms: f32,
+}
+
+impl Default for AnimationConfig {
+    fn default() -> Self {
+        Self {
+            frame_ms: 8,        // ~120 FPS
+            duration_ms: 300.0, // 300ms constant animation time
+        }
+    }
+}
+
+/// Animation state for expand/collapse
+#[derive(Clone, Debug, PartialEq)]
+enum AnimationState {
+    Idle,
+    Animating {
+        height_scale: f32,
+        target: f32, // 0.0 for collapsing, 1.0 for expanding
+        start_time: std::time::Instant,
+    },
+}
+
+/// How a text differs from the one last given to a [`TextViewState`].
+#[derive(Debug, PartialEq, Eq)]
+enum TextUpdate<'a> {
+    Unchanged,
+    /// The old text plus this suffix — the common case while streaming.
+    Append(&'a str),
+    Replace,
+}
+
+/// Remembers (as length and hash, not a copy) the text last given to a
+/// [`TextViewState`], to tell appends from rewrites. Appends go through
+/// `push_str`, which re-parses only the last Markdown block and so keeps the
+/// highlighted code blocks before it; `set_text` rebuilds them all.
+struct MarkdownSync {
+    len: usize,
+    hash: u64,
+}
+
+impl MarkdownSync {
+    fn new(text: &str) -> Self {
+        Self {
+            len: text.len(),
+            hash: Self::hash(text),
+        }
+    }
+
+    fn hash(text: &str) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        text.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn update<'a>(&mut self, text: &'a str) -> TextUpdate<'a> {
+        let update = match text.split_at_checked(self.len) {
+            Some((old, "")) if Self::hash(old) == self.hash => return TextUpdate::Unchanged,
+            Some((old, suffix)) if Self::hash(old) == self.hash => TextUpdate::Append(suffix),
+            _ => TextUpdate::Replace,
+        };
+        *self = Self::new(text);
+        update
+    }
+}
+
+/// A whole-line text selection within a diff card's body. `anchor` and `head`
+/// are indices into the card's flattened section lines (the concatenation of
+/// every section's diff lines, in render order), either end may be the
+/// smaller. Copying (Cmd/Ctrl-C or the header button) reads from this.
+#[derive(Clone, Copy)]
+struct DiffSelection {
+    anchor: usize,
+    head: usize,
+}
+
+impl DiffSelection {
+    /// Inclusive `(low, high)` line range.
+    fn range(&self) -> (usize, usize) {
+        (self.anchor.min(self.head), self.anchor.max(self.head))
+    }
+}
+
+/// A diff card's [`PreparedDiff`] and what it was computed from.
+struct DiffCache {
+    /// [`ToolUseBlock::revision`] last seen; the per-frame check.
+    revision: u64,
+    diff_mode: bool,
+    /// [`DiffInput::content_hash`], looked at only when the revision moved.
+    hash: u64,
+    prepared: PreparedDiff,
+    /// Background work filling in `prepared`; dropped (cancelled) with the cache.
+    _task: Option<Task<()>>,
+}
+
+/// Entity view for a block
+pub struct BlockView {
+    /// Shared so `render` can hold the block (text, tool output and images
+    /// can be large) while calling `&mut self` methods, without copying it;
+    /// mutation goes through [`Self::block_mut`].
+    block: Rc<BlockData>,
+    request_id: u64,
+    markdown_state: Option<Entity<TextViewState>>,
+    markdown_sync: MarkdownSync,
+    diff_cache: Option<DiffCache>,
+    is_generating: bool, // Universal generating state for all block types
+    // Animation state
+    animation_state: AnimationState,
+    content_height: Rc<Cell<Pixels>>,
+
+    animation_task: Option<Task<()>>,
+    /// Current project for parameter filtering (used to detect cross-project tool calls)
+    #[allow(dead_code)]
+    current_project: Arc<Mutex<String>>,
+    /// Session ID this block belongs to (for collapse-state persistence).
+    session_id: Option<String>,
+    /// For write_file tool blocks: whether to show the diff view (true) or the
+    /// plain new-file view (false). Only relevant when original_content is available.
+    pub write_file_diff_mode: bool,
+    /// When set, the hover copy button recently copied and shows a checkmark
+    /// until this instant passes. Reset by a short-lived timer task.
+    copied_feedback_until: Option<std::time::Instant>,
+    /// Timer that clears [`Self::copied_feedback_until`] after the checkmark
+    /// feedback window elapses. Dropped/replaced on each copy.
+    copied_feedback_task: Option<Task<()>>,
+    /// Timer that renders an inline tool block again whose description
+    /// changes with time (`ToolBlockRenderer::refresh_after`).
+    refresh_task: Option<Task<()>>,
+    /// Current whole-line selection within this block's diff card body, if
+    /// any. Drag-selecting rows sets it; the header's Copy button and
+    /// Cmd/Ctrl-C read from it. Only meaningful for file-editing tool blocks.
+    diff_selection: Option<DiffSelection>,
+    /// Whether the pointer button is down for an in-progress drag-select.
+    diff_dragging: bool,
+    /// Focus target so a drag-select in the diff card can focus the block and
+    /// Cmd/Ctrl-C reaches [`Self::copy_diff_selection`].
+    focus_handle: FocusHandle,
+    /// Whether [`Self::claim_deferred_output`] handed out the tool's ID.
+    deferred_output_requested: bool,
+    /// A text block of line comments shows them listed instead of folded.
+    comments_expanded: bool,
+    /// Window origin of a text block, written each paint, so the selection
+    /// pill and the comment card can float at a place within it.
+    block_origin: Rc<Cell<Option<gpui_kit::Point<Pixels>>>>,
+    /// Where the mouse was released over selected text, relative to the
+    /// block; the selection pill shows there.
+    selection_offset: Option<gpui_kit::Point<Pixels>>,
+    /// The passage selected when the mouse was released; kept because a
+    /// press on the pill may clear the window's text selection.
+    selected_passage: Option<String>,
+    /// The open comment card and its place relative to the block.
+    comment_editor: Option<(
+        Entity<crate::comments::editor::CommentEditor>,
+        gpui_kit::Point<Pixels>,
+    )>,
+    _comment_editor_subscription: Option<gpui_kit::Subscription>,
+    anchor: crate::comments::AnchorTracker,
+}
+
+impl BlockView {
+    pub fn new(
+        block: BlockData,
+        _block_id: u64,
+        request_id: u64,
+        current_project: Arc<Mutex<String>>,
+        session_id: Option<String>,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        // Load persisted diff mode preference for write_file tool blocks.
+        let write_file_diff_mode = if let Some(tool) = block.as_tool() {
+            if tool.name == "write_file" {
+                session_id
+                    .as_deref()
+                    .and_then(|sid| ToolDiffModeState::get(sid, &tool.id, cx))
+                    .unwrap_or(true) // default: show diff
+            } else {
+                true
+            }
+        } else {
+            true
+        };
+
+        let initial_markdown = match &block {
+            BlockData::TextBlock(block) => Some(block.content.clone()),
+            BlockData::ThinkingBlock(block) => Some(block.content.clone()),
+            BlockData::CompactionSummary(block) => Some(block.summary.clone()),
+            BlockData::ToolUse(_) | BlockData::ImageBlock(_) => None,
+        };
+        let markdown_sync = MarkdownSync::new(initial_markdown.as_deref().unwrap_or(""));
+        let markdown_state =
+            initial_markdown.map(|text| cx.new(|cx| TextViewState::markdown(&text, cx)));
+
+        Self {
+            block: Rc::new(block),
+            request_id,
+            markdown_state,
+            markdown_sync,
+            diff_cache: None,
+            is_generating: true, // Default to generating when first created
+            animation_state: AnimationState::Idle,
+            content_height: Rc::new(Cell::new(px(0.0))),
+            animation_task: None,
+            current_project,
+            session_id,
+            write_file_diff_mode,
+            copied_feedback_until: None,
+            copied_feedback_task: None,
+            refresh_task: None,
+            diff_selection: None,
+            diff_dragging: false,
+            focus_handle: cx.focus_handle(),
+            deferred_output_requested: false,
+            comments_expanded: false,
+            block_origin: Rc::default(),
+            selection_offset: None,
+            selected_passage: None,
+            comment_editor: None,
+            _comment_editor_subscription: None,
+            anchor: Default::default(),
+        }
+    }
+
+    /// The tool's ID, once, if the block shows an output a restored tool
+    /// result left out ([`ToolUseBlock::output_deferred`]): when it is
+    /// expanded, which cards are unless collapsed by hand. The caller asks
+    /// for it; it arrives as [`UiEvent::ToolOutputsLoaded`].
+    ///
+    /// [`UiEvent::ToolOutputsLoaded`]: code_assistant_core::ui::UiEvent::ToolOutputsLoaded
+    pub(crate) fn claim_deferred_output(&mut self) -> Option<String> {
+        let tool = self.block.as_tool()?;
+        if !tool.output_deferred
+            || tool.state != ToolBlockState::Expanded
+            || self.deferred_output_requested
+        {
+            return None;
+        }
+        self.deferred_output_requested = true;
+        Some(tool.id.clone())
+    }
+
+    /// The block if it is the tool block `tool_id`, for assertions.
+    #[cfg(test)]
+    pub(crate) fn tool_block(&self, tool_id: &str) -> Option<&ToolUseBlock> {
+        self.block.as_tool().filter(|tool| tool.id == tool_id)
+    }
+
+    /// The block's focus handle (used by the diff card for Cmd/Ctrl-C).
+    pub(crate) fn focus_handle(&self) -> FocusHandle {
+        self.focus_handle.clone()
+    }
+
+    /// The current inclusive flat-line selection range in this block's diff
+    /// card, if any.
+    pub(crate) fn diff_selection_range(&self) -> Option<(usize, usize)> {
+        self.diff_selection.map(|s| s.range())
+    }
+
+    /// Mutable access to the block. `render` has dropped its handle by the
+    /// time anything mutates, so this does not copy.
+    fn block_mut(&mut self) -> &mut BlockData {
+        Rc::make_mut(&mut self.block)
+    }
+
+    /// The block's Markdown state, created empty on first use. Tool cards
+    /// that render Markdown fill it themselves.
+    pub(crate) fn markdown_entity(&mut self, cx: &mut Context<Self>) -> Entity<TextViewState> {
+        self.markdown_state
+            .get_or_insert_with(|| cx.new(|cx| TextViewState::markdown("", cx)))
+            .clone()
+    }
+
+    /// The block's Markdown state, brought up to date with `text`.
+    fn markdown_state(&mut self, text: &str, cx: &mut Context<Self>) -> Entity<TextViewState> {
+        let state = self.markdown_entity(cx);
+        match self.markdown_sync.update(text) {
+            TextUpdate::Unchanged => {}
+            TextUpdate::Append(suffix) => state.update(cx, |state, cx| state.push_str(suffix, cx)),
+            TextUpdate::Replace => state.update(cx, |state, cx| state.set_text(text, cx)),
+        }
+        state
+    }
+
+    /// The diff a finished file-editing tool block shows, computed once per
+    /// content change. Empty while the block streams (the card shows raw
+    /// blocks then, and nothing is parsed per chunk) and for other tools;
+    /// parts computed in the background arrive with a later notify.
+    pub(crate) fn prepared_diff(&mut self, cx: &mut Context<Self>) -> PreparedDiff {
+        let diff_mode = self.write_file_diff_mode;
+        let Some(tool) = self.block.as_tool().filter(|_| !self.is_generating) else {
+            self.diff_cache = None;
+            return PreparedDiff::default();
+        };
+        if let Some(cache) = &self.diff_cache
+            && cache.revision == tool.revision
+            && cache.diff_mode == diff_mode
+        {
+            return cache.prepared.clone();
+        }
+
+        let revision = tool.revision;
+        let Some(input) = DiffInput::for_tool(tool, diff_mode) else {
+            self.diff_cache = None;
+            return PreparedDiff::default();
+        };
+        let hash = input.content_hash();
+        if let Some(cache) = &mut self.diff_cache
+            && cache.hash == hash
+        {
+            // Touched (collapsed, status update, ...) but showing the same.
+            cache.revision = revision;
+            cache.diff_mode = diff_mode;
+            return cache.prepared.clone();
+        }
+
+        let diff_now = input.byte_len() <= SYNC_DIFF_MAX_BYTES;
+        let prepared = PreparedDiff {
+            sections: diff_now.then(|| Rc::new(input.diff())),
+            syntax: None,
+            has_original: input.has_original,
+        };
+        let has_grammar = language_for_path(&input.path).is_some();
+        let theme = cx.theme().highlight_theme.clone();
+        let task = (!diff_now || has_grammar).then(|| {
+            cx.spawn(async move |this, cx| {
+                let (sections, syntax) = cx
+                    .background_spawn(async move {
+                        let sections = (!diff_now).then(|| input.diff());
+                        (sections, input.parse_syntax(Some(&theme)))
+                    })
+                    .await;
+                _ = this.update(cx, |view, cx| {
+                    if let Some(cache) = &mut view.diff_cache
+                        && cache.hash == hash
+                    {
+                        if let Some(sections) = sections {
+                            cache.prepared.sections = Some(Rc::new(sections));
+                        }
+                        cache.prepared.syntax = syntax.map(Rc::new);
+                        cx.notify();
+                    }
+                });
+            })
+        });
+        self.diff_cache = Some(DiffCache {
+            revision,
+            diff_mode,
+            hash,
+            prepared: prepared.clone(),
+            _task: task,
+        });
+        prepared
+    }
+
+    fn markdown_view(&mut self, text: &str, selectable: bool, cx: &mut Context<Self>) -> TextView {
+        let state = self.markdown_state(text, cx);
+        // When selectable, cmd-C / ctrl-C copies the Markdown *source* of a
+        // selection that takes in several styles (e.g. `a **bold** b`, two
+        // list items), and the plain text of one within a single style (a
+        // word out of a bold run, a link, a code block), where markup is
+        // rarely wanted. The hover copy button copies full-block source.
+        let selection_format = if selectable {
+            SelectionFormat::SourceAcrossStyles
+        } else {
+            SelectionFormat::Plain
+        };
+        TextView::new(&state)
+            .selectable(selectable)
+            .selection_format(selection_format)
+    }
+
+    /// Whether the copy button should currently render its "copied" checkmark.
+    pub(super) fn copy_feedback_active(&self) -> bool {
+        self.copied_feedback_until
+            .is_some_and(|until| std::time::Instant::now() < until)
+    }
+
+    /// Copy the given markdown source to the clipboard and show a short-lived
+    /// checkmark on the copy button.
+    pub(super) fn copy_source_to_clipboard(&mut self, cx: &mut Context<Self>) {
+        use gpui_kit::ClipboardItem;
+
+        let source = self
+            .block
+            .copy_source(self.is_generating)
+            .unwrap_or_default();
+        let source = source.trim_end().to_string();
+        if source.is_empty() {
+            return;
+        }
+        cx.write_to_clipboard(ClipboardItem::new_string(source));
+
+        // Show the checkmark for ~1.5s, then revert.
+        const FEEDBACK_MS: u64 = 1500;
+        self.copied_feedback_until =
+            Some(std::time::Instant::now() + Duration::from_millis(FEEDBACK_MS));
+        self.copied_feedback_task = Some(cx.spawn(async move |weak_entity, cx| {
+            cx.background_executor()
+                .timer(Duration::from_millis(FEEDBACK_MS + 50))
+                .await;
+            let _ = weak_entity.update(cx, |view, cx| {
+                view.copied_feedback_until = None;
+                view.copied_feedback_task = None;
+                cx.notify();
+            });
+        }));
+        cx.notify();
+    }
+
+    // ------------------------------------------------------------------
+    // Diff-card whole-line selection
+    // ------------------------------------------------------------------
+
+    /// Begin a new selection at flat line `line`, replacing any previous one
+    /// and marking a drag as in progress.
+    pub(crate) fn begin_diff_selection(&mut self, line: usize, cx: &mut Context<Self>) {
+        self.diff_selection = Some(DiffSelection {
+            anchor: line,
+            head: line,
+        });
+        self.diff_dragging = true;
+        cx.notify();
+    }
+
+    /// Extend the in-progress selection to flat line `line`, but only while a
+    /// drag is active.
+    pub(crate) fn extend_diff_selection(&mut self, line: usize, cx: &mut Context<Self>) {
+        if !self.diff_dragging {
+            return;
+        }
+        if let Some(sel) = &mut self.diff_selection
+            && sel.head != line
+        {
+            sel.head = line;
+            cx.notify();
+        }
+    }
+
+    /// End the current drag; the selection itself is kept for copying.
+    pub(crate) fn end_diff_selection(&mut self) {
+        self.diff_dragging = false;
+    }
+
+    /// This block's diff lines flattened across its sections in render order —
+    /// the same order the rendered rows (and thus selection indices) use.
+    fn diff_lines_flat(&self) -> Option<Vec<SharedString>> {
+        let sections = self.diff_cache.as_ref()?.prepared.sections.as_ref()?;
+        Some(
+            sections
+                .iter()
+                .flat_map(|s| s.lines.iter().map(|l| l.text.clone()))
+                .collect(),
+        )
+    }
+
+    /// The selected lines joined by newlines, or `None` when there is nothing
+    /// to copy (no selection, or the diff is no longer prepared).
+    fn diff_selected_text(&self) -> Option<String> {
+        let sel = self.diff_selection.as_ref()?;
+        let lines = self.diff_lines_flat()?;
+        if lines.is_empty() {
+            return None;
+        }
+        let (lo, hi) = sel.range();
+        let hi = hi.min(lines.len() - 1);
+        (lo <= hi).then(|| {
+            lines[lo..=hi]
+                .iter()
+                .map(|s| s.as_ref())
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+    }
+
+    /// Copy the selected diff lines to the clipboard, joined by newlines.
+    pub(crate) fn copy_diff_selection(&mut self, cx: &mut Context<Self>) {
+        if let Some(text) = self.diff_selected_text().filter(|t| !t.is_empty()) {
+            cx.write_to_clipboard(ClipboardItem::new_string(text));
+        }
+    }
+
+    /// Check if this block is an image block
+    pub fn is_image_block(&self) -> bool {
+        matches!(*self.block, BlockData::ImageBlock(_))
+    }
+
+    /// Set the generating state of this block
+    pub fn set_generating(&mut self, generating: bool) {
+        self.is_generating = generating;
+    }
+
+    /// Check if this block can toggle expansion
+    pub fn can_toggle_expansion(&self) -> bool {
+        match &*self.block {
+            BlockData::ToolUse(_) => true, // Tools can always toggle, even while generating
+            BlockData::ThinkingBlock(_) => true,
+            BlockData::CompactionSummary(_) => true,
+            _ => false, // Other blocks don't have expansion
+        }
+    }
+
+    fn toggle_thinking_collapsed(&mut self, cx: &mut Context<Self>) {
+        let should_expand = if let Some(thinking) = self.block_mut().as_thinking_mut() {
+            thinking.is_collapsed = !thinking.is_collapsed;
+            !thinking.is_collapsed
+        } else {
+            return;
+        };
+        self.start_expand_collapse_animation(should_expand, cx);
+    }
+
+    pub fn toggle_tool_collapsed(&mut self, cx: &mut Context<Self>) {
+        // Check if we can toggle expansion
+        if !self.can_toggle_expansion() {
+            return;
+        }
+
+        let should_expand = if let Some(tool) = self.block_mut().as_tool_mut() {
+            match tool.state {
+                ToolBlockState::Collapsed => {
+                    tool.state = ToolBlockState::Expanded;
+                    true
+                }
+                ToolBlockState::Expanded => {
+                    tool.state = ToolBlockState::Collapsed;
+                    false
+                }
+            }
+        } else {
+            return;
+        };
+
+        // Persist the new state in the UI state store (in-memory + debounced
+        // write) so it survives session reconnects and app restarts.
+        if let (Some(session_id), Some(tool)) = (&self.session_id, self.block.as_tool()) {
+            ToolCollapseState::set(session_id, &tool.id, tool.state.clone(), cx);
+        }
+        if let Some(tool_id) = self.claim_deferred_output()
+            && let (Some(session_id), Some(gpui)) =
+                (self.session_id.clone(), cx.try_global::<crate::Gpui>())
+        {
+            gpui.cmd_load_tool_outputs(session_id, vec![tool_id]);
+        }
+
+        self.start_expand_collapse_animation(should_expand, cx);
+    }
+
+    /// Toggle between diff view and plain new-file view for write_file tool blocks.
+    pub fn toggle_write_file_diff_mode(&mut self, cx: &mut Context<Self>) {
+        self.write_file_diff_mode = !self.write_file_diff_mode;
+        // The two views have different line counts, so flat selection indices
+        // from the old view no longer line up.
+        self.diff_selection = None;
+        self.diff_dragging = false;
+
+        // Persist the new state
+        if let (Some(session_id), Some(tool)) = (&self.session_id, self.block.as_tool()) {
+            ToolDiffModeState::set(session_id, &tool.id, self.write_file_diff_mode, cx);
+        }
+
+        cx.notify();
+    }
+
+    fn toggle_compaction(&mut self, cx: &mut Context<Self>) {
+        if let Some(summary) = self.block_mut().as_compaction_mut() {
+            let should_expand = !summary.is_expanded;
+            summary.is_expanded = should_expand;
+            self.start_expand_collapse_animation(should_expand, cx);
+        }
+    }
+
+    fn start_expand_collapse_animation(&mut self, should_expand: bool, cx: &mut Context<Self>) {
+        let target = if should_expand { 1.0 } else { 0.0 };
+        let now = std::time::Instant::now();
+
+        // Update animation state
+        match &self.animation_state.clone() {
+            AnimationState::Animating {
+                height_scale,
+                target: current_target,
+                ..
+            } if *current_target != target => {
+                // Reverse direction: keep current height_scale, but adjust start_time for smooth transition
+                let current_progress = if target == 1.0 {
+                    *height_scale
+                } else {
+                    1.0 - *height_scale
+                };
+                let adjusted_start_time =
+                    now - std::time::Duration::from_millis((current_progress * 300.0) as u64);
+
+                self.animation_state = AnimationState::Animating {
+                    height_scale: *height_scale,
+                    target,
+                    start_time: adjusted_start_time,
+                };
+            }
+            _ => {
+                // Start new animation
+                let initial_height_scale = if should_expand { 0.0 } else { 1.0 };
+                self.animation_state = AnimationState::Animating {
+                    height_scale: initial_height_scale,
+                    target,
+                    start_time: now,
+                };
+            }
+        }
+
+        // Start animation task if not already running
+        if self.animation_task.is_none() {
+            self.start_animation_task(cx);
+        }
+    }
+
+    fn start_animation_task(&mut self, cx: &mut Context<Self>) {
+        let config = AnimationConfig::default();
+        let task = cx.spawn(async move |weak_entity, async_app_cx| {
+            loop {
+                async_app_cx
+                    .background_executor()
+                    .timer(Duration::from_millis(config.frame_ms))
+                    .await;
+
+                let should_continue = weak_entity.update(async_app_cx, |view, cx| {
+                    view.update_animation(&config);
+
+                    // Check if animation should continue
+                    match &view.animation_state {
+                        AnimationState::Idle => false,
+                        _ => {
+                            cx.notify();
+                            true
+                        }
+                    }
+                });
+
+                if let Ok(should_continue) = should_continue {
+                    if !should_continue {
+                        // Animation finished, clean up task
+                        let _ = weak_entity.update(async_app_cx, |view, _cx| {
+                            view.animation_task = None;
+                        });
+                        break;
+                    }
+                } else {
+                    // Entity was dropped, stop animation
+                    break;
+                }
+            }
+        });
+
+        self.animation_task = Some(task);
+    }
+
+    fn update_animation(&mut self, config: &AnimationConfig) {
+        match &mut self.animation_state {
+            AnimationState::Animating {
+                height_scale,
+                target,
+                start_time,
+            } => {
+                let elapsed = start_time.elapsed().as_millis() as f32;
+                let progress = (elapsed / config.duration_ms).min(1.0);
+
+                // Easing function (ease_out_cubic for smooth deceleration)
+                let eased_progress = 1.0 - (1.0 - progress).powi(3);
+
+                *height_scale = if *target == 1.0 {
+                    eased_progress // Animate from 0.0 -> 1.0
+                } else {
+                    1.0 - eased_progress // Animate from 1.0 -> 0.0
+                };
+
+                // Stop when animation complete
+                if progress >= 1.0 {
+                    *height_scale = *target;
+                    self.animation_state = AnimationState::Idle;
+                }
+            }
+            AnimationState::Idle => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use code_assistant_core::persistence::BranchInfo;
+    use code_assistant_core::ui::ToolStatus;
+    use code_assistant_core::ui::ui_events::ToolResultData;
+    use gpui_kit::App;
+    use gpui_kit::TestAppContext;
+
+    /// Initialize globals needed for tests (theme).
+    fn init_test_globals(cx: &mut gpui_kit::App) {
+        gpui_kit::component::theme::init(cx);
+    }
+
+    /// Helper to create a MessageContainer entity for testing.
+    /// MessageContainer doesn't implement Render so we use cx.new() directly.
+    fn make_container(role: MessageRole, cx: &mut TestAppContext) -> Entity<MessageContainer> {
+        cx.update(|cx| {
+            init_test_globals(cx);
+            cx.new(|cx| MessageContainer::with_role(role, cx))
+        })
+    }
+
+    #[gpui_kit::test]
+    fn test_message_container_add_text_block(cx: &mut TestAppContext) {
+        let container = make_container(MessageRole::Assistant, cx);
+
+        cx.update(|cx| {
+            container.update(cx, |container, cx| {
+                assert!(container.is_empty());
+                container.add_text_block("Hello world", cx);
+                assert!(!container.is_empty());
+                let elements = container.elements();
+                assert_eq!(elements.len(), 1);
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn test_message_container_add_or_append_to_text_block(cx: &mut TestAppContext) {
+        let container = make_container(MessageRole::Assistant, cx);
+
+        cx.update(|cx| {
+            container.update(cx, |container, cx| {
+                // First call creates a new text block
+                container.add_or_append_to_text_block("Hello", cx);
+                assert_eq!(container.elements().len(), 1);
+
+                // Second call appends to existing
+                container.add_or_append_to_text_block(" world", cx);
+                assert_eq!(container.elements().len(), 1);
+
+                // Verify content was appended
+                let elements = container.elements();
+                let block = elements[0].read(cx);
+                if let BlockData::TextBlock(text) = &*block.block {
+                    assert_eq!(text.content, "Hello world");
+                } else {
+                    panic!("Expected TextBlock");
+                }
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn test_message_container_add_or_append_to_thinking_block(cx: &mut TestAppContext) {
+        let container = make_container(MessageRole::Assistant, cx);
+
+        cx.update(|cx| {
+            container.update(cx, |container, cx| {
+                container.add_or_append_to_thinking_block("Thinking...", cx);
+                assert_eq!(container.elements().len(), 1);
+
+                // Append more
+                container.add_or_append_to_thinking_block(" more thoughts", cx);
+                assert_eq!(container.elements().len(), 1);
+
+                // Verify content
+                let elements = container.elements();
+                let block = elements[0].read(cx);
+                if let BlockData::ThinkingBlock(thinking) = &*block.block {
+                    assert_eq!(thinking.content, "Thinking... more thoughts");
+                    assert!(!thinking.is_completed);
+                } else {
+                    panic!("Expected ThinkingBlock");
+                }
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn test_message_container_add_tool_use_block(cx: &mut TestAppContext) {
+        let container = make_container(MessageRole::Assistant, cx);
+
+        cx.update(|cx| {
+            container.update(cx, |container, cx| {
+                container.add_tool_use_block("read_files", "tool-1", cx);
+                assert_eq!(container.elements().len(), 1);
+
+                let elements = container.elements();
+                let block = elements[0].read(cx);
+                if let BlockData::ToolUse(tool) = &*block.block {
+                    assert_eq!(tool.name, "read_files");
+                    assert_eq!(tool.id, "tool-1");
+                    assert_eq!(tool.status, ToolStatus::Pending);
+                    assert!(tool.parameters.is_empty());
+                } else {
+                    panic!("Expected ToolUse block");
+                }
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn test_message_container_update_tool_status(cx: &mut TestAppContext) {
+        let container = make_container(MessageRole::Assistant, cx);
+
+        cx.update(|cx| {
+            container.update(cx, |container, cx| {
+                container.add_tool_use_block("edit", "tool-2", cx);
+
+                let updated = container.update_tool_status(
+                    &ToolResultData {
+                        tool_id: "tool-2".into(),
+                        status: ToolStatus::Success,
+                        message: Some("Done".to_string()),
+                        output: Some("output text".to_string()),
+                        styled_output: None,
+                        duration_seconds: Some(1.5),
+                        images: vec![],
+                        output_deferred: false,
+                    },
+                    cx,
+                );
+                assert!(updated);
+
+                let elements = container.elements();
+                let block = elements[0].read(cx);
+                if let BlockData::ToolUse(tool) = &*block.block {
+                    assert_eq!(tool.status, ToolStatus::Success);
+                    assert_eq!(tool.status_message, Some("Done".to_string()));
+                    assert_eq!(tool.output, Some("output text".to_string()));
+                    assert_eq!(tool.duration_seconds, Some(1.5));
+                } else {
+                    panic!("Expected ToolUse block");
+                }
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn test_message_container_update_tool_status_nonexistent(cx: &mut TestAppContext) {
+        let container = make_container(MessageRole::Assistant, cx);
+
+        cx.update(|cx| {
+            container.update(cx, |container, cx| {
+                container.add_tool_use_block("edit", "tool-2", cx);
+
+                let revision = |container: &MessageContainer, cx: &App| {
+                    container.elements()[0]
+                        .read(cx)
+                        .block
+                        .as_tool()
+                        .unwrap()
+                        .revision
+                };
+                let before = revision(container, cx);
+
+                // Try to update a non-existent tool
+                let updated = container.update_tool_status(
+                    &ToolResultData {
+                        tool_id: "non-existent".into(),
+                        status: ToolStatus::Success,
+                        message: None,
+                        output: None,
+                        styled_output: None,
+                        duration_seconds: None,
+                        images: vec![],
+                        output_deferred: false,
+                    },
+                    cx,
+                );
+                assert!(!updated);
+                // Caches derived from the other tool blocks stay valid.
+                assert_eq!(revision(container, cx), before);
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn test_message_container_add_or_update_tool_parameter(cx: &mut TestAppContext) {
+        let container = make_container(MessageRole::Assistant, cx);
+
+        cx.update(|cx| {
+            container.update(cx, |container, cx| {
+                container.add_tool_use_block("read_files", "tool-3", cx);
+
+                // Add a parameter
+                container.add_or_update_tool_parameter("tool-3", "path", "src/main.rs", cx);
+
+                let elements = container.elements();
+                let block = elements[0].read(cx);
+                if let BlockData::ToolUse(tool) = &*block.block {
+                    assert_eq!(tool.parameters.len(), 1);
+                    assert_eq!(tool.parameters[0].name, "path");
+                    assert_eq!(tool.parameters[0].value, "src/main.rs");
+                } else {
+                    panic!("Expected ToolUse block");
+                }
+
+                // Append to existing parameter
+                container.add_or_update_tool_parameter("tool-3", "path", "/extra", cx);
+
+                let elements = container.elements();
+                let block = elements[0].read(cx);
+                if let BlockData::ToolUse(tool) = &*block.block {
+                    assert_eq!(tool.parameters.len(), 1);
+                    assert_eq!(tool.parameters[0].value, "src/main.rs/extra");
+                } else {
+                    panic!("Expected ToolUse block");
+                }
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn test_message_container_remove_blocks_with_request_id(cx: &mut TestAppContext) {
+        let container = make_container(MessageRole::Assistant, cx);
+
+        cx.update(|cx| {
+            container.update(cx, |container, cx| {
+                container.set_current_request_id(1);
+                container.add_text_block("First", cx);
+
+                container.set_current_request_id(2);
+                container.add_text_block("Second", cx);
+                container.add_tool_use_block("edit", "tool-x", cx);
+
+                assert_eq!(container.elements().len(), 3);
+
+                // Remove blocks from request 2
+                container.remove_blocks_with_request_id(2, cx);
+                assert_eq!(container.elements().len(), 1);
+
+                // Verify remaining block is from request 1
+                let elements = container.elements();
+                let block = elements[0].read(cx);
+                if let BlockData::TextBlock(text) = &*block.block {
+                    assert_eq!(text.content, "First");
+                } else {
+                    panic!("Expected TextBlock");
+                }
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn test_message_container_finish_thinking_blocks(cx: &mut TestAppContext) {
+        let container = make_container(MessageRole::Assistant, cx);
+
+        cx.update(|cx| {
+            container.update(cx, |container, cx| {
+                // Add a thinking block
+                container.add_or_append_to_thinking_block("Thought 1", cx);
+
+                // Verify it's not completed
+                let elements = container.elements();
+                let block = elements[0].read(cx);
+                if let BlockData::ThinkingBlock(thinking) = &*block.block {
+                    assert!(!thinking.is_completed);
+                } else {
+                    panic!("Expected ThinkingBlock");
+                }
+
+                // Adding a text block should finish the thinking block
+                container.add_text_block("Response", cx);
+
+                // Verify thinking block is now completed
+                let elements = container.elements();
+                let block = elements[0].read(cx);
+                if let BlockData::ThinkingBlock(thinking) = &*block.block {
+                    assert!(thinking.is_completed);
+                } else {
+                    panic!("Expected ThinkingBlock");
+                }
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn test_message_container_append_tool_output(cx: &mut TestAppContext) {
+        let container = make_container(MessageRole::Assistant, cx);
+
+        cx.update(|cx| {
+            container.update(cx, |container, cx| {
+                container.add_tool_use_block("execute_command", "tool-4", cx);
+
+                // Append streaming output
+                container.append_tool_output("tool-4", "line 1\n", cx);
+                container.append_tool_output("tool-4", "line 2\n", cx);
+
+                let elements = container.elements();
+                let block = elements[0].read(cx);
+                if let BlockData::ToolUse(tool) = &*block.block {
+                    assert_eq!(tool.output, Some("line 1\nline 2\n".to_string()));
+                } else {
+                    panic!("Expected ToolUse block");
+                }
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn test_message_container_is_user_message(cx: &mut TestAppContext) {
+        let container = make_container(MessageRole::User, cx);
+
+        cx.update(|cx| {
+            assert!(container.read(cx).is_user_message());
+        });
+    }
+
+    #[gpui_kit::test]
+    fn test_message_container_node_id_and_branch_info(cx: &mut TestAppContext) {
+        let container = make_container(MessageRole::User, cx);
+
+        cx.update(|cx| {
+            container.update(cx, |container, _cx| {
+                assert!(container.node_id().is_none());
+                assert!(container.branch_info().is_none());
+
+                container.set_node_id(Some(42));
+                assert_eq!(container.node_id(), Some(42));
+
+                let info = BranchInfo {
+                    parent_node_id: None,
+                    active_index: 0,
+                    sibling_ids: vec![42, 43],
+                };
+                container.set_branch_info(Some(info.clone()));
+                assert_eq!(container.branch_info(), Some(info));
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn test_thinking_block_formatted_duration(cx: &mut TestAppContext) {
+        cx.update(|_cx| {
+            let thinking = ThinkingBlock {
+                content: "test".to_string(),
+                is_collapsed: false,
+                is_completed: true,
+                start_time: std::time::Instant::now(),
+                end_time: std::time::Instant::now(),
+                duration_seconds: Some(45.0),
+                reasoning_summary_items: vec![],
+                current_generating_title: None,
+                current_generating_content: None,
+            };
+            assert_eq!(thinking.formatted_duration(), "45s");
+
+            let thinking_long = ThinkingBlock {
+                duration_seconds: Some(125.0),
+                ..thinking.clone()
+            };
+            assert_eq!(thinking_long.formatted_duration(), "2m5s");
+        });
+    }
+
+    #[gpui_kit::test]
+    fn restored_reasoning_block_keeps_its_stored_duration(cx: &mut TestAppContext) {
+        // A restored reasoning block that ends its message is not followed
+        // by anything that would finish it; completing it must still stop
+        // its timer and show the stored duration.
+        let container = make_container(MessageRole::Assistant, cx);
+
+        cx.update(|cx| {
+            container.update(cx, |container, cx| {
+                container.start_reasoning_summary_item(cx);
+                container.append_reasoning_summary_delta("**Plan**\n\nDo it".to_string(), cx);
+                container.complete_reasoning(Some(4.0), cx);
+
+                let elements = container.elements();
+                let view = elements.last().unwrap().read(cx);
+                let BlockData::ThinkingBlock(thinking) = &*view.block else {
+                    panic!("expected a thinking block");
+                };
+                assert!(thinking.is_completed);
+                assert_eq!(thinking.formatted_duration(), "4s");
+                assert!(!view.is_generating);
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn test_thinking_block_reasoning_summary(cx: &mut TestAppContext) {
+        cx.update(|_cx| {
+            let mut thinking = ThinkingBlock::new(String::new());
+            assert!(!thinking.is_reasoning_block());
+
+            // Start a reasoning summary item
+            thinking.start_reasoning_summary_item();
+            assert!(thinking.is_reasoning_block());
+
+            // Append content
+            thinking.append_reasoning_summary_delta("**Plan**\n\nI will do something".to_string());
+            assert_eq!(thinking.current_generating_title, Some("Plan".to_string()));
+
+            // Complete reasoning
+            thinking.complete_reasoning();
+            assert!(thinking.current_generating_content.is_none());
+            assert_eq!(thinking.reasoning_summary_items.len(), 1);
+        });
+    }
+
+    #[test]
+    fn markdown_sync_tells_appends_from_rewrites() {
+        let mut sync = MarkdownSync::new("Hello");
+        assert_eq!(sync.update("Hello"), TextUpdate::Unchanged);
+        assert_eq!(sync.update("Hello, wörld"), TextUpdate::Append(", wörld"));
+        assert_eq!(sync.update("Hello, wörld!"), TextUpdate::Append("!"));
+        // Same length, different content.
+        assert_eq!(sync.update("Hello, wörld?"), TextUpdate::Replace);
+        // Shorter, and longer without the old text as prefix.
+        assert_eq!(sync.update("Hello"), TextUpdate::Replace);
+        assert_eq!(sync.update("Jello, world"), TextUpdate::Replace);
+        // An old length inside a multi-byte character of the new text.
+        let mut sync = MarkdownSync::new("a");
+        assert_eq!(sync.update("ö"), TextUpdate::Replace);
+    }
+
+    #[gpui_kit::test]
+    fn tool_card_markdown_entity_keeps_its_text(cx: &mut TestAppContext) {
+        cx.update(init_test_globals);
+        let view = cx.update(|cx| {
+            cx.new(|cx| {
+                BlockView::new(
+                    BlockData::ThinkingBlock(ThinkingBlock::new(String::new())),
+                    0,
+                    0,
+                    Arc::new(Mutex::new(String::new())),
+                    None,
+                    cx,
+                )
+            })
+        });
+        let state = view.update(cx, |view, cx| view.markdown_entity(cx));
+        state.update(cx, |state, cx| state.set_text("sub-agent answer", cx));
+        cx.run_until_parked();
+
+        let changes = Rc::new(Cell::new(0));
+        cx.update(|cx| {
+            let changes = changes.clone();
+            cx.observe(&state, move |_, _| changes.set(changes.get() + 1))
+                .detach();
+        });
+
+        // Fetching the entity again (as every card render does) must not
+        // reset what the card put in.
+        let again = view.update(cx, |view, cx| view.markdown_entity(cx));
+        cx.run_until_parked();
+        assert_eq!(again, state);
+        assert_eq!(changes.get(), 0);
+    }
+
+    fn diff_tool_view(params: &[(&str, &str)], cx: &mut TestAppContext) -> Entity<BlockView> {
+        cx.update(init_test_globals);
+        let tool = crate::tool_cards::diff_prepare::tests::tool("edit", params, None);
+        cx.update(|cx| {
+            cx.new(|cx| {
+                let mut view = BlockView::new(
+                    BlockData::ToolUse(tool),
+                    0,
+                    0,
+                    Arc::new(Mutex::new(String::new())),
+                    None,
+                    cx,
+                );
+                view.set_generating(false);
+                view
+            })
+        })
+    }
+
+    const RUST_EDIT: &[(&str, &str)] = &[
+        ("path", "src/a.rs"),
+        ("old_text", "fn a() {}"),
+        ("new_text", "fn b() {}"),
+    ];
+
+    #[gpui_kit::test]
+    fn small_diffs_are_ready_at_once_and_syntax_follows(cx: &mut TestAppContext) {
+        let view = diff_tool_view(RUST_EDIT, cx);
+
+        let first = view.update(cx, |view, cx| view.prepared_diff(cx));
+        let sections = first.sections.expect("diffed synchronously");
+        assert_eq!(sections[0].lines.len(), 2);
+        assert!(first.syntax.is_none());
+
+        cx.run_until_parked();
+        let second = view.update(cx, |view, cx| view.prepared_diff(cx));
+        assert!(Rc::ptr_eq(&sections, second.sections.as_ref().unwrap()));
+        assert_eq!(second.syntax.map(|s| s.len()), Some(1));
+    }
+
+    #[gpui_kit::test]
+    fn diff_cache_survives_touches_but_not_content_changes(cx: &mut TestAppContext) {
+        let view = diff_tool_view(RUST_EDIT, cx);
+        let first = view.update(cx, |view, cx| view.prepared_diff(cx));
+        cx.run_until_parked();
+
+        // Collapsing goes through `as_tool_mut` without changing the content.
+        let touched = view.update(cx, |view, cx| {
+            view.block_mut().as_tool_mut().unwrap().state = ToolBlockState::Collapsed;
+            view.prepared_diff(cx)
+        });
+        assert!(Rc::ptr_eq(
+            first.sections.as_ref().unwrap(),
+            touched.sections.as_ref().unwrap()
+        ));
+        assert!(touched.syntax.is_some(), "the parsed syntax is kept too");
+
+        // Format-on-save rewrites a parameter.
+        let changed = view.update(cx, |view, cx| {
+            view.block_mut().as_tool_mut().unwrap().parameters[2].value =
+                "fn b() {}\nfn c() {}".into();
+            view.prepared_diff(cx)
+        });
+        assert_eq!(changed.sections.unwrap()[0].lines.len(), 3);
+        assert!(changed.syntax.is_none(), "stale syntax must not be reused");
+    }
+
+    #[gpui_kit::test]
+    fn large_diffs_are_computed_in_the_background(cx: &mut TestAppContext) {
+        let new_text = "let x = 1;\n".repeat(SYNC_DIFF_MAX_BYTES / 10);
+        let view = diff_tool_view(
+            &[
+                ("path", "notes.txt"),
+                ("old_text", "old"),
+                ("new_text", &new_text),
+            ],
+            cx,
+        );
+        let first = view.update(cx, |view, cx| view.prepared_diff(cx));
+        assert!(first.sections.is_none());
+
+        cx.run_until_parked();
+        let second = view.update(cx, |view, cx| view.prepared_diff(cx));
+        assert!(second.sections.is_some());
+        assert!(second.syntax.is_none(), "no grammar for .txt");
+    }
+
+    #[gpui_kit::test]
+    fn diff_selection_copies_whole_lines(cx: &mut TestAppContext) {
+        let view = diff_tool_view(RUST_EDIT, cx);
+        // Prepare the diff; a small edit is diffed synchronously, so its
+        // sections (and thus flat lines) are available right away.
+        view.update(cx, |view, cx| {
+            let _ = view.prepared_diff(cx);
+        });
+        cx.run_until_parked();
+
+        view.update(cx, |view, cx| {
+            // Nothing selected yet → nothing to copy.
+            assert!(view.diff_selected_text().is_none());
+
+            // Drag-select both rows: the deletion and the insertion.
+            view.begin_diff_selection(0, cx);
+            view.extend_diff_selection(1, cx);
+            assert_eq!(
+                view.diff_selected_text().as_deref(),
+                Some("fn a() {}\nfn b() {}")
+            );
+
+            // A reversed drag selects the same lines.
+            view.begin_diff_selection(1, cx);
+            view.extend_diff_selection(0, cx);
+            assert_eq!(
+                view.diff_selected_text().as_deref(),
+                Some("fn a() {}\nfn b() {}")
+            );
+
+            // Extending only takes effect while a drag is active.
+            view.end_diff_selection();
+            view.extend_diff_selection(0, cx);
+            assert_eq!(
+                view.diff_selected_text().as_deref(),
+                Some("fn a() {}\nfn b() {}")
+            );
+        });
+    }
+
+    #[gpui_kit::test]
+    fn streaming_blocks_prepare_nothing(cx: &mut TestAppContext) {
+        let view = diff_tool_view(RUST_EDIT, cx);
+        let prepared = view.update(cx, |view, cx| {
+            view.set_generating(true);
+            view.prepared_diff(cx)
+        });
+        assert!(prepared.sections.is_none());
+        cx.run_until_parked();
+        assert!(view.update(cx, |view, _| view.diff_cache.is_none()));
+    }
+
+    #[test]
+    fn copy_source_is_the_markdown_a_block_shows() {
+        let text = BlockData::TextBlock(TextBlock {
+            content: "**hi**".into(),
+        });
+        assert_eq!(text.copy_source(false).as_deref(), Some("**hi**"));
+
+        // A thinking block copies what it displays: the item being generated
+        // while streaming, the full content afterwards.
+        let mut thinking = ThinkingBlock::new("all of it".into());
+        thinking.current_generating_content = Some("current item".into());
+        let thinking = BlockData::ThinkingBlock(thinking);
+        assert_eq!(thinking.copy_source(true).as_deref(), Some("current item"));
+
+        let tool = crate::tool_cards::diff_prepare::tests::tool("edit", &[], None);
+        assert!(BlockData::ToolUse(tool).copy_source(false).is_none());
+    }
+}

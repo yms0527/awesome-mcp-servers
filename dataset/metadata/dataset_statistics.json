@@ -1,0 +1,106 @@
+{
+  "dataset_version": "2.0.0",
+  "release_date": "2026-11-16",
+  "physical_source_projects": 1126,
+  "logical_mcp_servers": 1450,
+  "reference_tool_versions": 26021,
+  "variant_carrying_server_directories": 263,
+  "malicious_variant_tool_versions": 1513,
+  "total_tool_versions": 27534,
+  "attack_types": 15,
+  "reference_server_languages": {
+    "typescript": 532,
+    "python": 752,
+    "go": 75,
+    "rust": 13,
+    "javascript": 44,
+    "java": 17,
+    "swift": 5,
+    "ruby": 1,
+    "kotlin": 3,
+    "csharp": 3,
+    "php": 1,
+    "cpp": 3,
+    "unknown": 1
+  },
+  "variant_tool_languages": {
+    "Python": 1171,
+    "TypeScript": 274,
+    "JavaScript": 22,
+    "Go": 46
+  },
+  "mutation_forms": {
+    "safe behavior branch insertion": 1112,
+    "Python tool-docstring mutation": 55,
+    "exposed-name substitution": 92,
+    "tool-description mutation": 250,
+    "Python tool-docstring insertion": 4
+  },
+  "attack_distribution": {
+    "Tool Preference Manipulation Attack": {
+      "dtpe_stage": "Decision",
+      "tools": 92
+    },
+    "Puppet Attack": {
+      "dtpe_stage": "Decision",
+      "tools": 89
+    },
+    "Tool Squatting Attack": {
+      "dtpe_stage": "Decision",
+      "tools": 92
+    },
+    "Tool Chain Exploitation Attack": {
+      "dtpe_stage": "Decision",
+      "tools": 90
+    },
+    "Prompt Injection Attack": {
+      "dtpe_stage": "Decision",
+      "tools": 118
+    },
+    "Credential Leakage": {
+      "dtpe_stage": "Transmission",
+      "tools": 107
+    },
+    "Rug Pulls Attacks": {
+      "dtpe_stage": "Processing",
+      "tools": 97
+    },
+    "Unauthorized Invocation": {
+      "dtpe_stage": "Processing",
+      "tools": 110
+    },
+    "Tool Poisoning Attack": {
+      "dtpe_stage": "Execution",
+      "tools": 133
+    },
+    "Tool Shadowing Attack": {
+      "dtpe_stage": "Execution",
+      "tools": 83
+    },
+    "Command Injection Attack": {
+      "dtpe_stage": "Execution",
+      "tools": 128
+    },
+    "Remote Listener Attack": {
+      "dtpe_stage": "Execution",
+      "tools": 91
+    },
+    "Webpage Poison Attack": {
+      "dtpe_stage": "Execution",
+      "tools": 83
+    },
+    "Sandbox Escape": {
+      "dtpe_stage": "Execution",
+      "tools": 101
+    },
+    "Backdoor Attack": {
+      "dtpe_stage": "Execution",
+      "tools": 99
+    }
+  },
+  "published_file_counts": {
+    "reference_files": 9963,
+    "variant_files": 961
+  },
+  "publication_scope": "tool source files plus project-level context files, preserving relative project structure"
+}

@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "google-analytics-mcp"
+version = "2.11.6"
+description = "Model Context Protocol for Google Analytics 4 (Data API) allowing autonomous agents to query dimensions and metrics. Gives agents analysis-ready GA4 access with schema discovery, server-side aggregation, and smart defaults."
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Surendran B", email = "reachsuren@gmail.com"}
+]
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=2.0.0,<3",
+    "google-analytics-data==0.19.0",
+    "google-auth==2.40.0"
+]
+keywords = ["google-analytics", "mcp", "mcp-server", "ai-agent", "analytics", "ga4", "agentic-workflows", "llm"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.optional-dependencies]
+sdlc = [
+    "google-antigravity",
+    "requests",
+    "aiocron"
+]
+
+[project.urls]
+Homepage = "https://github.com/surendranb/google-analytics-mcp"
+Repository = "https://github.com/surendranb/google-analytics-mcp"
+Issues = "https://github.com/surendranb/google-analytics-mcp/issues"
+
+[project.scripts]
+google-analytics-mcp = "ga4_mcp.server:main"
+ga4-mcp = "ga4_mcp.server:main"
+ga4-mcp-server = "ga4_mcp.server:main"
+
+[tool.setuptools]
+packages = ["ga4_mcp", "ga4_mcp.tools"]

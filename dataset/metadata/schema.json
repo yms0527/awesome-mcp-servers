@@ -1,0 +1,7 @@
+{
+  "record_id": "Deterministic unique ID derived from attack, source path, tool, line, subtype, and mutation content.",
+  "reference_relative_path": "Path relative to dataset/reference-tools.",
+  "variant_relative_path": "Path relative to dataset/malicious-variant-tools.",
+  "source_context_start_line": "First reference-source line displayed in the attack README.",
+  "variant_change_start_line": "First changed line in the malicious variant file."
+}

@@ -1,0 +1,14 @@
+# Smithery.ai configuration for piia-engram
+# One memory, every AI tool, yours to keep — preferences, standards, and lessons across Claude Code, Cursor, Codex, and any MCP tool
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties: {}
+  commandFunction:
+    |-
+    (config) => ({
+      "command": "python",
+      "args": ["-m", "piia_engram.mcp_server"],
+      "env": {}
+    })

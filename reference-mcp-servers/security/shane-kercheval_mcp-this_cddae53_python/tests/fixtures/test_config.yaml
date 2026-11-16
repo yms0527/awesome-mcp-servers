@@ -1,9 +1,0 @@
-tools:
-  tool:
-    description: A test tool
-    execution:
-      command: echo Hello, <<name>>!
-    parameters:
-      name:
-        description: Your name
-        required: false

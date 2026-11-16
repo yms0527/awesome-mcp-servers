@@ -1,73 +1,84 @@
-<div align="center">
+# MCP 도구 보안 데이터셋
 
-# Reference MCP Servers and Malicious MCP Variants Dataset
+참조 MCP 도구와 안전하게 시뮬레이션된 악성 변형을 포함하는 도구 단위 데이터셋입니다.
 
-**도구 증강형 LLM 시스템 보안 연구를 위해 786개의 참조 MCP Server와 190개의 악성 MCP 변형을 포함한 데이터셋입니다.**
+[English](README.md) · [简体中文](README-zh.md) · [繁體中文](README_zh_TW.md) · [日本語](README-ja.md) · [한국어](README-ko.md)
 
-[English](README.md) · [简体中文](README-zh.md) · [繁體中文](README-zh_TW.md) · [日本語](README-ja.md) · [한국어](README-ko.md)
+## 책임 있는 사용
 
-</div>
+악성 변형은 방어적 보안 연구와 교육 용도로만 제공됩니다. 운영 환경이나 제3자 시스템 공격에 사용하지 마십시오.
 
----
+## 데이터셋 개요
 
-## Disclaimer
+| 통계 | 값 |
+|---|---|
+| 물리적 소스 프로젝트 | 1,126 |
+| 논리적 MCP 서버 | 1,450 |
+| 참조 도구 버전 | 26,021 |
+| 변형을 포함한 서버 디렉터리 | 263 |
+| 악성 변형 도구 버전 | 1,513 |
+| 전체 도구 버전 | 27,534 |
+| 구현된 공격 유형 | 15 |
 
-이 저장소의 악성 MCP 변형은 보안 연구, 데이터셋 구축, 방어 평가 및 교육 목적으로만 제공됩니다. 무단 접근, 자격 증명 탈취, 악성코드 배포, 서비스 방해 또는 제3자의 시스템과 데이터를 해치는 행위에 사용해서는 안 됩니다.
+## 디렉터리 구조
 
----
+```text
+dataset/
+├── reference-tools/
+├── malicious-variant-tools/
+└── metadata/
+```
 
-## Dataset Overview
+## 언어 분포
 
-| Dataset | Count | Description |
-|---|---:|---|
-| `reference-mcp-servers/` | 786 | MCP Server 식별 및 필터링 규칙에 따라 선별된 참조 서버 루트입니다. |
-| `malicious-mcp-variants/` | 190 | 실제 MCP Server에서 파생된 악성 서버 변형입니다. |
-| Total experimental samples | 976 | 786 reference servers + 190 malicious variants. |
+| 참조 서버 언어 | 서버 수 |
+|---|---|
+| Python | 752 |
+| TypeScript | 532 |
+| Go | 75 |
+| JavaScript | 44 |
+| Java | 17 |
+| Rust | 13 |
+| Swift | 5 |
+| Kotlin | 3 |
+| C# | 3 |
+| C++ | 3 |
+| Ruby | 1 |
+| PHP | 1 |
+| Unknown | 1 |
 
-786은 단순한 물리적 디렉터리 수가 아니라 MCP Server 루트 식별 및 필터링 규칙에 따른 실험 통계 기준입니다. 악성 변형 디렉터리는 원래 server/project 이름을 유지하며, 공격 유형과 DTPE final impact location은 `malicious-mcp-variants/variant_name_mapping.csv`에 기록됩니다.
+## 악성 변형 분포
 
----
+| 공격 유형 | DTPE 단계 | 도구 수 |
+|---|---|---|
+| Tool Preference Manipulation Attack | Decision | 92 |
+| Puppet Attack | Decision | 89 |
+| Tool Squatting Attack | Decision | 92 |
+| Tool Chain Exploitation Attack | Decision | 90 |
+| Prompt Injection Attack | Decision | 118 |
+| Credential Leakage | Transmission | 107 |
+| Rug Pulls Attacks | Processing | 97 |
+| Unauthorized Invocation | Processing | 110 |
+| Tool Poisoning Attack | Execution | 133 |
+| Tool Shadowing Attack | Execution | 83 |
+| Command Injection Attack | Execution | 128 |
+| Remote Listener Attack | Execution | 91 |
+| Webpage Poison Attack | Execution | 83 |
+| Sandbox Escape | Execution | 101 |
+| Backdoor Attack | Execution | 99 |
 
-## Key Statistics
+## 문서 및 메타데이터
 
-| Statistic | Value |
-|---|---:|
-| Reference MCP servers | 786 |
-| Malicious variants | 190 |
-| Total experimental samples | 976 |
-| Malicious sample ratio | 19.47% |
-| Implemented attack types | 15 |
-| Tools | 6,284 |
-| Functions | 218,108 |
-| Code files | 19,459 |
-| LOC | 4,306,858 |
+- `dataset/README.md`
+- `dataset/reference-tools/README.md`
+- `dataset/malicious-variant-tools/README.md`
+- `dataset/malicious-variant-tools/<Attack Type>/README.md`
+- `dataset/metadata/`
 
----
+## 사용 목적
 
-## Malicious Variant Distribution
+도구 단위 정적 분석, 머신러닝 평가, 공격 패턴 분석 및 MCP 보안 연구에 사용할 수 있습니다.
 
-| DTPE final impact location | Variants |
-|---|---:|
-| Decision | 57 |
-| Transmission | 15 |
-| Protocol | 25 |
-| Execution | 93 |
+## 라이선스
 
-| Attack type | Variants |
-|---|---:|
-| Tool Poisoning Attack | 20 |
-| Command Injection Attack | 18 |
-| Prompt Injection Attack | 17 |
-| Credential Leakage | 15 |
-| Unauthorized Invocation | 14 |
-| Sandbox Escape | 13 |
-| Backdoor Attack | 12 |
-| Rug Pulls Attacks | 11 |
-| Other 7 attack types | 10 each |
-
----
-
-## Metadata
-
-`malicious-mcp-variants/` 아래의 악성 변형 디렉터리는 원래 MCP server/project 이름을 유지합니다. 공격 라벨은 `variant_name_mapping.csv`, `variant_label_schema.json`, `attack_expansion_manifest.json` 및 각 공격 유형의 `attack_summary.md` 파일에 저장됩니다.
-
+원본 프로젝트의 라이선스가 유지됩니다. 개별 파일 재배포 전에 라이선스와 출처 메타데이터를 확인하십시오.

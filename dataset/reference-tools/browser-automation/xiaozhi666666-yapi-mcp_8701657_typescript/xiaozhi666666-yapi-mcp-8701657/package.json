@@ -1,0 +1,50 @@
+{
+  "name": "yapi-fetch-mcp",
+  "version": "0.1.3",
+  "description": "MCP server for reading YApi interface metadata by URL, interface ID, or project ID.",
+  "license": "MIT",
+  "type": "module",
+  "mcpName": "io.github.xiaozhi666666/yapi-mcp",
+  "bin": {
+    "yapi-fetch-mcp": "./build/src/index.js",
+    "yapi-mcp": "./build/src/index.js"
+  },
+  "files": [
+    "build",
+    "README.md",
+    "LICENSE",
+    "server.json"
+  ],
+  "scripts": {
+    "build": "tsc && chmod 755 build/src/index.js",
+    "start": "node build/src/index.js",
+    "test": "npm run build && node --test build/test/*.test.js",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "yapi",
+    "api-docs",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xiaozhi666666/yapi-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/xiaozhi666666/yapi-mcp/issues"
+  },
+  "homepage": "https://github.com/xiaozhi666666/yapi-mcp#readme",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.3"
+  }
+}

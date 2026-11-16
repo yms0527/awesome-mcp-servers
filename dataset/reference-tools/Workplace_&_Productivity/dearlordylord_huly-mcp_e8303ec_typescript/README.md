@@ -1,0 +1,420 @@
+# @firfi/huly-mcp
+
+[![npm](https://img.shields.io/npm/v/@firfi/huly-mcp)](https://www.npmjs.com/package/@firfi/huly-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/@firfi/huly-mcp)](https://www.npmjs.com/package/@firfi/huly-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
+[![MCP Server](https://badge.mcpx.dev?type=server&features=tools)](https://github.com/dearlordylord/huly-mcp)[![cooked at Monadical](https://img.shields.io/endpoint?url=https://monadical.com/static/api/cooked-at-monadical.json)](https://monadical.com)
+
+MCP server for [Huly](https://huly.io/) integration.
+
+## Installation
+
+The standard configuration works with most MCP clients:
+
+```json
+{
+  "mcpServers": {
+    "huly": {
+      "command": "npx",
+      "args": ["-y", "@firfi/huly-mcp@latest"],
+      "env": {
+        "HULY_URL": "https://huly.app",
+        "HULY_EMAIL": "your@email.com",
+        "HULY_PASSWORD": "yourpassword",
+        "HULY_WORKSPACE": "yourworkspace"
+      }
+    }
+  }
+}
+```
+
+<details>
+<summary>Claude Code</summary>
+
+```bash
+claude mcp add huly \
+  -e HULY_URL=https://huly.app \
+  -e HULY_EMAIL=your@email.com \
+  -e HULY_PASSWORD=yourpassword \
+  -e HULY_WORKSPACE=yourworkspace \
+  -- npx -y @firfi/huly-mcp@latest
+```
+
+Or add to `~/.claude.json` using the standard config above.
+
+</details>
+
+<details>
+<summary>Claude Desktop</summary>
+
+Add the standard config to your `claude_desktop_config.json`:
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+</details>
+
+<details>
+<summary>VS Code</summary>
+
+Add to your user settings (`.vscode/mcp.json`) or use Command Palette → "MCP: Add Server":
+
+```json
+{
+  "servers": {
+    "huly": {
+      "command": "npx",
+      "args": ["-y", "@firfi/huly-mcp@latest"],
+      "env": {
+        "HULY_URL": "https://huly.app",
+        "HULY_EMAIL": "your@email.com",
+        "HULY_PASSWORD": "yourpassword",
+        "HULY_WORKSPACE": "yourworkspace"
+      }
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary>Cursor</summary>
+
+Add the standard config to `~/.cursor/mcp.json`, or via Settings → Tools & Integrations → New MCP Server.
+
+</details>
+
+<details>
+<summary>Windsurf</summary>
+
+Add the standard config to your Windsurf MCP configuration file.
+
+</details>
+
+## Updating
+
+The `@latest` tag in the install command always fetches the newest version. Most MCP clients cache the installed package, so you need to force a re-fetch:
+
+| Client | How to update |
+|--------|--------------|
+| **Claude Code** | `claude mcp remove huly` then re-add with the install command above |
+| **Claude Desktop** | Restart the app (it runs `npx` on startup) |
+| **VS Code / Cursor** | Restart the MCP server from the command palette or reload the window |
+| **npx (manual)** | `npx -y @firfi/huly-mcp@latest` — the `-y` flag skips the cache when `@latest` resolves to a new version |
+
+## HTTP Transport
+
+By default, the server uses stdio transport. For HTTP transport (Streamable HTTP):
+
+```bash
+HULY_URL=https://huly.app \
+HULY_EMAIL=your@email.com \
+HULY_PASSWORD=yourpassword \
+HULY_WORKSPACE=yourworkspace \
+MCP_TRANSPORT=http \
+npx -y @firfi/huly-mcp@latest
+```
+
+Server listens on `http://127.0.0.1:3000/mcp` by default.
+
+Configure with `MCP_HTTP_PORT` and `MCP_HTTP_HOST`:
+
+```bash
+MCP_TRANSPORT=http MCP_HTTP_PORT=8080 MCP_HTTP_HOST=0.0.0.0 npx -y @firfi/huly-mcp@latest
+```
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `HULY_URL` | Yes | Huly instance URL |
+| `HULY_EMAIL` | Auth* | Account email |
+| `HULY_PASSWORD` | Auth* | Account password |
+| `HULY_TOKEN` | Auth* | API token (alternative to email/password) |
+| `HULY_WORKSPACE` | Yes | Workspace identifier |
+| `HULY_CONNECTION_TIMEOUT` | No | Connection timeout in ms (default: 30000) |
+| `MCP_TRANSPORT` | No | Transport type: `stdio` (default) or `http` |
+| `MCP_HTTP_PORT` | No | HTTP server port (default: 3000) |
+| `MCP_HTTP_HOST` | No | HTTP server host (default: 127.0.0.1) |
+| `TOOLSETS` | No | Comma-separated tool categories to expose. If unset, all tools are exposed. Example: `issues,projects,search` |
+
+*Auth: Provide either `HULY_EMAIL` + `HULY_PASSWORD` or `HULY_TOKEN`.
+
+<!-- tools:start -->
+## Available Tools
+
+**`TOOLSETS` categories:** `projects`, `issues`, `comments`, `milestones`, `documents`, `storage`, `attachments`, `contacts`, `channels`, `calendar`, `time tracking`, `search`, `activity`, `notifications`, `workspace`, `cards`, `labels`, `tag-categories`, `test-management`
+
+### Projects
+
+| Tool | Description |
+|------|-------------|
+| `list_projects` | List all Huly projects. Returns projects sorted by name. Supports filtering by archived status. |
+| `get_project` | Get full details of a Huly project including its statuses. Returns project name, description, archived flag, default status, and all available statuses. |
+| `create_project` | Create a new Huly tracker project. Idempotent: returns existing project if one with the same identifier already exists (created=false). Identifier must be 1-5 uppercase alphanumeric chars starting with a letter. |
+| `update_project` | Update a Huly project. Only provided fields are modified. Set description to null to clear it. |
+| `delete_project` | Permanently delete a Huly project. All issues, milestones, and components in this project will be orphaned. This action cannot be undone. |
+
+### Issues
+
+| Tool | Description |
+|------|-------------|
+| `preview_deletion` | Preview the impact of deleting a Huly entity before actually deleting it. Shows affected sub-entities, relations, and warnings. Supports issues, projects, components, and milestones. Use this to understand cascade effects before calling a delete operation. |
+| `list_issues` | Query Huly issues with optional filters. Returns issues sorted by modification date (newest first). Supports filtering by project, status, assignee, component, and parentIssue (to list children of a specific issue). Supports searching by title substring (titleSearch) and description content (descriptionSearch). |
+| `get_issue` | Retrieve full details for a Huly issue including markdown description. Use this to view issue content, comments, or full metadata. |
+| `create_issue` | Create a new issue in a Huly project. Optionally create as a sub-issue by specifying parentIssue. Description supports markdown formatting. Returns the created issue identifier. |
+| `update_issue` | Update fields on an existing Huly issue. Only provided fields are modified. Description updates support markdown. |
+| `add_issue_label` | Add a tag/label to a Huly issue. Creates the tag if it doesn't exist in the project. |
+| `remove_issue_label` | Remove a tag/label from a Huly issue. Detaches the label reference; does not delete the label definition. |
+| `delete_issue` | Permanently delete a Huly issue. This action cannot be undone. |
+| `move_issue` | Move an issue to a new parent (making it a sub-issue) or to top-level (null). Updates parent/child relationships and sub-issue counts. |
+| `list_components` | List components in a Huly project. Components organize issues by area/feature. Returns components sorted by modification date (newest first). |
+| `get_component` | Retrieve full details for a Huly component. Use this to view component content and metadata. |
+| `create_component` | Create a new component in a Huly project. Components help organize issues by area/feature. Returns the created component ID and label. |
+| `update_component` | Update fields on an existing Huly component. Only provided fields are modified. |
+| `set_issue_component` | Set or clear the component on a Huly issue. Pass null for component to clear it. |
+| `delete_component` | Permanently delete a Huly component. This action cannot be undone. |
+| `list_issue_templates` | List issue templates in a Huly project. Templates define reusable issue configurations. Returns templates sorted by modification date (newest first). |
+| `get_issue_template` | Retrieve full details for a Huly issue template including children (sub-task templates). Use this to view template content, default values, and child template IDs. |
+| `create_issue_template` | Create a new issue template in a Huly project. Templates define default values for new issues. Optionally include children (sub-task templates) that will become sub-issues when creating issues from this template. Returns the created template ID and title. |
+| `create_issue_from_template` | Create a new issue from a template. Applies template defaults, allowing overrides for specific fields. If the template has children (sub-task templates), sub-issues are created automatically unless includeChildren is set to false. Returns the created issue identifier and count of children created. |
+| `update_issue_template` | Update fields on an existing Huly issue template. Only provided fields are modified. |
+| `delete_issue_template` | Permanently delete a Huly issue template. This action cannot be undone. |
+| `add_template_child` | Add a child (sub-task) template to an issue template. The child defines default values for sub-issues created when using create_issue_from_template. Returns the child template ID. |
+| `remove_template_child` | Remove a child (sub-task) template from an issue template by its child ID. Get child IDs from get_issue_template response. |
+| `add_issue_relation` | Add a relation between two issues. Relation types: 'blocks' (source blocks target — pushes into target's blockedBy), 'is-blocked-by' (source is blocked by target — pushes into source's blockedBy), 'relates-to' (bidirectional link — updates both sides). targetIssue accepts cross-project identifiers like 'OTHER-42'. No-op if the relation already exists. |
+| `remove_issue_relation` | Remove a relation between two issues. Mirrors add_issue_relation: 'blocks' pulls from target's blockedBy, 'is-blocked-by' pulls from source's blockedBy, 'relates-to' pulls from both sides. No-op if the relation doesn't exist. |
+| `list_issue_relations` | List all relations of an issue. Returns blockedBy (issues blocking this one) and relations (bidirectional links) with resolved identifiers. Does NOT return issues that this issue blocks — use list_issue_relations on the target issue to see that. |
+
+### Comments
+
+| Tool | Description |
+|------|-------------|
+| `list_comments` | List comments on a Huly issue. Returns comments sorted by creation date (oldest first). |
+| `add_comment` | Add a comment to a Huly issue. Comment body supports markdown formatting. |
+| `update_comment` | Update an existing comment on a Huly issue. Comment body supports markdown formatting. |
+| `delete_comment` | Delete a comment from a Huly issue. This action cannot be undone. |
+
+### Milestones
+
+| Tool | Description |
+|------|-------------|
+| `list_milestones` | List milestones in a Huly project. Returns milestones sorted by modification date (newest first). |
+| `get_milestone` | Retrieve full details for a Huly milestone. Use this to view milestone content and metadata. |
+| `create_milestone` | Create a new milestone in a Huly project. Returns the created milestone ID and label. |
+| `update_milestone` | Update fields on an existing Huly milestone. Only provided fields are modified. |
+| `set_issue_milestone` | Set or clear the milestone on a Huly issue. Pass null for milestone to clear it. |
+| `delete_milestone` | Permanently delete a Huly milestone. This action cannot be undone. |
+
+### Documents
+
+| Tool | Description |
+|------|-------------|
+| `list_teamspaces` | List all Huly document teamspaces. Returns teamspaces sorted by name. Supports filtering by archived status. |
+| `get_teamspace` | Get details for a Huly document teamspace including document count. Finds by name or ID, including archived teamspaces. |
+| `create_teamspace` | Create a new Huly document teamspace. Idempotent: returns existing teamspace if one with the same name exists. |
+| `update_teamspace` | Update fields on an existing Huly document teamspace. Only provided fields are modified. Set description to null to clear it. |
+| `delete_teamspace` | Permanently delete a Huly document teamspace. This action cannot be undone. |
+| `list_documents` | List documents in a Huly teamspace. Returns documents sorted by modification date (newest first). Supports searching by title substring (titleSearch) and content (contentSearch). |
+| `get_document` | Retrieve full details for a Huly document including markdown content. Use this to view document content and metadata. |
+| `create_document` | Create a new document in a Huly teamspace. Content supports markdown formatting. Returns the created document id. |
+| `edit_document` | Edit an existing Huly document. Two content modes (mutually exclusive): (1) 'content' for full replace, (2) 'old_text' + 'new_text' for targeted search-and-replace. Multiple matches error unless replace_all is true. Empty new_text deletes matched text. Also supports renaming via 'title'. |
+| `delete_document` | Permanently delete a Huly document. This action cannot be undone. |
+
+### Storage
+
+| Tool | Description |
+|------|-------------|
+| `upload_file` | Upload a file to Huly storage. Provide ONE of: filePath (local file - preferred), fileUrl (fetch from URL), or data (base64 - for small files only). Returns blob ID and URL for referencing the file. |
+
+### Attachments
+
+| Tool | Description |
+|------|-------------|
+| `list_attachments` | List attachments on a Huly object (issue, document, etc.). Returns attachments sorted by modification date (newest first). |
+| `get_attachment` | Retrieve full details for a Huly attachment including download URL. |
+| `add_attachment` | Add an attachment to a Huly object. Provide ONE of: filePath (local file - preferred), fileUrl (fetch from URL), or data (base64). Returns the attachment ID and download URL. |
+| `update_attachment` | Update attachment metadata (description, pinned status). |
+| `delete_attachment` | Permanently delete an attachment. This action cannot be undone. |
+| `pin_attachment` | Pin or unpin an attachment. |
+| `download_attachment` | Get download URL for an attachment along with file metadata (name, type, size). |
+| `add_issue_attachment` | Add an attachment to a Huly issue. Convenience method that finds the issue by project and identifier. Provide ONE of: filePath, fileUrl, or data. |
+| `add_document_attachment` | Add an attachment to a Huly document. Convenience method that finds the document by teamspace and title/ID. Provide ONE of: filePath, fileUrl, or data. |
+
+### Contacts
+
+| Tool | Description |
+|------|-------------|
+| `list_persons` | List all persons in the Huly workspace. Returns persons sorted by modification date (newest first). Supports searching by name substring (nameSearch) and email substring (emailSearch). |
+| `get_person` | Retrieve full details for a person including contact channels. Use personId or email to identify the person. |
+| `create_person` | Create a new person in Huly. Returns the created person ID. |
+| `update_person` | Update fields on an existing person. Only provided fields are modified. |
+| `delete_person` | Permanently delete a person from Huly. This action cannot be undone. |
+| `list_employees` | List employees (persons who are team members). Returns employees sorted by modification date (newest first). |
+| `list_organizations` | List all organizations in the Huly workspace. Returns organizations sorted by modification date (newest first). |
+| `create_organization` | Create a new organization in Huly. Optionally add members by person ID or email. Returns the created organization ID. |
+
+### Channels
+
+| Tool | Description |
+|------|-------------|
+| `list_channels` | List all Huly channels. Returns channels sorted by name. Supports filtering by archived status. Supports searching by name substring (nameSearch) and topic substring (topicSearch). |
+| `get_channel` | Retrieve full details for a Huly channel including topic and member list. |
+| `create_channel` | Create a new channel in Huly. Returns the created channel ID and name. |
+| `update_channel` | Update fields on an existing Huly channel. Only provided fields are modified. |
+| `delete_channel` | Permanently delete a Huly channel. This action cannot be undone. |
+| `list_channel_messages` | List messages in a Huly channel. Returns messages sorted by date (newest first). |
+| `send_channel_message` | Send a message to a Huly channel. Message body supports markdown formatting. |
+| `list_direct_messages` | List direct message conversations in Huly. Returns conversations sorted by date (newest first). |
+| `list_thread_replies` | List replies in a message thread. Returns replies sorted by date (oldest first). |
+| `add_thread_reply` | Add a reply to a message thread. Reply body supports markdown formatting. |
+| `update_thread_reply` | Update a thread reply. Only the body can be modified. |
+| `delete_thread_reply` | Permanently delete a thread reply. This action cannot be undone. |
+
+### Calendar
+
+| Tool | Description |
+|------|-------------|
+| `list_events` | List calendar events. Returns events sorted by date. Supports filtering by date range. |
+| `get_event` | Retrieve full details for a calendar event including description. Use this to view event content and metadata. |
+| `create_event` | Create a new calendar event. Description supports markdown formatting. Returns the created event ID. |
+| `update_event` | Update fields on an existing calendar event. Only provided fields are modified. Description updates support markdown. |
+| `delete_event` | Permanently delete a calendar event. This action cannot be undone. |
+| `list_recurring_events` | List recurring event definitions. Returns recurring events sorted by modification date (newest first). |
+| `create_recurring_event` | Create a new recurring calendar event with RFC5545 RRULE rules. Description supports markdown. Returns the created event ID. |
+| `list_event_instances` | List instances of a recurring event. Returns instances sorted by date. Supports filtering by date range. Use includeParticipants=true to fetch full participant info (extra lookups). |
+
+### Time Tracking
+
+| Tool | Description |
+|------|-------------|
+| `log_time` | Log time spent on a Huly issue. Records a time entry with optional description. Time value is in minutes. |
+| `get_time_report` | Get time tracking report for a specific Huly issue. Shows total time, estimation, remaining time, and all time entries. |
+| `list_time_spend_reports` | List all time entries across issues. Supports filtering by project and date range. Returns entries sorted by date (newest first). |
+| `get_detailed_time_report` | Get detailed time breakdown for a project. Shows total time grouped by issue and by employee. Supports date range filtering. |
+| `list_work_slots` | List scheduled work slots. Shows planned time blocks attached to ToDos. Supports filtering by employee and date range. |
+| `create_work_slot` | Create a scheduled work slot. Attaches a time block to a ToDo for planning purposes. |
+| `start_timer` | Start a client-side timer on a Huly issue. Validates the issue exists and returns a start timestamp. Use log_time to record the elapsed time when done. |
+| `stop_timer` | Stop a client-side timer on a Huly issue. Returns the stop timestamp. Calculate elapsed time from start/stop timestamps and use log_time to record it. |
+
+### Search
+
+| Tool | Description |
+|------|-------------|
+| `fulltext_search` | Perform a global fulltext search across all Huly content. Searches issues, documents, messages, and other indexed content. Returns matching items sorted by relevance (newest first). |
+
+### Activity
+
+| Tool | Description |
+|------|-------------|
+| `list_activity` | List activity messages for a Huly object. Returns activity sorted by date (newest first). |
+| `add_reaction` | Add an emoji reaction to an activity message. |
+| `remove_reaction` | Remove an emoji reaction from an activity message. |
+| `list_reactions` | List reactions on an activity message. |
+| `save_message` | Save/bookmark an activity message for later reference. |
+| `unsave_message` | Remove an activity message from saved/bookmarks. |
+| `list_saved_messages` | List saved/bookmarked activity messages. |
+| `list_mentions` | List @mentions of the current user in activity messages. |
+
+### Notifications
+
+| Tool | Description |
+|------|-------------|
+| `list_notifications` | List inbox notifications. Returns notifications sorted by modification date (newest first). Supports filtering by read/archived status. |
+| `get_notification` | Retrieve full details for a notification. Use this to view notification content and metadata. |
+| `mark_notification_read` | Mark a notification as read. |
+| `mark_all_notifications_read` | Mark all unread notifications as read. Returns the count of notifications marked. |
+| `archive_notification` | Archive a notification. Archived notifications are hidden from the main inbox view. |
+| `archive_all_notifications` | Archive all notifications. Returns the count of notifications archived. |
+| `delete_notification` | Permanently delete a notification. This action cannot be undone. |
+| `get_notification_context` | Get notification context for an entity. Returns tracking information for a specific object. |
+| `list_notification_contexts` | List notification contexts. Returns contexts sorted by last update timestamp (newest first). Supports filtering by pinned status. |
+| `pin_notification_context` | Pin or unpin a notification context. Pinned contexts are highlighted in the inbox. |
+| `list_notification_settings` | List notification provider settings. Returns current notification preferences. |
+| `update_notification_provider_setting` | Update notification provider setting. Enable or disable notifications for a specific provider. |
+| `get_unread_notification_count` | Get the count of unread notifications. |
+
+### Workspace
+
+| Tool | Description |
+|------|-------------|
+| `list_workspace_members` | List members in the current Huly workspace with their roles. Returns members with account IDs and roles. |
+| `update_member_role` | Update a workspace member's role. Requires appropriate permissions. Valid roles: READONLYGUEST, DocGuest, GUEST, USER, MAINTAINER, OWNER, ADMIN. |
+| `get_workspace_info` | Get information about the current workspace including name, URL, region, and settings. |
+| `list_workspaces` | List all workspaces accessible to the current user. Returns workspace summaries sorted by last visit. |
+| `create_workspace` | Create a new Huly workspace. Returns the workspace UUID and URL. Optionally specify a region. |
+| `delete_workspace` | Permanently delete the current workspace. This action cannot be undone. Use with extreme caution. |
+| `get_user_profile` | Get the current user's profile information including bio, location, and social links. |
+| `update_user_profile` | Update the current user's profile. Supports bio, city, country, website, social links, and public visibility. |
+| `update_guest_settings` | Update workspace guest settings. Control read-only guest access and guest sign-up permissions. |
+| `get_regions` | Get available regions for workspace creation. Returns region codes and display names. |
+
+### Cards
+
+| Tool | Description |
+|------|-------------|
+| `list_card_spaces` | List all Huly card spaces. Returns card spaces sorted by name. Card spaces are containers for cards. |
+| `list_master_tags` | List master tags (card types) available in a Huly card space. Master tags define the type/schema of cards that can be created in a space. |
+| `list_cards` | List cards in a Huly card space. Returns cards sorted by modification date (newest first). Supports filtering by type (master tag), title substring, and content search. |
+| `get_card` | Retrieve full details for a Huly card including markdown content. Use this to view card content and metadata. |
+| `create_card` | Create a new card in a Huly card space. Requires a master tag (card type). Content supports markdown formatting. Returns the created card id. |
+| `update_card` | Update fields on an existing Huly card. Only provided fields are modified. Content updates support markdown. |
+| `delete_card` | Permanently delete a Huly card. This action cannot be undone. |
+
+### Labels
+
+| Tool | Description |
+|------|-------------|
+| `list_labels` | List label/tag definitions in the workspace. Labels are global (not project-scoped). Returns labels for tracker issues sorted by modification date (newest first). |
+| `create_label` | Create a new label/tag definition in the workspace. Labels are global and can be attached to any issue. Returns existing label if one with the same title already exists (created=false). Use add_issue_label to attach a label to a specific issue. |
+| `update_label` | Update a label/tag definition. Accepts label ID or title. Only provided fields are modified. |
+| `delete_label` | Permanently delete a label/tag definition. Accepts label ID or title. This action cannot be undone. |
+
+### Tag-Categories
+
+| Tool | Description |
+|------|-------------|
+| `list_tag_categories` | List tag/label categories in the workspace. Categories group labels (e.g., 'Priority Labels', 'Type Labels'). Optional targetClass filter (defaults to all). |
+| `create_tag_category` | Create a new tag/label category. Idempotent: returns existing category if one with the same label and targetClass already exists (created=false). Defaults targetClass to tracker issues. |
+| `update_tag_category` | Update a tag/label category. Accepts category ID or label name. Only provided fields are modified. |
+| `delete_tag_category` | Permanently delete a tag/label category. Accepts category ID or label name. Labels in this category will be orphaned (not deleted). This action cannot be undone. |
+
+### Test-Management
+
+| Tool | Description |
+|------|-------------|
+| `list_test_projects` | List test management projects. Returns test projects sorted by name. These are separate from tracker projects. |
+| `list_test_suites` | List test suites in a test project. Accepts project ID or name. Optional parent filter for nested suites. |
+| `get_test_suite` | Get a single test suite by ID or name within a test project. Returns suite details and test case count. |
+| `create_test_suite` | Create a test suite in a test project. Idempotent: returns existing suite if one with the same name exists (created=false). Optional parent for nesting. |
+| `update_test_suite` | Update a test suite. Accepts suite ID or name. Only provided fields are modified. |
+| `delete_test_suite` | Permanently delete a test suite. Accepts suite ID or name. This action cannot be undone. |
+| `list_test_cases` | List test cases in a test project. Optional filters: suite (ID or name), assignee (name or email). |
+| `get_test_case` | Get a single test case by ID or name within a test project. |
+| `create_test_case` | Create a test case attached to a suite. Requires project and suite. Defaults: type=functional, priority=medium, status=draft. |
+| `update_test_case` | Update a test case. Accepts test case ID or name. Only provided fields are modified. Set assignee to null to unassign. |
+| `delete_test_case` | Permanently delete a test case. Accepts test case ID or name. This action cannot be undone. |
+| `list_test_plans` | List test plans in a test management project. Returns plan names and IDs. Requires project ID or name. |
+| `get_test_plan` | Get test plan details including its items (test cases). Accepts plan ID or name within a project. |
+| `create_test_plan` | Create a test plan in a project. Idempotent: returns existing plan if one with the same name exists (created=false). |
+| `update_test_plan` | Update a test plan's name or description. Only provided fields are modified. Pass description=null to clear. |
+| `delete_test_plan` | Permanently delete a test plan. This does not delete associated test runs. Cannot be undone. |
+| `add_test_plan_item` | Add a test case to a test plan. Resolves test case by ID or name. Optionally assign a person by email or name. |
+| `remove_test_plan_item` | Remove a test case from a test plan by item ID. Get item IDs from get_test_plan. |
+| `list_test_runs` | List test runs in a test management project. Returns run names, IDs, and due dates. |
+| `get_test_run` | Get test run details including all results. Accepts run ID or name within a project. |
+| `create_test_run` | Create a test run in a project. For bulk creation from a plan, use run_test_plan instead. |
+| `update_test_run` | Update a test run's name, description, or due date. Only provided fields are modified. Pass null to clear optional fields. |
+| `delete_test_run` | Permanently delete a test run. This does not delete associated test results. Cannot be undone. |
+| `list_test_results` | List test results in a test run. Returns result names, statuses, and assignees. |
+| `get_test_result` | Get test result details. Accepts result ID or name. |
+| `create_test_result` | Create a test result in a run. Resolves test case by ID or name. Status defaults to 'untested'. |
+| `update_test_result` | Update a test result's status, assignee, or description. Status values: untested, blocked, passed, failed. |
+| `delete_test_result` | Permanently delete a test result. Cannot be undone. |
+| `run_test_plan` | Execute a test plan: creates a test run and one test result per plan item. Returns the run ID and count of results created. Optionally name the run and set a due date. |
+
+<!-- tools:end -->
+

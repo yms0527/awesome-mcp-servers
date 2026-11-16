@@ -1,6 +1,0 @@
-# Certificate files - DO NOT COMMIT
-*.pem
-*.csr
-*.srl
-*.txt
-*.sh

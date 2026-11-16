@@ -1,0 +1,58 @@
+{
+  "name": "resend-mcp",
+  "version": "2.27.1",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "resend-mcp": "dist/index.js"
+  },
+  "main": "dist/server.js",
+  "types": "dist/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./http": {
+      "types": "./dist/transports/http.d.ts",
+      "default": "./dist/transports/http.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('dist/index.js', '755')\"",
+    "prepare": "npm run build",
+    "inspector": "npx @modelcontextprotocol/inspector@latest",
+    "lint": "biome check .",
+    "lint:fix": "biome check . --write",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/express": "2.0.0",
+    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "dotenv": "17.4.2",
+    "express": "5.2.1",
+    "minimist": "1.2.8",
+    "resend": "6.34.1",
+    "zod": "4.4.3"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.10",
+    "@modelcontextprotocol/client": "2.0.0",
+    "@types/minimist": "1.2.5",
+    "@types/node": "25.9.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.7"
+  },
+  "packageManager": "pnpm@11.2.2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/resend/resend-mcp"
+  }
+}

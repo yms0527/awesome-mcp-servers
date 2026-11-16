@@ -1,163 +1,84 @@
-<div align="center">
+# MCP Tool Security Dataset
 
-# Reference MCP Servers and Malicious MCP Variants Dataset
+A tool-level dataset of reference MCP tools and safely simulated malicious variants.
 
-**A curated dataset of 786 reference MCP servers and 190 malicious MCP variants for security research on tool-augmented LLM systems.**
+[English](README.md) · [简体中文](README-zh.md) · [繁體中文](README_zh_TW.md) · [日本語](README-ja.md) · [한국어](README-ko.md)
 
-[English](README.md) · [简体中文](README-zh.md) · [繁體中文](README-zh_TW.md) · [日本語](README-ja.md) · [한국어](README-ko.md)
+## Responsible Use
 
-</div>
+The malicious variants are provided only for defensive security research and education. Do not deploy them in production or use them against third-party systems.
 
----
-
-## Disclaimer
-
-The malicious MCP variants in this repository are provided only for security research, dataset construction, defensive evaluation, and educational purposes.
-
-Do not use the samples for unauthorized access, malware deployment, credential theft, service disruption, or any activity that may harm third-party systems, data, or users. By using this repository, you agree to comply with applicable laws and to use the dataset responsibly.
-
----
-
-## Overview
-
-This repository contains two complementary MCP server datasets:
-
-| Dataset | Count | Description |
-|---|---:|---|
-| `reference-mcp-servers/` | 786 | Reference MCP server roots selected by MCP-specific filtering rules. |
-| `malicious-mcp-variants/` | 190 | Malicious MCP variants derived from real reference servers. |
-| Total experimental samples | 976 | 786 reference servers + 190 malicious variants. |
-
-The 786 reference-server count is not a simple physical directory count. It is computed after identifying and filtering MCP server roots from the collected repository structure. The malicious variants preserve the original server/project directory names; attack labels and metadata are recorded in `malicious-mcp-variants/variant_name_mapping.csv`.
-
----
-
-## Dataset Scale
+## Dataset Overview
 
 | Statistic | Value |
-|---|---:|
-| Reference MCP servers | 786 |
-| Malicious variants | 190 |
-| Total experimental samples | 976 |
-| Malicious sample ratio | 19.47% |
+|---|---|
+| Physical source projects | 1,126 |
+| Logical MCP Servers | 1,450 |
+| Reference tool versions | 26,021 |
+| Variant-carrying Server directories | 263 |
+| Malicious variant tool versions | 1,513 |
+| Total tool versions | 27,534 |
 | Implemented attack types | 15 |
-| Reference-server tools | 6,284 |
-| Reference-server functions | 218,108 |
-| Reference-server code files | 19,459 |
-| Reference-server LOC | 4,306,858 |
-
----
-
-## Reference MCP Server Statistics
-
-### Programming languages
-
-| Language | Servers |
-|---|---:|
-| TypeScript | 332 |
-| Python | 328 |
-| Go | 48 |
-| JavaScript | 26 |
-| Java | 7 |
-| Other | 45 |
-
-### Application scenarios
-
-| Scenario | Servers | Share |
-|---|---:|---:|
-| AI Agent tools | 184 | 23.41% |
-| Cloud and infrastructure | 128 | 16.28% |
-| Development assistance | 128 | 16.28% |
-| Data analysis | 77 | 9.80% |
-| Communication, collaboration and office work | 77 | 9.80% |
-| Other | 75 | 9.54% |
-| Information retrieval and web services | 68 | 8.65% |
-| Finance and business | 32 | 4.07% |
-| Knowledge management | 13 | 1.65% |
-| Database management | 4 | 0.51% |
-
----
-
-## Malicious MCP Server Dataset
-
-The malicious dataset contains 190 variants covering 15 implemented attack types. The distribution is intentionally non-uniform: security-critical attacks such as Tool Poisoning, Command Injection, Prompt Injection, Credential Leakage, Unauthorized Invocation, and Sandbox Escape contain more variants, while the overall malicious set remains within a small-scale 150--200 range.
-
-### Distribution by DTPE final impact location
-
-| Final impact location | Variants |
-|---|---:|
-| Decision | 57 |
-| Transmission | 15 |
-| Protocol | 25 |
-| Execution | 93 |
-
-### Distribution by attack type
-
-| Attack type | Variants |
-|---|---:|
-| Tool Poisoning Attack | 20 |
-| Command Injection Attack | 18 |
-| Prompt Injection Attack | 17 |
-| Credential Leakage | 15 |
-| Unauthorized Invocation | 14 |
-| Sandbox Escape | 13 |
-| Backdoor Attack | 12 |
-| Rug Pulls Attacks | 11 |
-| Puppet Attack | 10 |
-| Remote Listener Attack | 10 |
-| Tool Chain Exploitation Attack | 10 |
-| Tool Preference Manipulation Attack | 10 |
-| Tool Shadowing Attack | 10 |
-| Tool Squatting Attack | 10 |
-| Webpage Poison Attack | 10 |
-
----
 
 ## Directory Structure
 
 ```text
-.
-├── reference-mcp-servers/                         # Reference MCP servers
-├── malicious-mcp-variants/                         # Malicious MCP variants
-│   ├── variant_name_mapping.csv       # Mapping between variants, attack types, and metadata
-│   ├── variant_label_schema.json      # Metadata schema
-│   ├── attack_expansion_manifest.json # Construction and distribution manifest
-│   └── */attack_summary.md            # Per-attack summaries
-├── 统计结果/                          # Dataset statistics
-├── README.md                          # English README
-└── README-zh.md                       # Simplified Chinese README
+dataset/
+├── reference-tools/
+├── malicious-variant-tools/
+└── metadata/
 ```
 
----
+## Language Distribution
 
-## Naming and Metadata
+| Reference Server language | Servers |
+|---|---|
+| Python | 752 |
+| TypeScript | 532 |
+| Go | 75 |
+| JavaScript | 44 |
+| Java | 17 |
+| Rust | 13 |
+| Swift | 5 |
+| Kotlin | 3 |
+| C# | 3 |
+| C++ | 3 |
+| Ruby | 1 |
+| PHP | 1 |
+| Unknown | 1 |
 
-Malicious variant directories preserve the original MCP server/project names. Attack-related labels are not encoded in the directory names. Use the metadata files to identify the attack type and final impact location:
+## Malicious Variant Distribution
 
-- `malicious-mcp-variants/variant_name_mapping.csv`
-- `malicious-mcp-variants/variant_label_schema.json`
-- `malicious-mcp-variants/attack_expansion_manifest.json`
-- `malicious-mcp-variants/<Attack Type>/attack_summary.md`
+| Attack type | DTPE stage | Tools |
+|---|---|---|
+| Tool Preference Manipulation Attack | Decision | 92 |
+| Puppet Attack | Decision | 89 |
+| Tool Squatting Attack | Decision | 92 |
+| Tool Chain Exploitation Attack | Decision | 90 |
+| Prompt Injection Attack | Decision | 118 |
+| Credential Leakage | Transmission | 107 |
+| Rug Pulls Attacks | Processing | 97 |
+| Unauthorized Invocation | Processing | 110 |
+| Tool Poisoning Attack | Execution | 133 |
+| Tool Shadowing Attack | Execution | 83 |
+| Command Injection Attack | Execution | 128 |
+| Remote Listener Attack | Execution | 91 |
+| Webpage Poison Attack | Execution | 83 |
+| Sandbox Escape | Execution | 101 |
+| Backdoor Attack | Execution | 99 |
 
----
+## Documentation and Metadata
+
+- `dataset/README.md`
+- `dataset/reference-tools/README.md`
+- `dataset/malicious-variant-tools/README.md`
+- `dataset/malicious-variant-tools/<Attack Type>/README.md`
+- `dataset/metadata/`
 
 ## Intended Use
 
-This dataset is intended for:
+The dataset supports tool-level static analysis, machine-learning evaluation, attack-pattern studies, and MCP security research.
 
-- MCP server security analysis;
-- malicious tool/server detection;
-- static analysis and machine-learning-based detection research;
-- attack taxonomy and benchmark construction for tool-augmented LLM systems.
+## Licensing
 
----
-
-## Citation
-
-If you use this dataset in academic work, please cite the corresponding paper or repository version when available.
-
----
-
-## License and Responsibility
-
-Please check the licenses of the original MCP server projects before redistributing or using individual server code. The malicious variants are research artifacts and must not be deployed in production or used against real users.
+Source projects retain their original licenses. Check the license and provenance metadata before redistributing individual files.

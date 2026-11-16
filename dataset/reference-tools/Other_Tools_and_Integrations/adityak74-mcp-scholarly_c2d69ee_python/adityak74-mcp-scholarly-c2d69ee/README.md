@@ -1,0 +1,178 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/adityak74-mcp-scholarly-badge.png)](https://mseep.ai/app/adityak74-mcp-scholarly)
+
+# mcp-scholarly MCP server
+[![smithery badge](https://smithery.ai/badge/mcp-scholarly)](https://smithery.ai/server/mcp-scholarly)
+
+A MCP server to search for accurate academic articles. More scholarly vendors will be added soon.
+
+## Search tools
+
+- `search-arxiv` — arXiv search (no key needed)
+- `search-google-scholar` — Google Scholar via the `scholarly` library (free proxy pool)
+- `search-google-web` — Google web search via the [SerpBase API](https://serpbase.dev). Optional; only registered when `SERPBASE_API_KEY` is set. Get a key at https://serpbase.dev/dashboard/api-keys (free tier available).
+
+![demo1.jpeg](examples/demo1.png)
+
+![image](https://github.com/user-attachments/assets/13202184-bc12-4530-b7c1-2ee698f3e1cc)
+
+<a href="https://glama.ai/mcp/servers/aq05b2p0ql"><img width="380" height="200" src="https://glama.ai/mcp/servers/aq05b2p0ql/badge" alt="Scholarly Server MCP server" /></a>
+
+![star-history-202551](https://github.com/user-attachments/assets/f22d5796-017c-4c53-b230-101a09a28118)
+
+
+## Components
+
+### Tools
+
+The server implements one tool:
+- search-arxiv: Search arxiv for articles related to the given keyword.
+  - Takes "keyword" as required string arguments
+
+## Quickstart
+
+### Install
+
+#### Claude Desktop
+
+On MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
+On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
+
+<details>
+  <summary>Development/Unpublished Servers Configuration</summary>
+  ```
+  "mcpServers": {
+    "mcp-scholarly": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/Users/adityakarnam/PycharmProjects/mcp-scholarly/mcp-scholarly",
+        "run",
+        "mcp-scholarly"
+      ]
+    }
+  }
+  ```
+</details>
+
+<details>
+  <summary>Published Servers Configuration</summary>
+  ```
+  "mcpServers": {
+    "mcp-scholarly": {
+      "command": "uvx",
+      "args": [
+        "mcp-scholarly"
+      ]
+    }
+  }
+  ```
+</details>
+
+or if you are using Docker
+
+<details>
+  <summary>Published Docker Servers Configuration</summary>
+  ```
+  "mcpServers": {
+    "mcp-scholarly": {
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i",
+        "mcp/scholarly"
+      ]
+    }
+  }
+  ```
+</details>
+
+### Installing via Smithery
+
+To install mcp-scholarly for Claude Desktop automatically via [Smithery](https://smithery.ai/server/mcp-scholarly):
+
+```bash
+npx -y @smithery/cli install mcp-scholarly --client claude
+```
+
+## Development
+
+### Building and Publishing
+
+To prepare the package for distribution:
+
+1. Sync dependencies and update lockfile:
+```bash
+uv sync
+```
+
+2. Build package distributions:
+```bash
+uv build
+```
+
+This will create source and wheel distributions in the `dist/` directory.
+
+3. Publish to PyPI:
+```bash
+uv publish
+```
+
+Note: You'll need to set PyPI credentials via environment variables or command flags:
+- Token: `--token` or `UV_PUBLISH_TOKEN`
+- Or username/password: `--username`/`UV_PUBLISH_USERNAME` and `--password`/`UV_PUBLISH_PASSWORD`
+
+### Debugging
+
+Since MCP servers run over stdio, debugging can be challenging. For the best debugging
+experience, we strongly recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector).
+
+
+You can launch the MCP Inspector via [`npm`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) with this command:
+
+```bash
+npx @modelcontextprotocol/inspector uv --directory /Users/adityakarnam/PycharmProjects/mcp-scholarly/mcp-scholarly run mcp-scholarly
+```
+
+
+Upon launching, the Inspector will display a URL that you can access in your browser to begin debugging.
+
+## Using with zorp
+
+[zorp](https://github.com/aviskaar/zorp) needs a search-capable MCP tool
+before `validate` will run. This server satisfies that check, because zorp
+matches on a search verb in the tool name and these tools are called
+`search-arxiv` and `search-google-scholar`.
+
+```bash
+zorp-agent --yes \
+  --mcp "stdio:scholarly:uv:run:mcp-scholarly" \
+  validate "<your research question>"
+```
+
+Or configure it once, so every run picks it up:
+
+```toml
+# .zorp/mcp.toml
+[[server]]
+name = "scholarly"
+transport = "stdio"
+command = "uv"
+args = ["run", "mcp-scholarly"]
+trust = "sandbox"
+timeout_secs = 60
+```
+
+Notes measured against zorp's transport, not assumed:
+
+- `search-arxiv` answers in about 1 second. zorp's default stdio read
+  budget is 30 seconds, so the default is comfortable. `timeout_secs = 60`
+  above is headroom for `search-google-scholar`, which goes through
+  `scholarly` and a free proxy pool and is far less predictable.
+- Logging goes to stderr. Nothing but JSON-RPC reaches stdout, which is
+  what zorp's newline-delimited framing requires.
+- An empty keyword comes back as an MCP tool error rather than an empty
+  result set. zorp cares about that distinction: a failed search that
+  looks like "no prior work" would put a wrong novelty score into an
+  evidence record.
+- arxiv returns best-effort matches for any query, including nonsense, so
+  a non-empty result set is not by itself evidence that prior work exists.
+  The tool description says so, since that is the text the model reads.

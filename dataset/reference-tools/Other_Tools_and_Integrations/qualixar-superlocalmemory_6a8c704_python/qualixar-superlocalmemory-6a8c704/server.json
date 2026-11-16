@@ -1,0 +1,44 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "description": "Local-first memory for AI agents: recall with sources, answer checks, documents, mesh, governance.",
+  "name": "io.github.qualixar/superlocalmemory",
+  "packages": [
+    {
+      "identifier": "superlocalmemory",
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ],
+      "registryType": "pypi",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "version": "4.2.10"
+    },
+    {
+      "identifier": "superlocalmemory",
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ],
+      "registryType": "npm",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "version": "4.2.10"
+    }
+  ],
+  "repository": {
+    "source": "github",
+    "url": "https://github.com/qualixar/superlocalmemory"
+  },
+  "title": "SuperLocalMemory",
+  "version": "4.2.10",
+  "websiteUrl": "https://superlocalmemory.com"
+}

@@ -1,0 +1,58 @@
+{
+  "name": "claude-code-memory",
+  "version": "1.2.1",
+  "mcpName": "io.github.yuvalsuede/memory-mcp",
+  "description": "Persistent memory for Claude Code — never lose context between sessions",
+  "main": "dist/index.js",
+  "module": "./src/index.ts",
+  "bin": {
+    "memory-mcp": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "claude-code",
+    "memory",
+    "context",
+    "ai",
+    "llm",
+    "model-context-protocol",
+    "anthropic",
+    "persistent-memory",
+    "developer-tools"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuvalsuede/memory-mcp.git"
+  },
+  "homepage": "https://github.com/yuvalsuede/memory-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/yuvalsuede/memory-mcp/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.10",
+    "typescript": "^5.9.3"
+  }
+}

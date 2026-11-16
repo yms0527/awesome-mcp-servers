@@ -1,8 +1,0 @@
-{
-  "servers": [
-    {
-      "name": "quip-mcp",
-      "command": "quip-mcp"
-    }
-  ]
-}

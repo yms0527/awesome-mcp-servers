@@ -1,0 +1,44 @@
+{
+  "name": "kubectl-mcp-server",
+  "version": "1.25.0",
+  "description": "A Model Context Protocol (MCP) server for Kubernetes with 270+ tools, 8 resources, and 8 prompts for AI assistants",
+  "keywords": [
+    "kubernetes",
+    "kubectl",
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "cursor",
+    "ai",
+    "devops",
+    "k8s",
+    "mcp-ui"
+  ],
+  "author": "Rohit Ghumare",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rohitg00/kubectl-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rohitg00/kubectl-mcp-server/issues"
+  },
+  "homepage": "https://github.com/rohitg00/kubectl-mcp-server#readme",
+  "bin": {
+    "kubectl-mcp-server": "./bin/cli.js"
+  },
+  "files": [
+    "bin/"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "scripts": {
+    "postinstall": "node bin/postinstall.js"
+  }
+}

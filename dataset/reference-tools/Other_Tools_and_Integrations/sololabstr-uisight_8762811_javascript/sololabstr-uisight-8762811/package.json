@@ -1,0 +1,56 @@
+{
+  "name": "uisight",
+  "version": "0.34.0",
+  "mcpName": "io.github.yusufcemres/uisight",
+  "description": "Your AI can already see the screen \u2014 it just can't measure it. uisight is an MCP server for web/responsive UIs: live mobile+desktop sessions, a measurement engine (contrast, touch targets, theme drift) that reports findings as text, and a panel you and your agent share.",
+  "type": "module",
+  "license": "MIT",
+  "author": "SoloLabs (Yusuf Cemre San)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sololabstr/uisight.git"
+  },
+  "homepage": "https://github.com/sololabstr/uisight#readme",
+  "bugs": "https://github.com/sololabstr/uisight/issues",
+  "bin": {
+    "uisight": "src/cli.mjs",
+    "uisight-panel": "src/server.mjs",
+    "uisight-mcp": "src/mcp.mjs",
+    "uisight-audit": "src/audit.mjs"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "README.tr.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "playwright",
+    "mobile",
+    "responsive",
+    "qa",
+    "accessibility",
+    "wcag",
+    "contrast",
+    "ai",
+    "claude",
+    "cursor",
+    "vibe-coding",
+    "screenshot",
+    "device-emulation"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "playwright": "^1.62.0",
+    "zod": "^4.4.3"
+  },
+  "scripts": {
+    "test": "node --test",
+    "pretest": "node --check src/cli.mjs && node --check src/server.mjs && node --check src/mcp.mjs"
+  }
+}

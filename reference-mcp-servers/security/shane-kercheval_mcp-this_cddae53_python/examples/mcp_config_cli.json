@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "mcp-this-default": {
-      "command": "uvx",
-      "args": ["mcp-this"]
-    }
-  }
-}

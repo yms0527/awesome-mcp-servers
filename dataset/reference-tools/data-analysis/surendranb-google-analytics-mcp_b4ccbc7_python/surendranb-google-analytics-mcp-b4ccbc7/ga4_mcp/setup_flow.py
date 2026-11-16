@@ -1,0 +1,218 @@
+# SPDX-License-Identifier: Apache-2.0
+
+"""Interactive setup recovery. When config is broken, uses MCP elicitation to
+collect the missing value (or confirm a terminal fix) and re-initialize in
+session, avoiding a client restart. Falls back to guided text if the client
+doesn't support elicitation."""
+
+import os
+import uuid
+
+from pydantic import BaseModel, Field
+from mcp.server.mcpserver import Context
+from mcp.types import ToolAnnotations
+
+from .coordinator import mcp
+from .telemetry import send_telemetry, client_supports_url_elicitation
+from . import coordinator
+
+# Pages we own or that land the user exactly where the fix happens. URL-mode
+# elicitation opens these at the client; no OAuth, no secrets — guided navigation.
+_GA4_ADMIN_URL = "https://analytics.google.com/analytics/web/#/admin"
+_SETUP_PAGE_URL = "https://ga4.builditwithai.xyz/setup"
+
+
+async def _offer_page(ctx, message, url, branch):
+    """URL-mode elicitation: ask the client to open a helpful page before we
+    collect the value. No-op on clients without URL elicitation (falls through
+    to the existing form/text). Records whether the offer was accepted."""
+    if not client_supports_url_elicitation():
+        return None
+    try:
+        r = await ctx.request_context.session.elicit_url(
+            message=message,
+            url=url,
+            elicitation_id=f"setup_{uuid.uuid4().hex[:12]}",
+            related_request_id=ctx.request_id,
+        )
+        action = str(getattr(r, "action", None))
+        send_telemetry("setup_flow", {
+            "flow_branch": branch, "flow_outcome": "url_offered",
+            "url_elicit_action": action,
+            "error_category_at_entry": coordinator.SERVER_INIT_ERROR_CATEGORY,
+        })
+        return action
+    except Exception:
+        return None
+
+
+class _PropertyId(BaseModel):
+    property_id: str = Field(description="Your numeric GA4 Property ID, e.g. 123456789")
+
+
+class _CredentialsPath(BaseModel):
+    credentials_path: str = Field(description="Absolute path to your service-account JSON key")
+
+
+class _Confirm(BaseModel):
+    done: bool = Field(description="Set true once you have completed the step")
+
+
+def _persist_hint(var, value):
+    return (f"This is set for the current session only. To make it permanent, add "
+            f'"{var}": "{value}" to the env block of this server in your MCP client config.')
+
+
+def _emit_flow(branch, action, outcome, reinit_category=None):
+    """Recovery-funnel telemetry: which branch ran, what the user chose, how it
+    ended. Outcomes only — elicited values are never sent."""
+    send_telemetry("setup_flow", {
+        "flow_branch": branch,
+        "elicit_action": str(action) if action is not None else None,
+        "flow_outcome": outcome,
+        "reinit_category": reinit_category,
+        "error_category_at_entry": coordinator.SERVER_INIT_ERROR_CATEGORY,
+    })
+
+
+# Read-only toward the outside world (fixes only this process's session config,
+# never GA4 or the user's files); idempotent (re-running converges on the same
+# state); open world (re-init verifies against the live GA4 API).
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=True))
+async def setup_ga4_access(ctx: Context) -> str:
+    """
+    Interactively fix a broken GA4 MCP setup (missing property ID, missing or
+    expired credentials, or missing GA4 access) by asking the user for the
+    needed input through the client, then re-initializing without a restart.
+    Call this whenever a configuration or authentication error is reported.
+    """
+    _recovered, message = await run_inline_recovery(ctx)
+    return message
+
+
+async def run_inline_recovery(ctx) -> tuple[bool, str]:
+    """The setup-recovery engine, callable from any tool that hits a born-broken
+    config with an elicitation-capable client (MCP 2.0 MRTR): ask the user for the
+    missing value through the client, apply it, and re-initialize in-session.
+    Returns (recovered, message): recovered=True only when GA4 is now working.
+    setup_ga4_access wraps this; get_ga4_data calls it at the point of friction so
+    the user is prompted right where the query failed, not one hop away."""
+    if not coordinator.SERVER_INIT_ERROR:
+        _emit_flow("none_needed", None, "already_ok")
+        return True, "GA4 access is already configured and working. No setup needed."
+
+    category = coordinator.SERVER_INIT_ERROR_CATEGORY
+    creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    prop = os.getenv("GA4_PROPERTY_ID")
+    branch = "other"
+
+    try:
+        # Missing Property ID — offer to open GA4 Admin, then collect it.
+        if not prop:
+            branch = "property_id"
+            await _offer_page(
+                ctx,
+                "I'll open Google Analytics Admin so you can copy your Property ID "
+                "(Admin > Property details, a numeric id like 123456789).",
+                _GA4_ADMIN_URL, "property_id_open_admin",
+            )
+            r = await ctx.elicit(
+                "What is your GA4 Property ID? Find it at analytics.google.com > Admin > "
+                "Property details (a numeric id like 123456789).",
+                _PropertyId,
+            )
+            if r.action != "accept" or not r.data:
+                _emit_flow(branch, r.action, "paused")
+                return False, "Setup paused — no Property ID provided. Re-run setup_ga4_access when ready."
+            os.environ["GA4_PROPERTY_ID"] = r.data.property_id.strip()
+
+        # Missing/invalid credentials path — offer the setup page, then collect.
+        elif not creds or (creds and not os.path.exists(creds)):
+            branch = "credentials"
+            await _offer_page(
+                ctx,
+                "I'll open the setup guide — it walks through creating a service-account "
+                "key or using gcloud, with the exact steps.",
+                _SETUP_PAGE_URL, "credentials_open_setup",
+            )
+            r = await ctx.elicit(
+                "Where is your Google service-account JSON key on this machine? "
+                "Paste its absolute path. (Or, to use gcloud instead, run "
+                "'gcloud auth application-default login' in a terminal and then answer 'adc'.)",
+                _CredentialsPath,
+            )
+            if r.action != "accept" or not r.data:
+                _emit_flow(branch, r.action, "paused")
+                return False, "Setup paused — no credentials path provided. Re-run setup_ga4_access when ready."
+            path = r.data.credentials_path.strip()
+            if path.lower() != "adc":
+                # Validate at collection: existence alone isn't enough — a
+                # present-but-malformed/wrong-type file passes os.path.exists but
+                # fails later. Tell the model precisely which so it can re-ask.
+                model, _email, ok = coordinator.inspect_credentials(path)
+                if model == "missing":
+                    _emit_flow(branch, r.action, "invalid_path")
+                    return False, (f"No file exists at '{path}'. Ask the user for the correct absolute path to their "
+                            "Google service-account JSON key, then re-run setup_ga4_access.")
+                if not ok or model in ("unreadable", "unknown"):
+                    _emit_flow(branch, r.action, "invalid_creds")
+                    return False, (f"The file at '{path}' is not a valid Google credentials JSON (expected a "
+                            "service-account key or an authorized_user/ADC file). Ask the user to re-download "
+                            "the service-account key from Google Cloud Console > IAM > Service Accounts > Keys.")
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = path
+
+        # Expired credentials (ADC) — confirm the terminal fix.
+        elif category == "ADCExpired":
+            branch = "adc_expired"
+            r = await ctx.elicit(
+                "Your Google credentials have expired. In a terminal run:\n\n"
+                "    gcloud auth application-default login\n\n"
+                "Set 'done' to true once it completes and I'll reconnect.",
+                _Confirm,
+            )
+            if r.action != "accept" or not r.data or not r.data.done:
+                _emit_flow(branch, r.action, "paused")
+                return False, "Setup paused — run 'gcloud auth application-default login', then re-run setup_ga4_access."
+
+        # Missing GA4 access (IAM) — confirm the console fix.
+        elif category == "IAMError":
+            branch = "iam"
+            sa_hint = "the service account email (the client_email inside your JSON key)"
+            r = await ctx.elicit(
+                "The service account lacks access to this GA4 property. At analytics.google.com > "
+                f"Admin > Property Access Management, add {sa_hint} with the Viewer role. "
+                "Set 'done' to true once added and I'll reconnect.",
+                _Confirm,
+            )
+            if r.action != "accept" or not r.data or not r.data.done:
+                _emit_flow(branch, r.action, "paused")
+                return False, "Setup paused — grant Viewer access, then re-run setup_ga4_access."
+
+        else:
+            # Other init error — confirm and retry.
+            branch = "other"
+            r = await ctx.elicit(
+                f"Setup issue: {coordinator.SERVER_INIT_ERROR}. Fix it, then set 'done' to true to retry.",
+                _Confirm,
+            )
+            if r.action != "accept" or not r.data or not r.data.done:
+                _emit_flow(branch, r.action, "paused")
+                return False, "Setup paused. Re-run setup_ga4_access after fixing the issue above."
+
+    except Exception:
+        # Client lacks elicitation — fall back to guided text.
+        _emit_flow(branch, None, "elicit_unsupported")
+        return False, (f"This client can't prompt interactively. To fix setup manually: {coordinator.SERVER_INIT_ERROR} "
+                "See https://ga4.builditwithai.xyz/setup, then restart your MCP client.")
+
+    # Retry init with the updated environment.
+    ok, cat, detail = coordinator.reinitialize()
+    if ok:
+        _emit_flow(branch, "accept", "fixed", cat)
+        msg = "✅ GA4 access is now working — you can query your analytics. "
+        if os.getenv("GA4_PROPERTY_ID") and cat != "adc":
+            msg += _persist_hint("GA4_PROPERTY_ID", os.getenv("GA4_PROPERTY_ID"))
+        return True, msg
+    _emit_flow(branch, "accept", "still_broken", cat)
+    return False, (f"Still not connected ({cat}): {detail}. Re-run setup_ga4_access to try again, "
+            "or see https://ga4.builditwithai.xyz/setup.")

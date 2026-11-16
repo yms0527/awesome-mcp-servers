@@ -1,1 +1,0 @@
-# AWS Pricing MCP Lambda Handler Package 

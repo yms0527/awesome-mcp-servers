@@ -1,0 +1,76 @@
+{
+  "name": "@kernel.salacoste/n8n-workflow-builder",
+  "version": "0.9.3",
+  "description": "AI-powered n8n workflow management via Model Context Protocol (MCP). Create, manage, and monitor workflows through natural language with Claude AI. Multi-instance support with comprehensive documentation.",
+  "scripts": {
+    "clean": "rm -rf build",
+    "build": "tsc",
+    "dev": "tsc -w",
+    "start": "node build/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "prepublishOnly": "npm run clean && npm run build",
+    "publish": "npm publish --access public",
+    "npm-login": "npm login",
+    "bmad:refresh": "bmad-method install -f -i codex",
+    "bmad:list": "bmad-method list:agents",
+    "bmad:validate": "bmad-method validate",
+    "docs:dev": "mkdocs serve",
+    "docs:build": "mkdocs build --strict",
+    "docs:deploy": "mkdocs gh-deploy --force"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.4.1",
+    "axios": "^1.7.9",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.0.1",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.0.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "n8n-workflow-builder": "build/index.js"
+  },
+  "keywords": [
+    "n8n",
+    "workflow",
+    "automation",
+    "mcp",
+    "claude",
+    "claude-ai",
+    "cursor",
+    "cursor-ide",
+    "ai",
+    "model-context-protocol",
+    "workflow-builder",
+    "natural-language",
+    "multi-instance",
+    "api-management",
+    "workflow-automation"
+  ],
+  "author": "IMD",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/salacoste/mcp-n8n-workflow-builder.git"
+  },
+  "bugs": {
+    "url": "https://github.com/salacoste/mcp-n8n-workflow-builder/issues"
+  },
+  "homepage": "https://salacoste.github.io/mcp-n8n-workflow-builder/",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

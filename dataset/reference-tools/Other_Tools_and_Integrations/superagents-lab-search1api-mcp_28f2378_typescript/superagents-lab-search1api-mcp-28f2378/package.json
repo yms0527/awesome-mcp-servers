@@ -1,0 +1,68 @@
+{
+  "name": "search1api-mcp",
+  "version": "0.8.0",
+  "mcpName": "io.github.superagents-lab/search1api",
+  "description": "A Model Context Protocol (MCP) server that provides search and crawl functionality using Search1API",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "search1api-mcp": "build/index.js"
+  },
+  "files": [
+    "build",
+    "ui/dist",
+    "assets/icon-square.png",
+    "server.json",
+    "THIRD_PARTY_NOTICES.md",
+    "docs"
+  ],
+  "scripts": {
+    "build": "npm run build:ui && node -e \"require('node:fs').rmSync('build', { recursive: true, force: true })\" && tsc && node -e \"require('node:fs').chmodSync('build/index.js', '755')\"",
+    "build:ui": "node scripts/build-ui.mjs",
+    "test": "npm run build && npm --prefix ui run typecheck && node --test tests/*.test.mjs",
+    "start": "node build/http.js",
+    "prepack": "npm run build",
+    "watch": "tsc --watch",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js",
+    "start:http": "node build/http.js",
+    "sync:manifest": "npm run build && node scripts/sync-lobe-manifest.mjs",
+    "sync:versions": "node scripts/sync-versions.mjs",
+    "version": "node scripts/sync-versions.mjs && git add server.json lhm.plugin.json plugin.json .cursor-plugin/plugin.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.2"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.19.43",
+    "typescript": "^5.9.3"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "search",
+    "crawl",
+    "google",
+    "search1api"
+  ],
+  "author": "Search1API",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/superagents-lab/search1api-mcp.git"
+  },
+  "homepage": "https://s1.dev",
+  "bugs": {
+    "url": "https://github.com/superagents-lab/search1api-mcp/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

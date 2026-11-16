@@ -1,0 +1,58 @@
+{
+  "name": "@chamade/mcp-server",
+  "mcpName": "io.chamade/server",
+  "version": "4.0.0",
+  "description": "MCP server for Chamade — voice and chat gateway for AI agents. Joins Teams, Meet, Discord, Zoom, Telegram, WhatsApp, Slack, NC Talk, and SIP calls. Hosted STT/TTS with bring-your-own-key (ElevenLabs, Deepgram, OpenAI, Cartesia) — Chamade runs the full speech pipeline free on its side, you only pay your provider. Raw-PCM audio WebSocket also available for agents with their own speech stack (LiveKit, Pipecat, OpenAI Realtime). v4 is a thin stdio shim around mcp.chamade.io; bearer × platform scoping is now expressed as Chamade agents (renamed from channels). Claude Code push mode supported via the experimental claude/channel capability.",
+  "type": "module",
+  "bin": {
+    "chamade-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "tsx test/run.ts && tsx test/e2ee.ts",
+    "test:unit": "tsx test/run.ts",
+    "test:e2ee": "tsx test/e2ee.ts"
+  },
+  "homepage": "https://github.com/chamade-io/mcp-server#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chamade-io/mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chamade-io/mcp-server/issues"
+  },
+  "author": "Nafis <contact@nafis.io>",
+  "dependencies": {
+    "libsodium-wrappers": "^0.7.13",
+    "mcp-remote": "^0.1.38"
+  },
+  "devDependencies": {
+    "@types/libsodium-wrappers": "^0.7.14",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "chamade",
+    "voice",
+    "ai-agent",
+    "meeting",
+    "discord",
+    "teams",
+    "meet",
+    "telegram",
+    "sip",
+    "zoom",
+    "whatsapp"
+  ],
+  "license": "MIT"
+}

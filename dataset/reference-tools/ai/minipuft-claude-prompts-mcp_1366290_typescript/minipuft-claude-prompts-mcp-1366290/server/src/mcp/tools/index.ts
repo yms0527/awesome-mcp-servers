@@ -1,0 +1,1429 @@
+// @lifecycle canonical - Registers MCP tool implementations exposed to Model Context Protocol clients.
+/**
+ * MCP Tools Module - Consolidated Architecture
+ *
+ * This module provides 3 core MCP tools with framework-aware descriptions:
+ *
+ * CORE TOOLS:
+ * - prompt_engine: Universal execution engine with framework integration
+ * - system_control: Framework and system management with analytics
+ * - resource_manager: Unified CRUD for prompts, gates, and frameworks
+ *
+ * ARCHITECTURE:
+ * - Framework-aware tool descriptions that change based on active framework
+ * - Single source of truth for each functional area
+ * - Integrated ToolDescriptionLoader for dynamic descriptions
+ * - Improved maintainability and clear separation of concerns
+ */
+
+import { McpServer } from '@modelcontextprotocol/server';
+
+import { CategoryToolHandler, createCategoryToolHandler } from './category-manager/index.js';
+import { FrameworkToolHandler, createFrameworkToolHandler } from './framework-manager/index.js';
+import { GateToolHandler, createGateToolHandler } from './gate-manager/index.js';
+import { PromptExecutor, createPromptExecutor } from './prompt-engine/index.js';
+import { ResourceManagerRouter, createResourceManagerRouter } from './resource-manager/index.js';
+import {
+  PromptResourceHandler,
+  createPromptResourceHandler,
+} from './resource-manager/prompt/index.js';
+// Hand-written Zod schemas — SSOT for parameter validation (replaced codegen)
+import {
+  buildPromptEngineSchema,
+  buildSystemControlSchema,
+  customCheckSchema,
+  resourceManagerInputSchema,
+  type DescriptionResolver,
+  type PromptEngineInput,
+  type SystemControlInput,
+  type ToolSurfaceState,
+  type ResourceManagerInput,
+} from './schemas/index.js';
+import { deriveStructuredMessage } from './shared/structured-message.js';
+import {
+  describePromptEngineParameterRefusal,
+  describeUndeclaredParameterRefusal,
+  type ContractToolName,
+} from './shared/undeclared-parameters.js';
+import {
+  ConsolidatedSystemControl,
+  createConsolidatedSystemControl,
+} from './system-control/index.js';
+import { ToolDescriptionLoader } from './tool-description-loader.js';
+
+import type { ConvertedPrompt } from '#engine/execution/types.js';
+import type { GateManager } from '#engine/gates/gate-manager.js';
+import type { ChainSessionStore } from '#modules/chains/manager.js';
+import type { StyleManager } from '#modules/formatting/index.js';
+import type { Category, PromptData } from '#modules/prompts/types.js';
+import type { SkillsSyncPaths } from '#modules/skills-sync/service.js';
+import type { GateSpecification } from '#shared/types/execution.js';
+import type {
+  StateStoreOptions,
+  ConfigManager,
+  MetricsCollector,
+  Logger,
+  HookRegistryPort,
+  McpNotificationEmitterPort,
+} from '#shared/types/index.js';
+import type { ResourceFileLocatorPort } from '#shared/utils/resource-file-set.js';
+import type { FrameworkManagerDependencies } from './framework-manager/core/types.js';
+import type { Implementation } from '@modelcontextprotocol/server';
+
+import { FrameworkManager } from '#engine/frameworks/framework-manager.js';
+import { FrameworkStateStore } from '#engine/frameworks/framework-state-store.js';
+import { GateStateStore, createGateStateStore } from '#engine/gates/gate-state-store.js';
+import { PromptAssetManager } from '#modules/prompts/index.js';
+// Gate evaluator removed - now using Framework validation
+import { TextReferenceStore } from '#modules/text-refs/index.js';
+import { withRequestNotifications } from '#shared/utils/request-notification-scope.js';
+// Schemas now hand-written in ./schemas/ (replaced generated mcp-schemas.ts)
+
+// REMOVED: ExecutionCoordinator and ChainOrchestrator - modular chain system removed
+
+// Consolidated tools
+// Gate system management integration
+
+/**
+ * Read the client identity captured during the `initialize` handshake.
+ *
+ * Protocol revision 2026-07-28 removes that handshake — client identity moves to
+ * per-request `_meta` (`io.modelcontextprotocol/clientInfo`). This function is the
+ * single seam that migration has to replace, so it is typed rather than cast: the
+ * compiler must be able to see it break.
+ */
+function readClientVersion(mcpServer: McpServer): Implementation | undefined {
+  return mcpServer.server?.getClientVersion();
+}
+
+/** Whether a request gate is the `{name, description}` quick gate, by the tool's strict schema. */
+function isQuickGate(gate: unknown): gate is { name: string; description: string } {
+  return customCheckSchema.safeParse(gate).success;
+}
+
+/** Envelope key carrying client identity under protocol revision 2026-07-28. */
+const CLIENT_INFO_META_KEY = 'io.modelcontextprotocol/clientInfo';
+
+/**
+ * Read client identity from the per-request `_meta` envelope.
+ *
+ * The SDK lifts the reserved `io.modelcontextprotocol/*` keys onto
+ * `ctx.mcpReq.envelope`, but types that envelope as an empty shape, so the key
+ * is read by name and narrowed here rather than by the compiler.
+ */
+export function readEnvelopeClientInfo(extra: unknown): Implementation | undefined {
+  if (extra == null || typeof extra !== 'object') {
+    return undefined;
+  }
+  const mcpReq = (extra as { mcpReq?: unknown }).mcpReq;
+  if (mcpReq == null || typeof mcpReq !== 'object') {
+    return undefined;
+  }
+  const envelope = (mcpReq as { envelope?: unknown }).envelope;
+  if (envelope == null || typeof envelope !== 'object') {
+    return undefined;
+  }
+  const info = (envelope as Record<string, unknown>)[CLIENT_INFO_META_KEY];
+  if (info == null || typeof info !== 'object') {
+    return undefined;
+  }
+  const { name, version } = info as { name?: unknown; version?: unknown };
+  if (typeof name !== 'string') {
+    return undefined;
+  }
+  return {
+    name,
+    ...(typeof version === 'string' ? { version } : {}),
+  } as Implementation;
+}
+
+/**
+ * MCP Tool Router
+ *
+ * Manages 3 intelligent consolidated tools: prompt_engine, system_control, resource_manager
+ */
+export class McpToolRouter {
+  private logger: Logger;
+  private mcpServer: McpServer;
+  private promptManager: PromptAssetManager;
+  private configManager: ConfigManager;
+
+  // Consolidated tools (5 core tools)
+  private promptExecutor!: PromptExecutor;
+  private promptResourceHandler!: PromptResourceHandler;
+  private systemControl!: ConsolidatedSystemControl;
+  private gateManagerTool!: GateToolHandler;
+  private categoryManagerTool!: CategoryToolHandler;
+  private frameworkManagerTool!: FrameworkToolHandler;
+  /** Database port received before `frameworkManagerTool` existed; applied at its construction. */
+  private pendingDatabasePort?: {
+    db: import('#shared/types/persistence.js').DatabasePort;
+    scope?: import('#shared/types/persistence.js').StateStoreOptions;
+  };
+  private resourceManagerRouter?: ResourceManagerRouter;
+  // Core tools: prompt engine, prompt resources, system control, gate manager, framework manager, resource manager
+
+  // Shared components
+  private frameworkStateStore?: FrameworkStateStore;
+  private frameworkManager?: FrameworkManager;
+  // ChainSessionStore is owned by PromptExecutor, accessed via getter
+  // REMOVED: chainOrchestrator - modular chain system removed
+  private textReferenceStore: TextReferenceStore;
+  private toolDescriptionLoader?: ToolDescriptionLoader;
+  private gateStateStore?: GateStateStore;
+  private gateManager: GateManager;
+  private analyticsService!: MetricsCollector;
+  // Removed executionCoordinator - chains now use LLM-driven execution model
+
+  // Callback references
+  private onRestart!: (reason: string) => Promise<void>;
+
+  /**
+   * How every resource tool's version history finds the files it records (owner ruling R65).
+   *
+   * Set in `initialize` and read again in `setFrameworkManager`, which builds the fourth handler
+   * later — the three built in `initialize` could take it as a local, the framework one cannot.
+   */
+  private resourceFileLocator?: ResourceFileLocatorPort;
+  private toolsChangedNotifier?: () => Promise<void>;
+  /**
+   * Handle to the registered `prompt_engine`, kept only for the STDIO reshape.
+   *
+   * On the HTTP path this is overwritten by every per-request registration and
+   * is never the one a later reshape would want — which is harmless, because
+   * that path rebuilds from state per request and never calls `update()`.
+   */
+  private promptEngineTool?: ReturnType<McpServer['registerTool']>;
+  /** Handles to the other two tools, kept for the same STDIO reshape and overwritten the same way. */
+  private systemControlTool?: ReturnType<McpServer['registerTool']>;
+  private resourceManagerTool?: ReturnType<McpServer['registerTool']>;
+  /**
+   * The workspace this serving unit was built for, or undefined for the
+   * process default. Gate state is workspace-scoped, so the surface has to be
+   * read for the same workspace whose toggle would change it.
+   */
+  private servingUnitScope?: StateStoreOptions;
+
+  constructor(
+    logger: Logger,
+    mcpServer: McpServer,
+    promptManager: PromptAssetManager,
+    configManager: ConfigManager,
+    textReferenceStore: TextReferenceStore,
+    gateManager: GateManager
+  ) {
+    this.logger = logger;
+    this.mcpServer = mcpServer;
+    this.promptManager = promptManager;
+    this.configManager = configManager;
+    this.textReferenceStore = textReferenceStore;
+    this.gateManager = gateManager;
+  }
+
+  /**
+   * Initialize the MCP tools with async configuration
+   */
+  async initialize(
+    onRefresh: () => Promise<void>,
+    onRestart: (reason: string) => Promise<void>,
+    metricsCollector: MetricsCollector,
+    // Undefined only when the composition root opened no database; `setDatabasePort` still wires
+    // the remaining handlers afterwards.
+    databasePort?: import('#shared/types/persistence.js').DatabasePort,
+    // How every resource tool's `VersionHistoryService` finds the files it checkpoints (R65).
+    // Held on the instance because the framework tool is built later, in `setFrameworkManager`,
+    // and a locator supplied only here would reach three of the four handlers.
+    resourceFileLocator?: ResourceFileLocatorPort
+  ): Promise<void> {
+    // Store callback references
+    this.onRestart = onRestart;
+    this.resourceFileLocator = resourceFileLocator;
+
+    this.analyticsService = metricsCollector;
+
+    // Initialize gate system manager for runtime gate control
+    // The launch workspace is the key a toggle with no identity is written under, so it is the
+    // scope a pre-isolation `default` row is adopted into (see `GateStateStore`).
+    const launchWorkspaceId = this.configManager.getConfig().identity.launchDefaults.workspaceId;
+    const stateDbPath = this.configManager.getStateDatabasePath();
+    this.gateStateStore = createGateStateStore(this.logger, stateDbPath, {
+      ...(launchWorkspaceId != null ? { defaultScope: { workspaceId: launchWorkspaceId } } : {}),
+    });
+    await this.gateStateStore.initialize();
+
+    // Initialize consolidated tools
+    // Note: ChainSessionStore is created inside PromptExecutor and exposed via getter
+    this.promptExecutor = createPromptExecutor(
+      this.logger,
+      this.promptManager,
+      this.configManager,
+      this.textReferenceStore,
+      this.gateManager,
+      this, // Pass manager reference for analytics data flow
+      undefined, // promptGuidanceService
+      // The chain session store is built inside the executor's constructor, so its port has to
+      // arrive here rather than through the later `setDatabasePort` cascade.
+      databasePort
+    );
+
+    // Set gate system manager in prompt engine
+    this.promptExecutor.setGateStateStore(this.gateStateStore);
+
+    this.promptResourceHandler = createPromptResourceHandler(
+      this.logger,
+      this.configManager,
+      this.frameworkStateStore,
+      this.frameworkManager,
+      onRefresh,
+      onRestart,
+      this.resourceFileLocator,
+      (gateId) => this.gateManager.has(gateId)
+    );
+
+    // The loader's quarantine, bound by REFERENCE. Every later load writes through this same
+    // object, so `list`, `inspect` and the repair path in `update` see the current set without
+    // anything re-passing it. Wired here because this is the one place that holds both the
+    // prompt manager and the resource handler.
+    this.promptResourceHandler.setQuarantine(this.promptManager.getQuarantine());
+
+    // Initialize 5 core consolidated tools
+
+    this.systemControl = createConsolidatedSystemControl(this.logger, onRestart);
+
+    // Set managers in system control
+    this.systemControl.setGateStateStore(this.gateStateStore);
+    // ChainSessionStore is owned by promptExecutor (definite at this point)
+    this.systemControl.setChainSessionStore(this.promptExecutor.getChainSessionStore());
+    this.systemControl.setGateGuidanceRenderer(this.promptExecutor.getGateGuidanceRenderer());
+
+    // Initialize gate manager tool
+    this.gateManagerTool = createGateToolHandler({
+      logger: this.logger,
+      gateManager: this.gateManager,
+      configManager: this.configManager,
+      onRefresh,
+      resourceFileLocator: this.resourceFileLocator,
+    });
+
+    // Initialize category manager tool. Constructed HERE rather than beside the framework tool
+    // because it needs nothing the framework manager provides — and `onRefresh` is the whole of
+    // its registration route, so the earliest construction point is the correct one.
+    this.categoryManagerTool = createCategoryToolHandler({
+      logger: this.logger,
+      configManager: this.configManager,
+      onRefresh,
+      resourceFileLocator: this.resourceFileLocator,
+    });
+
+    // Initialize framework manager tool (framework manager set later via setFrameworkManager)
+    // Note: frameworkManager is not yet available at this point, will be set in setFrameworkManager
+
+    // chainScaffolder removed - functionality consolidated into promptEngine
+
+    this.logger.info(
+      'McpToolRouter initialized with 5 intelligent tools (chain management in prompt_engine)'
+    );
+  }
+
+  /**
+   * Set framework state manager (called after initialization)
+   */
+  setFrameworkStateStore(frameworkStateStore: FrameworkStateStore): void {
+    this.frameworkStateStore = frameworkStateStore;
+    this.promptExecutor.setFrameworkStateStore(frameworkStateStore);
+    this.systemControl.setFrameworkStateStore(frameworkStateStore);
+    this.promptResourceHandler.setFrameworkStateStore(frameworkStateStore);
+    // FIXED: Synchronize Framework Manager with Framework State Manager to prevent injection duplication
+    if (this.frameworkManager != null) {
+      this.frameworkManager.setFrameworkStateStore(frameworkStateStore);
+    }
+    // Set on framework manager tool if already initialized
+    if (this.frameworkManagerTool != null) {
+      this.frameworkManagerTool.setFrameworkStateStore(frameworkStateStore);
+    }
+    // Core tools handle framework state integration
+  }
+
+  /**
+   * Set tool description manager (called after initialization)
+   */
+  setToolDescriptionLoader(manager: ToolDescriptionLoader): void {
+    this.toolDescriptionLoader = manager;
+
+    this.promptExecutor.setToolDescriptionLoader(manager);
+    this.promptExecutor.setAnalyticsService(this.analyticsService);
+    // prompt resource service and system_control do not consume tool descriptions
+    this.systemControl.setAnalyticsService(this.analyticsService);
+    // Core tools integrated with framework-aware descriptions
+
+    // Set up hot-reload event listeners
+    this.setupToolDescriptionHotReload(manager);
+
+    this.logger.info('Tool description manager set for all MCP tools with hot-reload support');
+  }
+
+  /**
+   * Set database port for persistence (cascades to all sub-handlers that need DB access).
+   */
+  setDatabasePort(
+    db: import('#shared/types/persistence.js').DatabasePort,
+    argHistoryStore?: import('#shared/types/persistence.js').StateStore<
+      import('#modules/text-refs/types.js').PersistedArgumentHistory
+    >,
+    // Version history is scoped from here rather than inside each handler: all three handlers
+    // share one VersionHistoryService shape, and the launch workspace is known only at the
+    // composition root that calls this.
+    scope?: import('#shared/types/persistence.js').StateStoreOptions
+  ): void {
+    this.promptExecutor.setDatabasePort(db, argHistoryStore);
+    this.promptResourceHandler.setDatabasePort(db, scope);
+    this.gateManagerTool.setDatabasePort(db, scope);
+    this.categoryManagerTool.setDatabasePort(db, scope);
+    // The framework tool does not exist yet at the composition root's call order —
+    // `module-initializer` calls this at :291 and `setFrameworkManager()` (which constructs the
+    // tool) at :308. The existence guard below therefore never fired, and framework versioning
+    // ran with no DatabasePort: the FIRST `framework update` threw
+    // "VersionHistoryService: DatabasePort not provided" and no framework could be updated at
+    // all. Retaining the port and applying it at construction mirrors the deferred wiring this
+    // class already does for `frameworkStateStore` a few methods down, and removes the ordering
+    // dependency rather than re-ordering two calls that could drift apart again.
+    this.pendingDatabasePort = { db, scope };
+    if (this.frameworkManagerTool) {
+      this.frameworkManagerTool.setDatabasePort(db, scope);
+    }
+
+    // Wired here, not alongside the other systemControl setters above: the executor
+    // creates its ExecutionRecordStore inside setDatabasePort, so reading it any earlier
+    // returns null and the execution_history action silently reports "not wired".
+    const executionRecordStore = this.promptExecutor.getExecutionRecordStore();
+    if (executionRecordStore !== null) {
+      this.systemControl.setExecutionRecordStore(executionRecordStore);
+    }
+
+    // skills_sync manifests are written only when a database is present. Wiring it
+    // here is what turns `export` from "writes skills, drops every manifest row"
+    // into an export that `diff` and `prune` can subsequently see.
+    this.systemControl.setDatabasePort(db);
+  }
+
+  /**
+   * Give `system_control`'s skills-sync handler the server's own path resolution, so a
+   * `--workspace` flag (or `MCP_WORKSPACE`) resolves the same sources and `skills-sync.yaml`
+   * a running server reads and writes elsewhere. Independent of `setDatabasePort`: path
+   * resolution does not need persistence, so this is wired regardless of whether a database
+   * is configured for this run.
+   */
+  setSkillsSyncPathsProvider(provider: () => SkillsSyncPaths): void {
+    this.systemControl.setSkillsSyncPathsProvider(provider);
+  }
+
+  /**
+   * Set hook registry for pipeline event emissions
+   */
+  setHookRegistry(hookRegistry: HookRegistryPort): void {
+    this.promptExecutor.setHookRegistry(hookRegistry);
+  }
+
+  /**
+   * Set notification emitter for MCP client notifications
+   */
+  setNotificationEmitter(emitter: McpNotificationEmitterPort): void {
+    this.promptExecutor.setNotificationEmitter(emitter);
+  }
+
+  /**
+   * Publish `tools/list` changes through the transport that is actually serving.
+   *
+   * Under protocol revision 2026-07-28 an unsolicited push is replaced by
+   * `subscriptions/listen`, and the publish side differs per transport: HTTP
+   * uses the handler's notifier, STDIO the instance `serveStdio` pinned. Only
+   * the runtime knows which is live, so it supplies the routing.
+   */
+  setToolsChangedNotifier(notifier: () => Promise<void>): void {
+    this.toolsChangedNotifier = notifier;
+  }
+
+  /**
+   * Adopt the instance `serveStdio` pinned for this connection.
+   *
+   * The server handed to the constructor is built before any transport exists
+   * and, on the STDIO path, is never the one that ends up connected — the
+   * factory builds a fresh instance and `serveStdio` pins that. Reads that must
+   * reflect the live connection, such as the 2025-era client handshake behind
+   * {@link getDetectedClientInfo}, would otherwise consult a dead object.
+   */
+  setPinnedServer(server: McpServer): void {
+    this.mcpServer = server;
+  }
+
+  /**
+   * Read the runtime state the `prompt_engine` parameter shape depends on.
+   *
+   * `GateStateStore.isGateSystemEnabled(scope)` is the runtime master switch. With it
+   * off, `LightweightGateSystem.isGateSystemEnabled()` reports false, and the three things
+   * that read it stop: shell verification refuses to run, the gate-enhancement stage selects
+   * no gates and renders no guidance for the request's scope (P6.292), and the three gate
+   * parameters are withheld here.
+   *
+   * The stage also honors the separate `gates.enabled` config value, which
+   * `system_control gates disable` reaches only with `persist: true`. Either switch being off
+   * skips gate enhancement. An earlier revision of this comment claimed guidance and
+   * validation were short-circuited while naming a `GateService.getGuidanceText`/
+   * `validateContent` pair that no longer exists; the claim now names the stage that does it.
+   *
+   * The adjacent `gatesConfig.enableFrameworkGates` switch is deliberately not
+   * consulted. It vetoes only the `framework-guide` rank — gates the server
+   * loads from the active framework — and leaves client-supplied gates fully
+   * functional, so reading it here would withdraw a parameter that still works.
+   *
+   * Read from the state store, which is the same source `LightweightGateSystem`
+   * consults. `GateManager` is deliberately not asked: it carried a `stateManager`
+   * field that nothing in `src/` ever wrote, so its check fell through to "no state
+   * manager, assume enabled" and reported `true` however the switch was set. A surface
+   * built on it would never have narrowed. The field and the check were deleted.
+   *
+   * Read for {@link servingUnitScope}, the workspace this instance serves.
+   * Reading unscoped would resolve to the process default while a client's
+   * toggle wrote to its own workspace row, so the surface would never narrow
+   * for that client — and a toggle of the default row would reshape everyone's.
+   *
+   * Absent store means enabled, matching the store-less default everywhere else.
+   */
+  private readToolSurfaceState(): ToolSurfaceState {
+    return {
+      gateSystemEnabled: this.gateStateStore?.isGateSystemEnabled(this.servingUnitScope) ?? true,
+    };
+  }
+
+  /**
+   * The tool's error response for an argument key its contract does not declare, or `null`.
+   *
+   * Stands here, at the registered callback, rather than inside each tool's router, because this
+   * is the only point on the `prompt_engine` path where an undeclared key still EXISTS: the
+   * handler below rebuilds its arguments through an explicit allowlist, so a key not named there
+   * is gone before any router sees it. `system_control` keeps its refusal beside it so one rule
+   * lives in one place. `resource_manager` is the exception and stays in its own router, because
+   * its second half — a declared key owned by another `resource_type` — is router knowledge
+   * (`resource-manager/core/parameter-ownership.ts`).
+   */
+  private refuseUndeclaredParameters(
+    tool: ContractToolName,
+    args: object,
+    gateSystemEnabled?: boolean
+  ): { content: { type: 'text'; text: string }[]; isError: true } | null {
+    const refusal =
+      tool === 'prompt_engine'
+        ? describePromptEngineParameterRefusal(args, gateSystemEnabled ?? true)
+        : describeUndeclaredParameterRefusal(tool, args);
+    if (refusal === null) return null;
+    this.logger.warn(`${tool} refused undeclared parameter(s): ${refusal.split('\n')[0] ?? ''}`);
+    return { content: [{ type: 'text', text: `❌ ${refusal}` }], isError: true };
+  }
+
+  /** The framework state every tool description and parameter description is composed from. */
+  private readFrameworkDescriptionState(scope: StateStoreOptions | undefined): {
+    frameworkEnabled: boolean;
+    activeFrameworkType: string | undefined;
+  } {
+    const activeFramework = this.frameworkStateStore?.getActiveFramework(scope);
+    return {
+      frameworkEnabled: this.frameworkStateStore?.isFrameworkSystemEnabled(scope) ?? false,
+      activeFrameworkType: activeFramework?.type ?? activeFramework?.id,
+    };
+  }
+
+  /**
+   * Build the `prompt_engine` input schema from current runtime state.
+   *
+   * Shared by registration and by the STDIO reshape, so both read the same
+   * state through the same path. Framework state is read here rather than
+   * captured by the caller because the reshape happens *after* a framework
+   * switch, when the values the caller once held are stale.
+   */
+  // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+  private buildPromptEngineSurface(scope: StateStoreOptions | undefined) {
+    const { frameworkEnabled, activeFrameworkType } = this.readFrameworkDescriptionState(scope);
+
+    const describe: DescriptionResolver = (paramName, fallback) =>
+      this.toolDescriptionLoader?.getParameterDescription(
+        'prompt_engine',
+        paramName,
+        frameworkEnabled,
+        activeFrameworkType,
+        { applyFrameworkOverride: true }
+      ) ?? fallback;
+
+    return buildPromptEngineSchema({
+      describe,
+      state: this.readToolSurfaceState(),
+    });
+  }
+
+  /**
+   * One tool's description for the current framework state, which carries the active framework's
+   * guidance. Shared by registration and by the STDIO reshape for the same reason as
+   * {@link buildPromptEngineSurface}: a switch changes the text, and the long-lived STDIO instance
+   * shows a connected client whatever it was last given.
+   */
+  private describeTool(toolName: string, scope: StateStoreOptions | undefined): string {
+    const { frameworkEnabled, activeFrameworkType } = this.readFrameworkDescriptionState(scope);
+    return (
+      this.toolDescriptionLoader?.getDescription(toolName, frameworkEnabled, activeFrameworkType, {
+        applyFrameworkOverride: true,
+      }) ?? ''
+    );
+  }
+
+  /** The `system_control` input schema, whose parameter descriptions follow the framework too. */
+  // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+  private buildSystemControlSurface(scope: StateStoreOptions | undefined) {
+    const { frameworkEnabled, activeFrameworkType } = this.readFrameworkDescriptionState(scope);
+    return buildSystemControlSchema(
+      (paramName: string, fallback: string) =>
+        this.toolDescriptionLoader?.getParameterDescription(
+          'system_control',
+          paramName,
+          frameworkEnabled,
+          activeFrameworkType,
+          { applyFrameworkOverride: true }
+        ) ?? fallback
+    );
+  }
+
+  /**
+   * Read client info for the request being handled.
+   *
+   * Two eras, in priority order. Revision 2026-07-28 removed the `initialize`
+   * handshake and moved identity into a per-request `_meta` envelope, so that
+   * is read first. A 2025-era STDIO client has no envelope, and for it the
+   * handshake value captured on the connected instance still applies.
+   *
+   * The envelope is not merely the newer source — it is the only correct one
+   * over HTTP. Each request there is served by its own `McpServer`, so
+   * `this.mcpServer` is the STDIO instance and holds no handshake for it.
+   */
+  private getDetectedClientInfo(extra: unknown): { name: string; version?: string } | undefined {
+    try {
+      const impl = readEnvelopeClientInfo(extra) ?? readClientVersion(this.mcpServer);
+      // `name` is typed as a required string, but it arrives off the wire — an
+      // empty one is still possible and is treated as "no client detected".
+      const name = impl?.name.trim();
+      if (name == null || name.length === 0) {
+        return undefined;
+      }
+      return { name, version: impl?.version };
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Enrich the MCP SDK extra with a normalized `clientInfo`.
+   *
+   * The SDK surfaces client identity on `mcpReq.envelope` under a reserved
+   * namespaced key rather than as `clientInfo`, so downstream consumers get a
+   * flat, era-independent shape injected here.
+   */
+  private enrichExtraWithClientInfo(extra: unknown): unknown {
+    const detected = this.getDetectedClientInfo(extra);
+    if (detected == null) {
+      return extra;
+    }
+
+    const base = extra != null && typeof extra === 'object' ? extra : {};
+    // Don't overwrite if clientInfo already present (e.g. from a future SDK version)
+    if ('clientInfo' in base && (base as Record<string, unknown>)['clientInfo'] != null) {
+      return extra;
+    }
+
+    return { ...base, clientInfo: detected };
+  }
+
+  /**
+   * Setup hot-reload event listeners for tool descriptions
+   */
+  private setupToolDescriptionHotReload(manager: ToolDescriptionLoader): void {
+    // Listen for description changes
+    manager.on('descriptions-changed', (stats) => {
+      this.logger.info(
+        `🔥 Tool descriptions hot-reloaded: ${stats.totalDescriptions} descriptions loaded`
+      );
+      this.handleToolDescriptionChange(stats);
+    });
+
+    // Listen for reload errors
+    manager.on('descriptions-error', (error) => {
+      this.logger.error(
+        `❌ Tool description reload failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    });
+  }
+
+  /**
+   * Handle tool description changes
+   */
+  private async handleToolDescriptionChange(stats: any): Promise<void> {
+    try {
+      this.logger.info('🔄 Processing tool description changes...');
+
+      // A framework switch or toggle redraws the registered tools itself
+      // (reregisterToolsWithUpdatedDescriptions); this listener only reports the reload.
+      this.logger.info('✅ Tool descriptions reloaded');
+      this.logger.info(
+        `📊 Stats: ${stats.totalDescriptions} total, using ${
+          stats.usingDefaults > 0 ? 'defaults' : 'external config'
+        }`
+      );
+
+      // Check if restart is configured for tool description changes
+      const restartOnChange =
+        this.configManager.getConfig().toolDescriptions?.restartOnChange ?? false;
+
+      if (restartOnChange) {
+        this.logger.info(
+          '🚨 Restart on tool description change is enabled - initiating server restart...'
+        );
+        // Use the existing restart mechanism
+        await this.onRestart(
+          'Tool descriptions updated - restart required for clients to see new descriptions'
+        );
+      } else {
+        this.logger.info(
+          "💡 Tip: New tool descriptions will be used for new client connections. For immediate effect, restart the server manually or enable 'restartOnChange' in config."
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to handle tool description change: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  /**
+   * Adopt the framework manager the framework state store built (call setFrameworkStateStore first).
+   *
+   * One manager serves the tools and the state store: `resource_manager` and hot reload change the
+   * frameworks it holds, and the state store resolves the active framework against that same set.
+   * A manager of the router's own would hold frameworks the state store cannot resolve.
+   */
+  setFrameworkManager(): void {
+    if (this.frameworkManager == null) {
+      const frameworkManager = this.frameworkStateStore?.getFrameworkManager();
+      if (frameworkManager == null) {
+        throw new Error(
+          'setFrameworkManager() needs an initialized framework state store: call setFrameworkStateStore() first'
+        );
+      }
+      this.frameworkManager = frameworkManager;
+
+      this.promptExecutor.setFrameworkManager(this.frameworkManager);
+      this.systemControl.setFrameworkManager(this.frameworkManager);
+      this.promptResourceHandler.setFrameworkManager(this.frameworkManager);
+
+      // Initialize framework manager tool now that frameworkManager is available
+      const frameworkManagerDeps: FrameworkManagerDependencies = {
+        logger: this.logger,
+        frameworkManager: this.frameworkManager,
+        configManager: this.configManager,
+        onRefresh: async () => {
+          // Trigger reload via the onRestart mechanism (full refresh)
+          this.logger.debug('Framework manager triggered refresh');
+        },
+        onToolsUpdate: async () => {
+          // Re-register tools with updated descriptions
+          await this.reregisterToolsWithUpdatedDescriptions();
+        },
+        resourceFileLocator: this.resourceFileLocator,
+      };
+
+      if (this.frameworkStateStore != null) {
+        frameworkManagerDeps.frameworkStateStore = this.frameworkStateStore;
+      }
+
+      this.frameworkManagerTool = createFrameworkToolHandler(frameworkManagerDeps);
+
+      // Apply a database port that arrived before this tool existed. Without this the tool's
+      // VersionHistoryService has no port and every `framework update` throws.
+      if (this.pendingDatabasePort !== undefined) {
+        this.frameworkManagerTool.setDatabasePort(
+          this.pendingDatabasePort.db,
+          this.pendingDatabasePort.scope
+        );
+      }
+
+      // Initialize unified resource manager router (routes to prompt/gate/framework managers)
+      this.resourceManagerRouter = createResourceManagerRouter({
+        logger: this.logger,
+        promptResourceHandler: this.promptResourceHandler,
+        gateManager: this.gateManagerTool,
+        frameworkManager: this.frameworkManagerTool,
+        categoryManager: this.categoryManagerTool,
+      });
+      this.logger.debug('ResourceManagerRouter initialized for unified resource management');
+
+      // Core tools integrated with framework management
+
+      // Set ConfigManager for system control config operations
+      this.systemControl.setConfigManager(this.configManager);
+
+      // Toggling the gate system changes which parameters `prompt_engine`
+      // advertises, so it refreshes the surface exactly as a framework switch does.
+      this.systemControl.setToolSurfaceChangedHandler(async () => {
+        await this.reregisterToolsWithUpdatedDescriptions();
+      });
+
+      // Enhanced tool delegation removed (.2)
+      // Using core tools directly without delegation patterns
+
+      // REMOVED: ChainOrchestrator initialization - modular chain system removed
+
+      this.logger.info('Framework manager integrated with MCP tools (shared with framework state)');
+    }
+  }
+
+  /**
+   * Expose the framework manager for runtime integrations (e.g., framework hot reload).
+   */
+  getFrameworkManager(): FrameworkManager | undefined {
+    return this.frameworkManager;
+  }
+
+  /**
+   * Get chain session manager for MCP resource access.
+   * Delegates to PromptExecutor which owns the canonical instance.
+   */
+  getChainSessionStore(): ChainSessionStore | undefined {
+    return this.promptExecutor.getChainSessionStore() as ChainSessionStore | undefined;
+  }
+
+  /**
+   * Resolve the style manager the pipeline renders `#style` guidance from, for runtime
+   * integrations that need a wired instance (e.g. style hot reload). Delegates to
+   * PromptExecutor, which owns the canonical instance and loads it in the background, so this
+   * is async rather than a synchronous `getX()` like `getFrameworkManager()` above.
+   */
+  async resolveStyleManager(): Promise<StyleManager | undefined> {
+    return this.promptExecutor.resolveStyleManager();
+  }
+
+  /**
+   * Clear the script-tool cache the pipeline currently resolves `{{script:id}}` against.
+   * Delegates to PromptExecutor, which owns the canonical `WorkspaceScriptLoader` instance —
+   * runtime integrations that watch the workspace scripts folder call this, the same shape
+   * `resolveStyleManager()` above gives style hot reload.
+   */
+  clearScriptToolCache(): void {
+    this.promptExecutor.clearScriptToolCache();
+  }
+
+  /**
+   * Get metrics collector for MCP resource access.
+   */
+  getMetricsCollector(): MetricsCollector {
+    return this.analyticsService;
+  }
+
+  /**
+   * Get resource manager handler for auto-execute functionality.
+   *
+   * Returns a function that runs a `resource_manager` action internally, for a caller that never
+   * crosses the MCP boundary — today, a script tool's `auto_execute` block (stage 09).
+   *
+   * It validates through `resourceManagerInputSchema` FIRST, because that is the one thing the
+   * registered path gets for free and this one did not: the SDK parses `arguments` against the
+   * registered schema and hands the handler the result, so a registered call reaching the router
+   * has had its types, enums and shapes checked. This path used to pass the script's object
+   * through `as any`. Measured 2026-09-20: `{resource_type:"prompt", action:"list", limit:
+   * "not-a-number"}` from a script reached the router untyped, where the same call over MCP is
+   * rejected. One `safeParse` is the whole reuse — the schema is the SSOT for both paths, so
+   * there is no second validator to keep in step.
+   *
+   * A failure is returned as an error `ToolResponse` rather than thrown, so it travels the same
+   * channel every other router refusal does and stage 09 fails the step on it.
+   */
+  getResourceManagerHandler():
+    | ((
+        args: Record<string, unknown>,
+        context: Record<string, unknown>
+      ) => Promise<import('#shared/types/index.js').ToolResponse>)
+    | null {
+    const router = this.resourceManagerRouter;
+    if (router == null) {
+      return null;
+    }
+    return async (args, context) => {
+      const parsed = resourceManagerInputSchema.safeParse(args);
+      if (!parsed.success) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text:
+                `resource_manager rejected these parameters: ` +
+                parsed.error.issues
+                  .map((issue) => {
+                    const where = issue.path.join('.');
+                    return `${where.length > 0 ? where : '(root)'}: ${issue.message}`;
+                  })
+                  .join('; '),
+            },
+          ],
+          isError: true,
+        };
+      }
+      return router.handleAction(parsed.data, context);
+    };
+  }
+
+  // REMOVED: wireExecutionCoordinator - ExecutionCoordinator removed
+
+  /**
+   * Register all consolidated MCP tools with the server (centralized registration)
+   */
+  /**
+   * Bind the three consolidated tools onto `target`.
+   *
+   * The server is a parameter rather than `this.mcpServer` because protocol
+   * revision 2026-07-28 serves each HTTP request from a freshly constructed
+   * `McpServer` (`McpServerFactory`), while the STDIO path keeps one instance
+   * for the life of the connection. The handlers close over this router's
+   * singletons either way, so only the registration target varies.
+   */
+  async registerAllTools(target: McpServer, scope?: StateStoreOptions): Promise<void> {
+    // Held for the STDIO reshape, which happens long after this returns and has
+    // no context of its own. STDIO serves one workspace per process, so the
+    // value it records is the default scope — which is the correct one there.
+    this.servingUnitScope = scope;
+    this.logger.info('Registering consolidated MCP tools with server (centralized)...');
+
+    // The serving unit's own framework state: a workspace header's selection, not the launch one.
+    const frameworkEnabled = this.frameworkStateStore?.isFrameworkSystemEnabled(scope) ?? false;
+    const activeFramework = this.frameworkStateStore?.getActiveFramework(scope);
+    const activeFrameworkType = activeFramework?.type ?? activeFramework?.id;
+
+    this.logger.info(`🔧 Registering tools with framework-aware descriptions:`);
+    this.logger.info(`   Framework enabled: ${frameworkEnabled}`);
+    this.logger.info(`   Active framework: ${activeFramework?.id ?? 'none'}`);
+    this.logger.info(`   Active framework: ${activeFrameworkType ?? 'none'}`);
+    this.logger.info(
+      `   Tool description manager: ${
+        this.toolDescriptionLoader != null ? 'available' : 'not available'
+      }`
+    );
+
+    // Register prompt_engine tool
+    try {
+      // Get dynamic description based on current framework state
+      // Description loaded from tool-descriptions.contracts.json via ToolDescriptionLoader
+      const promptEngineDescription = this.describeTool('prompt_engine', scope);
+
+      // Log which description source is being used for transparency
+      if (this.toolDescriptionLoader != null) {
+        this.logger.info(
+          `   prompt_engine: Using ToolDescriptionLoader (framework: ${frameworkEnabled}, framework: ${activeFrameworkType})`
+        );
+      } else {
+        this.logger.info(
+          `   prompt_engine: Using fallback description (ToolDescriptionLoader not available)`
+        );
+      }
+
+      const promptEngineSchema = this.buildPromptEngineSurface(scope);
+
+      this.promptEngineTool = target.registerTool(
+        'prompt_engine',
+        {
+          title: 'Prompt Engine',
+          description: promptEngineDescription,
+          inputSchema: promptEngineSchema,
+          // Executing a prompt advances chain state and may run script tools, so it is neither
+          // read-only nor safe to replay: the same call twice advances the chain twice.
+          // `destructiveHint` is deliberately false — it mutates run state, it does not remove
+          // operator-authored resources.
+          annotations: {
+            readOnlyHint: false,
+            destructiveHint: false,
+            idempotentHint: false,
+            openWorldHint: false,
+          },
+        },
+        withRequestNotifications(async (args: PromptEngineInput, extra: unknown) => {
+          try {
+            // Ahead of the allowlist below, which is where an undeclared key would otherwise
+            // vanish. `gates` and `gate_verdict` are withdrawn from the advertised surface while
+            // gates are off, so it gets the "not advertised right now" message, never "not a
+            // parameter" — the contract names it (CLAUDE.md §Public API Contract).
+            const undeclared = this.refuseUndeclaredParameters(
+              'prompt_engine',
+              args,
+              this.readToolSurfaceState().gateSystemEnabled
+            );
+            if (undeclared !== null) return undeclared;
+
+            // Trim strings while preserving supplied response presence, including canonical empty text.
+            const trimmedCommand = args.command?.trim();
+            const trimmedChainId = args.chain_id?.trim();
+            const trimmedUserResponse = args.user_response?.trim();
+            const trimmedGateAction = args.gate_action?.trim();
+
+            const extraPayload = trimmedUserResponse
+              ? { previous_step_output: trimmedUserResponse }
+              : undefined;
+            const requestExtras = extraPayload != null ? { extra: extraPayload } : {};
+
+            // Keep empty response text distinct from omission; other optional strings remain non-empty.
+            const normalizedArgs: Parameters<PromptExecutor['executePromptCommand']>[0] = {
+              ...(trimmedCommand ? { command: trimmedCommand } : {}),
+              ...(trimmedChainId ? { chain_id: trimmedChainId } : {}),
+              ...(args.user_response !== undefined ? { user_response: trimmedUserResponse } : {}),
+              ...(args.gate_verdict ? { gate_verdict: args.gate_verdict } : {}),
+              ...(trimmedGateAction
+                ? {
+                    gate_action: trimmedGateAction as NonNullable<
+                      Parameters<PromptExecutor['executePromptCommand']>[0]['gate_action']
+                    >,
+                  }
+                : {}),
+              ...(args.force_restart !== undefined ? { force_restart: args.force_restart } : {}),
+              // This object is an explicit ALLOWLIST, not a spread — a parameter absent here is
+              // dropped between the validated schema and the executor, and typechecks cleanly at
+              // every layer while being structurally dead on the wire. That has now happened
+              // three times in this area (`version_description`, `dry_run` on the gate and
+              // framework routes, and this). Verified live, not by unit test: only a real
+              // tools/call can show whether the value arrives. Re-measured 2026-08-30: four
+              // recorded instances precede `remainder` below, which makes it the fifth.
+              // Fourth instance (2026-08-21): `handoff`/`claim_token` typechecked end-to-end and
+              // were dead on the wire until the two-server live drive showed `handoff:true`
+              // rendering the prompt instead of minting. Same allowlist, same lesson.
+              ...(args.handoff !== undefined ? { handoff: args.handoff } : {}),
+              ...(args.claim_token?.trim() ? { claim_token: args.claim_token.trim() } : {}),
+              ...(args.options != null ? { options: args.options } : {}),
+              ...(args.inputs != null ? { inputs: args.inputs } : {}),
+              ...(args.observations != null ? { observations: args.observations } : {}),
+              // Fifth instance (2026-08-30): `remainder`. Entered here in the SAME tier that
+              // declared the parameter, before any consumer exists, precisely because the four
+              // above were each forgotten until something downstream mysteriously did nothing.
+              // UNPROVEN as of this commit: nothing reads it yet, so no live drive can show it
+              // arriving. The proof is row 4.5's `verify-unknown-interrupt.mjs`, not this line
+              // and not the green suite — a unit test calls the executor directly and therefore
+              // cannot observe this object at all.
+              ...(args.remainder != null ? { remainder: args.remainder } : {}),
+              // Passed through unchanged. Unlike `gates` below there is nothing to normalize:
+              // `workflowIRSchema` is `.strict()` at every level, so a parsed workflow carries
+              // exactly the declared keys and no unknown ones survived to be filtered here.
+              ...(args.workflow != null ? { workflow: args.workflow } : {}),
+            };
+
+            if (args.gates != null) {
+              // One entry out per entry in: a gate this cannot use is still passed on, so stage 11
+              // refuses it by position rather than the run starting without it (R11.8).
+              const normalizedGates = args.gates.map((gate): GateSpecification => {
+                if (typeof gate === 'string') {
+                  return gate;
+                }
+
+                // A `{name, description}` quick gate is exactly that shape, read by the tool's
+                // strict schema: a full definition carrying `name` and `description` beside an
+                // `id` or `criteria` is not one, and keeps every key below (P6.203). Trimmed
+                // when both fields carry text; a blank field is kept as sent, for the refusal
+                // to quote.
+                if (isQuickGate(gate)) {
+                  const trimmedName = gate.name.trim();
+                  const trimmedDescription = gate.description.trim();
+                  return trimmedName && trimmedDescription
+                    ? { name: trimmedName, description: trimmedDescription }
+                    : { name: gate.name, description: gate.description };
+                }
+
+                const normalized: Record<string, unknown> = {};
+                if (gate['id'] !== undefined) {
+                  normalized['id'] = gate['id'];
+                }
+                if (gate['name'] !== undefined) {
+                  normalized['name'] = gate['name'];
+                }
+                if (gate['description'] !== undefined) {
+                  normalized['description'] = gate['description'];
+                }
+                if (gate['criteria'] !== undefined) {
+                  normalized['criteria'] = gate['criteria'];
+                }
+                if (gate['pass_criteria'] !== undefined) {
+                  normalized['pass_criteria'] = gate['pass_criteria'];
+                }
+                if (gate['severity'] !== undefined) {
+                  normalized['severity'] = gate['severity'];
+                }
+                if (gate['type'] !== undefined) {
+                  normalized['type'] = gate['type'];
+                }
+                if (gate['scope'] !== undefined) {
+                  normalized['scope'] = gate['scope'];
+                }
+                if (gate['context'] !== undefined) {
+                  normalized['context'] = gate['context'];
+                }
+                if (gate['guidance'] !== undefined) {
+                  normalized['guidance'] = gate['guidance'];
+                }
+                if (gate['source'] !== undefined) {
+                  normalized['source'] = gate['source'];
+                }
+                if (gate['target_step_number'] !== undefined) {
+                  normalized['target_step_number'] = gate['target_step_number'];
+                }
+                if (gate['target_step_id'] !== undefined) {
+                  normalized['target_step_id'] = gate['target_step_id'];
+                }
+                if (gate['apply_to_steps'] !== undefined) {
+                  normalized['apply_to_steps'] = gate['apply_to_steps'];
+                }
+
+                return normalized;
+              });
+              normalizedArgs.gates = normalizedGates;
+            }
+
+            const toolResponse = await this.promptExecutor.executePromptCommand(normalizedArgs, {
+              ...requestExtras,
+              _sdkExtra: this.enrichExtraWithClientInfo(extra),
+            });
+
+            const structuredContent = deriveStructuredMessage(toolResponse);
+            return {
+              content: toolResponse.content,
+              isError: toolResponse.isError,
+              ...(structuredContent != null ? { structuredContent } : {}),
+            };
+          } catch (error) {
+            this.logger.error(
+              `prompt_engine error: ${error instanceof Error ? error.message : String(error)}`
+            );
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+        })
+      );
+      this.logger.debug('✅ prompt_engine tool registered successfully');
+    } catch (error) {
+      this.logger.error(
+        `❌ Failed to register prompt_engine tool: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      throw error;
+    }
+
+    // Register system_control tool
+    try {
+      // Description loaded from tool-descriptions.contracts.json via ToolDescriptionLoader
+      const systemControlDescription = this.describeTool('system_control', scope);
+
+      // Log which description source is being used for transparency
+      if (this.toolDescriptionLoader != null) {
+        this.logger.info(
+          `   system_control: Using ToolDescriptionLoader (framework: ${frameworkEnabled}, framework: ${activeFrameworkType})`
+        );
+      } else {
+        this.logger.info(
+          `   system_control: Using fallback description (ToolDescriptionLoader not available)`
+        );
+      }
+
+      // Build schema with framework-aware parameter descriptions
+      const systemControlSchema = this.buildSystemControlSurface(scope);
+
+      this.systemControlTool = target.registerTool(
+        'system_control',
+        {
+          title: 'System Control',
+          description: systemControlDescription,
+          inputSchema: systemControlSchema,
+          // Most actions read, but `session clear`, `config restore`, `analytics reset` and
+          // `maintenance restart` destroy state the operator cannot regenerate. The hint is set
+          // for the tool, so it reflects the most destructive action reachable through it.
+          annotations: {
+            readOnlyHint: false,
+            destructiveHint: true,
+            idempotentHint: false,
+            openWorldHint: false,
+          },
+        },
+        withRequestNotifications(async (args: SystemControlInput, extra: unknown) => {
+          try {
+            const undeclared = this.refuseUndeclaredParameters('system_control', args);
+            if (undeclared !== null) return undeclared;
+
+            const toolResponse = await this.systemControl.handleAction(
+              args,
+              this.enrichExtraWithClientInfo(extra)
+            );
+            const structuredContent = deriveStructuredMessage(toolResponse);
+            return {
+              content: toolResponse.content,
+              isError: toolResponse.isError,
+              ...(structuredContent != null ? { structuredContent } : {}),
+            };
+          } catch (error) {
+            this.logger.error(
+              `system_control error: ${error instanceof Error ? error.message : String(error)}`
+            );
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+        })
+      );
+      this.logger.debug('✅ system_control tool registered successfully');
+    } catch (error) {
+      this.logger.error(
+        `❌ Failed to register system_control tool: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      throw error;
+    }
+
+    // Register resource_manager tool (unified router for prompts, gates, frameworks)
+    try {
+      // Description loaded from tool-descriptions.contracts.json via ToolDescriptionLoader
+      const resourceManagerDescription = this.describeTool('resource_manager', scope);
+
+      this.resourceManagerTool = target.registerTool(
+        'resource_manager',
+        {
+          title: 'Resource Manager',
+          description: resourceManagerDescription,
+          // Hand-written schema. `.passthrough()` is deliberate: an undeclared key must reach
+          // the router, which refuses it by name (parameter-ownership.ts, R46).
+          inputSchema: resourceManagerInputSchema,
+          // `delete` and `rollback` overwrite or remove authored resources; deletion cannot be
+          // undone, since rollback cannot restore a deleted resource. Clients that surface
+          // destructive hints get a chance to involve the human, which is where the decision
+          // belongs — a `confirm` parameter only ever asks the model.
+          annotations: {
+            readOnlyHint: false,
+            destructiveHint: true,
+            idempotentHint: false,
+            openWorldHint: false,
+          },
+        },
+        withRequestNotifications(async (args: ResourceManagerInput, extra: unknown) => {
+          try {
+            const router = this.resourceManagerRouter;
+            if (router == null) {
+              return {
+                content: [{ type: 'text', text: 'Error: resource_manager not initialized' }],
+                isError: true,
+              };
+            }
+            // The schema is `.passthrough()`, so an undeclared key survives to the router, which
+            // refuses it by name before dispatch.
+            const toolResponse = await router.handleAction(
+              args,
+              (this.enrichExtraWithClientInfo(extra) ?? {}) as Record<string, unknown>
+            );
+            const structuredContent = deriveStructuredMessage(toolResponse);
+            return {
+              content: toolResponse.content,
+              isError: toolResponse.isError,
+              ...(structuredContent != null ? { structuredContent } : {}),
+            };
+          } catch (error) {
+            this.logger.error(
+              `resource_manager error: ${error instanceof Error ? error.message : String(error)}`
+            );
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+        })
+      );
+      this.logger.debug('✅ resource_manager tool registered successfully');
+    } catch (error) {
+      this.logger.error(
+        `❌ Failed to register resource_manager tool: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      throw error;
+    }
+
+    this.logger.info('🎉 MCP tools registered successfully!');
+    this.logger.info('📊 Core Tools: 3 registered MCP tools');
+    this.logger.info('🚀 Active Tools: prompt_engine, system_control, resource_manager');
+
+    // Log available tools for user reference
+    const toolSummary = [
+      'Available MCP Tools:',
+      '🎯 prompt_engine - Execute prompts with frameworks and gates',
+      '⚙️ system_control - System administration and status',
+      '📦 resource_manager - Unified CRUD for prompts, gates, and frameworks',
+    ].join('\n   ');
+
+    this.logger.info(toolSummary);
+  }
+
+  /**
+   * Refresh the advertised tool surface after a state change.
+   *
+   * The real constraint is instance lifetime, not SDK capability. An earlier
+   * comment here claimed the SDK cannot re-register a registered tool;
+   * `RegisteredTool.update({ paramsSchema })` has always existed, and the
+   * parameter *shape* is mutable through it, not only description text.
+   *
+   * What actually differs is how long a server instance lives:
+   *
+   * - HTTP builds a fresh instance per request from the factory, so it already
+   *   reflects current state by the time this runs. Mutating here would touch
+   *   an instance belonging to a finished request — which is why the schema is
+   *   a pure function of state rather than an accumulation of mutations.
+   * - STDIO keeps one instance for the connection, so it is the only path with
+   *   anything to reshape, and `update()` is how that happens.
+   *
+   * Either way the notification is what tells opted-in subscribers to re-list.
+   */
+  async reregisterToolsWithUpdatedDescriptions(): Promise<void> {
+    this.logger.info('🔄 Refreshing tool surface after state change...');
+
+    try {
+      // Sync tool description manager with new framework state
+      // The descriptions are fetched dynamically when clients request tool info
+      if (this.toolDescriptionLoader != null) {
+        await this.toolDescriptionLoader.reload();
+        this.logger.info('✅ Tool description manager synchronized');
+      }
+
+      // Reshape the long-lived STDIO instance. Rebuilt from current state, so
+      // it picks up both the new descriptions and any change to which
+      // parameters are reachable. Every tool's description carries the active
+      // framework's guidance, so all three are rewritten, not only the schema.
+      const scope = this.servingUnitScope;
+      if (this.promptEngineTool != null) {
+        this.promptEngineTool.update({
+          description: this.describeTool('prompt_engine', scope),
+          paramsSchema: this.buildPromptEngineSurface(scope),
+        });
+        this.logger.info('✅ prompt_engine description and input schema rebuilt for current state');
+      }
+      this.systemControlTool?.update({
+        description: this.describeTool('system_control', scope),
+        paramsSchema: this.buildSystemControlSurface(scope),
+      });
+      this.resourceManagerTool?.update({
+        description: this.describeTool('resource_manager', scope),
+      });
+
+      // Notify MCP clients that the tool list changed. The routing lives in the
+      // runtime, which is the only place that knows whether HTTP or STDIO is
+      // serving; this class holds no instance it could correctly push from.
+      if (this.toolsChangedNotifier == null) {
+        this.logger.warn('⚠️ No tool-list-changed notifier wired; clients will not be told');
+      } else {
+        await this.toolsChangedNotifier();
+        this.logger.info('✅ Sent tool list changed notification to MCP clients');
+      }
+
+      this.logger.info('🎉 Tool descriptions updated successfully for framework switch!');
+    } catch (error) {
+      this.logger.error(
+        `Failed to update tool descriptions: ${error instanceof Error ? error.message : String(error)}`
+      );
+      // Don't throw - framework switch should still succeed even if description update fails
+      this.logger.warn(
+        'Framework switch completed but tool descriptions may not reflect new framework'
+      );
+    }
+  }
+
+  /**
+   * Update internal data references
+   */
+  updateData(
+    promptsData: PromptData[],
+    convertedPrompts: ConvertedPrompt[],
+    categories: Category[]
+  ): void {
+    // Update all consolidated tools with new data
+    this.promptExecutor.updateData(promptsData, convertedPrompts);
+    this.promptResourceHandler.updateData(promptsData, convertedPrompts, categories);
+    // Core tools handle data updates directly
+  }
+
+  /**
+   * Shutdown all components and cleanup resources
+   */
+  shutdown(): void {
+    this.logger.info('🛑 Shutting down MCP tools manager...');
+
+    // Shutdown tool description manager and stop file watching
+    if (this.toolDescriptionLoader != null) {
+      this.toolDescriptionLoader.shutdown();
+      this.logger.info('✅ Tool description manager shut down');
+    }
+
+    this.logger.info('✅ MCP tools manager shutdown completed');
+  }
+}
+
+/**
+ * Create MCP tool router
+ */
+export async function createMcpToolRouter(
+  logger: Logger,
+  mcpServer: McpServer,
+  promptManager: PromptAssetManager,
+  configManager: ConfigManager,
+  textReferenceStore: TextReferenceStore,
+  onRefresh: () => Promise<void>,
+  onRestart: (reason: string) => Promise<void>,
+  gateManager: GateManager,
+  metricsCollector: MetricsCollector,
+  databasePort?: import('#shared/types/persistence.js').DatabasePort,
+  resourceFileLocator?: ResourceFileLocatorPort
+): Promise<McpToolRouter> {
+  const manager = new McpToolRouter(
+    logger,
+    mcpServer,
+    promptManager,
+    configManager,
+    textReferenceStore,
+    gateManager
+  );
+
+  await manager.initialize(
+    onRefresh,
+    onRestart,
+    metricsCollector,
+    databasePort,
+    resourceFileLocator
+  );
+  return manager;
+}
+
+// Legacy compatibility - export the consolidated manager as the old name
+export { McpToolRouter as McpToolsManager };
+export const createMcpToolsManager = createMcpToolRouter;

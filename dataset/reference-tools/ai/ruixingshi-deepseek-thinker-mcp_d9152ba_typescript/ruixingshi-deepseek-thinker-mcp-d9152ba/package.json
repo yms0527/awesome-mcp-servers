@@ -1,0 +1,40 @@
+{
+  "name": "deepseek-thinker-mcp",
+  "version": "1.0.2",
+  "description": "A MCP server for get deepseek COT",
+  "type": "module",
+  "bin": {
+    "deepseek-thinker-mcp": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x build/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "build"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "ollama": "^0.5.12",
+    "openai": "^4.83.0",
+    "os": "^0.1.2",
+    "path": "^0.12.7",
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mcp",
+    "deepseek",
+    "ollama",
+    "thinking",
+    "reasoning",
+    "cot"
+  ]
+}

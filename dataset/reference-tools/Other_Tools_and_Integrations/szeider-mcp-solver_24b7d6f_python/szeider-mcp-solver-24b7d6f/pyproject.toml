@@ -1,0 +1,99 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcp-solver"
+version = "4.1.0"
+description = "LLM-driven constraint solving (SAT, MaxSAT, SMT, CP, ASP) on top of agentic-python-coder"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Stefan Szeider", email = "stefan@szeider.net" },
+]
+requires-python = ">=3.13,<3.15"
+# The base package is the solver helper library only. It is installed into
+# ephemeral solve-time kernels via `uv run --with mcp-solver==<version>`,
+# so it must stay dependency-free. Solver packages (python-sat, z3-solver,
+# cpmpy, clingo) are likewise supplied at solve time via --with.
+dependencies = []
+
+[project.optional-dependencies]
+# The product layer: CLI, templates, (later) MCP server.
+agent = [
+    "agentic-python-coder>=3.4.3",
+    "python-dotenv>=1.0.0",
+    "mcp-minion>=0.2.1",
+    "mcp>=1.25,<2",
+]
+# Solver libraries needed to unit-test the helpers and run problem validators.
+test = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26",
+    "python-sat>=1.8.dev16",
+    "z3-solver>=4.14.1.0",
+    "cpmpy>=0.9.24",
+    "clingo>=5.8.0",
+    "didppy>=0.10.1,<0.11",
+]
+dev = [
+    "ruff>=0.4.10",
+]
+all = [
+    "mcp-solver[agent,test,dev]",
+]
+
+[project.scripts]
+mcp-solver-runfolder = "mcp_solver.agent.runfolder:main"
+mcp-solver = "mcp_solver.agent.cli:main"
+mcp-solver-bench = "mcp_solver.agent.harness:main"
+mcp-solver-serve = "mcp_solver.agent.mcp_server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcp_solver"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+fix = true
+# Untracked local scratch directories.
+exclude = [
+    "local",
+    "tmp",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # Pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "RUF", # Ruff-specific rules
+]
+ignore = [
+    "E501", # line length (formatter handles this)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+"__init__.py" = ["F401"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+# uv workspace: mcp-solver (root) plus the mcp-minion agent runner.
+[tool.uv.workspace]
+members = ["minion"]
+
+# Resolve the mcp-minion dependency (in the [agent] extra) to the workspace
+# member rather than PyPI for dev installs.
+[tool.uv.sources]
+mcp-minion = { workspace = true }

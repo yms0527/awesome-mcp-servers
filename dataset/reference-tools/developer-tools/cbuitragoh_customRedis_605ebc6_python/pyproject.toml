@@ -1,0 +1,14 @@
+[project]
+name = "customredis"
+version = "0.1.0"
+description = "A professional Redis server implementation with MCP (Model Control Protocol) integration"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "mcp[cli]>=1.6.0",
+    "python-dotenv>=1.0.0",
+    "redis>=5.2.1",
+]
+
+[project.scripts]
+customredis = "src.server:main"

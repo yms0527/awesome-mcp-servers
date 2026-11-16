@@ -1,0 +1,240 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"strings"
+
+	_ "github.com/joho/godotenv/autoload"
+	mcp "github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
+)
+
+// main is the entry point for the application.
+// It sets up the MCP server with the appropriate handlers and starts it.
+func main() {
+	// Define command-line flags for configuration override
+	deepseekModelFlag := flag.String("deepseek-model", "", "DeepSeek model name (overrides env var)")
+	deepseekSystemPromptFlag := flag.String("deepseek-system-prompt", "", "System prompt (overrides env var)")
+	deepseekTemperatureFlag := flag.Float64("deepseek-temperature", -1, "Temperature setting (0.0-1.0, overrides env var)")
+	deepseekAllowedFilePathsFlag := flag.String("deepseek-allowed-file-paths", "", "Comma-separated list of allowed file paths for file operations (overrides env var)")
+	logLevelFlag := flag.String("log-level", "", "Log level (debug, info, warn, error), overrides DEEPSEEK_LOG_LEVEL")
+	flag.Parse()
+
+	// Create configuration from environment variables
+	config, err := NewConfig()
+	if err != nil {
+		// If config fails, we can't create a logger from it, so use a default
+		logger := NewLogger("error")
+		ctx := context.WithValue(context.Background(), loggerKey, logger)
+		handleStartupError(ctx, err)
+		return
+	}
+
+	// Create application context with logger
+	logger := NewLogger(config.LogLevel)
+	ctx := context.WithValue(context.Background(), loggerKey, logger)
+
+	// Override with command-line flags if provided
+	// Model ID validation will happen after deepseekServer is initialized
+	if *deepseekModelFlag != "" {
+		logger.Info("Overriding DeepSeek model with flag value: %s", *deepseekModelFlag)
+		config.DeepseekModel = *deepseekModelFlag
+	}
+	if *deepseekSystemPromptFlag != "" {
+		logger.Info("Overriding DeepSeek system prompt with flag value")
+		config.DeepseekSystemPrompt = *deepseekSystemPromptFlag
+	}
+
+	// Override temperature if provided and valid
+	if *deepseekTemperatureFlag >= 0 {
+		// Validate temperature is within range
+		if *deepseekTemperatureFlag > 1.0 {
+			logger.Error("Invalid temperature value: %v. Must be between 0.0 and 1.0", *deepseekTemperatureFlag)
+			handleStartupError(ctx, fmt.Errorf("invalid temperature: %v", *deepseekTemperatureFlag))
+			return
+		}
+		logger.Info("Overriding DeepSeek temperature with flag value: %v", *deepseekTemperatureFlag)
+		config.DeepseekTemperature = float32(*deepseekTemperatureFlag)
+	}
+
+	// Override allowed file paths if provided
+	if *deepseekAllowedFilePathsFlag != "" {
+		paths := strings.Split(*deepseekAllowedFilePathsFlag, ",")
+		logger.Info("Overriding DeepSeek allowed file paths with flag values: %v", paths)
+		config.AllowedFilePaths = paths
+	}
+
+	// Override log level if provided
+	if *logLevelFlag != "" {
+		logger.Info("Overriding log level with flag value: %s", *logLevelFlag)
+		config.LogLevel = *logLevelFlag
+		// Re-create logger with the new level
+		logger = NewLogger(config.LogLevel)
+		ctx = context.WithValue(context.Background(), loggerKey, logger)
+	}
+
+	// Store config in context for error handler to access
+	ctx = context.WithValue(ctx, configKey, config)
+
+	// Set up handler registry
+	// NewHandlerRegistry is a constructor that doesn't return an error
+
+	// Create the MCP server instance
+	srv := server.NewMCPServer("deepseek", "1.0.0")
+
+	// Create and register the DeepSeek server (now passing the created srv)
+	deepseekServer, err := setupDeepseekServer(ctx, srv, config)
+	if err != nil {
+		handleStartupError(ctx, err) // handleStartupError will also use an MCPServer now
+		return
+	}
+
+	// Validate the effective model ID (from config, possibly overridden by flag)
+	if err := deepseekServer.ValidateModelID(config.DeepseekModel); err != nil {
+		logger.Error("Effective model ID validation failed: %v", err)
+		// Use a more specific error message for startup failure
+		startupErr := fmt.Errorf("effective model ID \"%s\" is invalid: %w", config.DeepseekModel, err)
+		logger.Error("Startup error: %v", startupErr) // Log the specific startup error
+		handleStartupError(ctx, startupErr)           // Pass the specific startup error
+		return
+	}
+
+	// Start the MCP server
+	logger.Info("Starting DeepSeek MCP server via Stdio")
+	if err := server.ServeStdio(srv); err != nil {
+		logger.Error("Server error: %v", err)
+		os.Exit(1)
+	}
+}
+
+// setupDeepseekServer creates and registers a DeepSeek server
+func setupDeepseekServer(ctx context.Context, srv *server.MCPServer, config *Config) (*DeepseekServer, error) {
+	loggerValue := ctx.Value(loggerKey)
+	logger, ok := loggerValue.(Logger)
+	if !ok {
+		return nil, fmt.Errorf("logger not found in context")
+	}
+
+	// Create the DeepSeek server with configuration
+	deepseekServer, err := NewDeepseekServer(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create DeepSeek server: %w", err)
+	}
+
+	// Wrap the server with logger middleware
+
+	// Register the wrapped server
+	// Define and register tools
+	askTool := mcp.NewTool("deepseek_ask",
+		mcp.WithDescription("Use DeepSeek's AI model to ask about complex coding problems."),
+		mcp.WithString("query", mcp.Required(), mcp.Description("The coding problem or question for DeepSeek AI, including any relevant code.")),
+		mcp.WithString("model", mcp.Description("Optional: Specific DeepSeek model to use (e.g., deepseek-chat, deepseek-coder). Overrides default configuration.")),
+		mcp.WithString("systemPrompt", mcp.Description("Optional: Custom system prompt to guide the AI's behavior for this request. Overrides default configuration.")),
+		mcp.WithArray("file_paths", mcp.Description("Optional: Paths to files to include in the request context. Content will be appended to the query."), mcp.Items(map[string]any{"type": "string"})),
+		mcp.WithBoolean("json_mode", mcp.Description("Optional: Enable JSON mode for structured JSON responses. Set to true when expecting JSON output.")),
+	)
+	srv.AddTool(askTool, deepseekServer.handleAskDeepseek)
+
+	modelsTool := mcp.NewTool("deepseek_models",
+		mcp.WithDescription("List available DeepSeek models with descriptions."),
+		// No parameters for this tool
+	)
+	srv.AddTool(modelsTool, deepseekServer.handleDeepseekModels)
+
+	balanceTool := mcp.NewTool("deepseek_balance",
+		mcp.WithDescription("Check your DeepSeek API account balance."),
+		// No parameters for this tool
+	)
+	srv.AddTool(balanceTool, deepseekServer.handleDeepseekBalance)
+
+	tokenEstimateTool := mcp.NewTool("deepseek_token_estimate",
+		mcp.WithDescription("Estimate the number of tokens in a given text or file content."),
+		mcp.WithString("text", mcp.Description("Text to estimate token count for. Use this or file_path.")),
+		mcp.WithString("file_path", mcp.Description("Path to a file to estimate token count for. Use this or text.")),
+	)
+	srv.AddTool(tokenEstimateTool, deepseekServer.handleTokenEstimate)
+
+	for _, p := range Prompts {
+		prompt := mcp.NewPrompt(p.Name,
+			mcp.WithPromptDescription(p.Description),
+			mcp.WithArgument("problem_statement",
+				mcp.ArgumentDescription("The user's problem statement or question to be addressed."),
+				mcp.RequiredArgument(),
+			),
+		)
+		srv.AddPrompt(prompt, deepseekServer.promptHandler(p))
+	}
+	logger.Info("Registered %d prompts", len(Prompts))
+
+	logger.Info("Registered DeepSeek tools and server in normal mode with model: %s", config.DeepseekModel) // Updated log message
+
+	// Log file handling configuration
+	logger.Info("File handling: max size %s, allowed types: %v, allowed paths: %v",
+		humanReadableSize(config.MaxFileSize),
+		config.AllowedFileTypes,
+		config.AllowedFilePaths)
+
+	// Log a truncated version of the system prompt for security/brevity
+	promptPreview := config.DeepseekSystemPrompt
+	if len(promptPreview) > 50 {
+		// Use proper UTF-8 safe truncation
+		runeCount := 0
+		for i := range promptPreview {
+			runeCount++
+			if runeCount > 50 {
+				promptPreview = promptPreview[:i] + "..."
+				break
+			}
+		}
+	}
+	logger.Info("Using system prompt: %s", promptPreview)
+
+	return deepseekServer, nil
+}
+
+// handleStartupError handles initialization errors by setting up an error server
+func handleStartupError(ctx context.Context, err error) {
+	// Safely extract logger from context
+	loggerValue := ctx.Value(loggerKey)
+	logger, ok := loggerValue.(Logger)
+	if !ok {
+		// Fallback to a new logger if type assertion fails
+		logger = NewLogger("error")
+	}
+	errorMsg := err.Error()
+
+	logger.Error("Initialization error: %v", err)
+
+	// The 'config' variable was previously fetched here but not used after ErrorDeepseekServer removal.
+
+	// Create error server (This block is removed)
+	// errorServer := &ErrorDeepseekServer{
+	// 	errorMessage: errorMsg,
+	// 	config:       config,
+	// }
+
+	// Set up registry with error server
+	// NewHandlerRegistry is a constructor that doesn't return an error
+	// errorServerWithLogger := NewLoggerMiddleware(errorServer, logger) // Middleware removed for now
+	// registry.RegisterToolHandler(errorServerWithLogger) // Registry removed
+
+	// Start server in degraded mode
+	logger.Info("Starting DeepSeek MCP server in degraded mode via Stdio")
+	errorSrv := server.NewMCPServer("deepseek-error", "1.0.0")
+
+	// Define a specific error tool and handler
+	errorTool := mcp.NewTool("startup_error", mcp.WithDescription("Provides server startup error information"))
+	placeholderErrorHandler := func(toolCtx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		// Use errorMsg directly from the outer function's scope
+		return mcp.NewToolResultText(errorMsg), nil
+	}
+	errorSrv.AddTool(errorTool, placeholderErrorHandler)
+
+	if err := server.ServeStdio(errorSrv); err != nil {
+		logger.Error("Server error in degraded mode: %v", err)
+		os.Exit(1)
+	}
+}

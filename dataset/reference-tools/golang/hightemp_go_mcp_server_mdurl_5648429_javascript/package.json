@@ -1,0 +1,18 @@
+{
+  "name": "go-mdurl-mcp-server",
+  "version": "1.0.0",
+  "description": "Go MCP server for converting URLs to Markdown",
+  "license": "MIT",
+  "bin": {
+    "go-mdurl-mcp-server": "bin/mdurl-mcp.js"
+  },
+  "files": [
+    "bin/mdurl-mcp.js",
+    "native/",
+    "README.md"
+  ],
+  "scripts": {
+    "build:npm": "./scripts/build-npm.sh",
+    "prepack": "./scripts/build-npm.sh"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "name": "ollama-mcp",
+  "version": "2.1.0",
+  "description": "MCP server for Ollama - exposes all Ollama SDK functionality through MCP tools",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "ollama-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rawveg/ollama-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rawveg/ollama-mcp/issues"
+  },
+  "homepage": "https://github.com/rawveg/ollama-mcp#readme",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "dev": "node dist/index.js",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "ollama",
+    "ai",
+    "llm"
+  ],
+  "author": "Tim Green <rawveg@gmail.com>",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "json2md": "^2.0.3",
+    "markdown-table": "^3.0.4",
+    "ollama": "^0.5.11",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@vitest/coverage-v8": "^4.1.6",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.6"
+  }
+}

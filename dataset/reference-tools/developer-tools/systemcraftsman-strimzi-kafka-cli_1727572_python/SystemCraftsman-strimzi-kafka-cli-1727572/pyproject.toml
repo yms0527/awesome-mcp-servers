@@ -1,0 +1,93 @@
+[project]
+name = "strimzi-kafka-cli"
+version = "1.0.0b13"
+description = "Command Line Interface for Strimzi Kafka Operator"
+authors = [{ name = "Aykut Bulgu", email = "aykut@systemcraftsman.com" }]
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.11,<3.15"
+keywords = ["kafka", "strimzi", "cli", "operator", "kubernetes", "k8s", "openshift", "apache-kafka"]
+
+classifiers=[
+    'Intended Audience :: Developers',
+    'Topic :: Software Development',
+    'License :: OSI Approved :: Apache Software License',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
+    'Programming Language :: Python :: 3.14',
+    'Programming Language :: Python :: 3 :: Only',
+    'Operating System :: Microsoft :: Windows',
+    'Operating System :: POSIX :: Linux',
+    'Operating System :: POSIX',
+    'Operating System :: Unix',
+    'Operating System :: MacOS'
+]
+
+dependencies = [
+    "click >= 8.4.2",
+    "pyyaml == 6.0.1",
+    "wget == 3.2",
+    "jproperties == 2.1.1",
+    "kubernetes == 28.1.0",
+]
+
+[project.optional-dependencies]
+mcp = [
+    "fastmcp",
+]
+dev = [
+    "twine",
+    "ruff",
+    "pytest",
+    "wheel",
+    "build",
+    "mypy",
+    "pre-commit<4",
+    "fastmcp",
+]
+
+[tool.urls]
+Tracker = "https://github.com/systemcraftsman/strimzi-kafka-cli/issues"
+Homepage = "https://github.com/systemcraftsman/strimzi-kafka-cli"
+Repository = "https://github.com/systemcraftsman/strimzi-kafka-cli"
+Documentation = "https://github.com/systemcraftsman/strimzi-kafka-cli/blob/main/README.md"
+
+
+[tool.setuptools]
+package-dir = {"kfk" = "kfk"}
+include-package-data = true
+license-files = ["LICENSE"]
+zip-safe = true
+
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+exclude = [".git", ".venv", "__pycache__", "docs", "dist", "build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "S", "B"]
+ignore = ["E203", "E701", "S108", "S603", "S110", "S105", "S202", "S607"]
+per-file-ignores = {"kfk/main.py" = ["F401", "F811"], "tests/**" = ["S101"], "kfk/argument_extensions.py" = ["S101"], "kfk/option_extensions.py" = ["S101"]}
+
+[tool.ruff.lint.isort]
+known-first-party = ["kfk"]
+
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+kfk = "kfk.main:kfk"
+
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=importlib",
+]
+markers = [
+    "integration: integration tests requiring a live Kubernetes cluster",
+]
+testpaths = ["tests"]

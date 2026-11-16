@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "browser": {
-      "command": "playwright-universal-mcp",
-      "args": ["--browser", "msedge", "--headless"]
-    }
-  }
-}

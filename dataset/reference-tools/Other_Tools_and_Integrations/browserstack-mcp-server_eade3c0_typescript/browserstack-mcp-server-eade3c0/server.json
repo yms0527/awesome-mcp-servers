@@ -1,0 +1,42 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "name": "io.github.browserstack/mcp-server",
+  "description": "BrowserStack's Official MCP Server",
+  "repository": {
+    "url": "https://github.com/browserstack/mcp-server",
+    "source": "github"
+  },
+  "version": "2.2.4",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@browserstack/mcp-server",
+      "version": "2.2.4",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "description": "BrowserStack Username",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false,
+          "name": "BROWSERSTACK_USERNAME"
+        },
+        {
+          "description": "BrowserStack Access Key",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true,
+          "name": "BROWSERSTACK_ACCESS_KEY"
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.browserstack.com/mcp"
+    }
+  ]
+}

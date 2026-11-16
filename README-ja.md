@@ -1,73 +1,84 @@
-<div align="center">
+# MCPツールセキュリティデータセット
 
-# Reference MCP Servers and Malicious MCP Variants Dataset
+参照MCPツールと安全に模擬された悪性バリアントを含むツール単位のデータセットです。
 
-**ツール拡張型 LLM システムのセキュリティ研究向けに、786 件の参照 MCP Server と 190 件の悪意ある MCP 変種を収録したデータセットです。**
+[English](README.md) · [简体中文](README-zh.md) · [繁體中文](README_zh_TW.md) · [日本語](README-ja.md) · [한국어](README-ko.md)
 
-[English](README.md) · [简体中文](README-zh.md) · [繁體中文](README-zh_TW.md) · [日本語](README-ja.md) · [한국어](README-ko.md)
+## 責任ある利用
 
-</div>
+悪性バリアントは防御的なセキュリティ研究と教育専用です。本番環境や第三者システムへの攻撃に使用しないでください。
 
----
+## データセット概要
 
-## Disclaimer
+| 統計項目 | 値 |
+|---|---|
+| 物理ソースプロジェクト | 1,126 |
+| 論理MCPサーバー | 1,450 |
+| 参照ツールバージョン | 26,021 |
+| バリアントを含むサーバーディレクトリ | 263 |
+| 悪性バリアントツールバージョン | 1,513 |
+| ツールバージョン総数 | 27,534 |
+| 実装済み攻撃タイプ | 15 |
 
-このリポジトリに含まれる悪意ある MCP 変種は、セキュリティ研究、データセット構築、防御評価、教育目的に限って提供されています。不正アクセス、認証情報の窃取、マルウェア配布、サービス妨害、第三者のシステムやデータを害する行為には使用しないでください。
+## ディレクトリ構成
 
----
+```text
+dataset/
+├── reference-tools/
+├── malicious-variant-tools/
+└── metadata/
+```
 
-## Dataset Overview
+## 言語分布
 
-| Dataset | Count | Description |
-|---|---:|---|
-| `reference-mcp-servers/` | 786 | MCP Server の識別・フィルタリング規則に基づく参照サーバールート。 |
-| `malicious-mcp-variants/` | 190 | 実際の MCP Server から派生した悪意あるサーバー変種。 |
-| Total experimental samples | 976 | 786 reference servers + 190 malicious variants. |
+| 参照サーバー言語 | サーバー数 |
+|---|---|
+| Python | 752 |
+| TypeScript | 532 |
+| Go | 75 |
+| JavaScript | 44 |
+| Java | 17 |
+| Rust | 13 |
+| Swift | 5 |
+| Kotlin | 3 |
+| C# | 3 |
+| C++ | 3 |
+| Ruby | 1 |
+| PHP | 1 |
+| Unknown | 1 |
 
-786 は単純な物理ディレクトリ数ではなく、MCP Server ルートの識別とフィルタリングに基づく実験上の統計値です。悪意ある変種のディレクトリ名は元の server/project 名を保持し、攻撃タイプや DTPE final impact location は `malicious-mcp-variants/variant_name_mapping.csv` に記録されています。
+## 悪性バリアント分布
 
----
+| 攻撃タイプ | DTPE段階 | ツール数 |
+|---|---|---|
+| Tool Preference Manipulation Attack | Decision | 92 |
+| Puppet Attack | Decision | 89 |
+| Tool Squatting Attack | Decision | 92 |
+| Tool Chain Exploitation Attack | Decision | 90 |
+| Prompt Injection Attack | Decision | 118 |
+| Credential Leakage | Transmission | 107 |
+| Rug Pulls Attacks | Processing | 97 |
+| Unauthorized Invocation | Processing | 110 |
+| Tool Poisoning Attack | Execution | 133 |
+| Tool Shadowing Attack | Execution | 83 |
+| Command Injection Attack | Execution | 128 |
+| Remote Listener Attack | Execution | 91 |
+| Webpage Poison Attack | Execution | 83 |
+| Sandbox Escape | Execution | 101 |
+| Backdoor Attack | Execution | 99 |
 
-## Key Statistics
+## ドキュメントとメタデータ
 
-| Statistic | Value |
-|---|---:|
-| Reference MCP servers | 786 |
-| Malicious variants | 190 |
-| Total experimental samples | 976 |
-| Malicious sample ratio | 19.47% |
-| Implemented attack types | 15 |
-| Tools | 6,284 |
-| Functions | 218,108 |
-| Code files | 19,459 |
-| LOC | 4,306,858 |
+- `dataset/README.md`
+- `dataset/reference-tools/README.md`
+- `dataset/malicious-variant-tools/README.md`
+- `dataset/malicious-variant-tools/<Attack Type>/README.md`
+- `dataset/metadata/`
 
----
+## 利用目的
 
-## Malicious Variant Distribution
+ツール単位の静的解析、機械学習評価、攻撃パターン研究、MCPセキュリティ研究に利用できます。
 
-| DTPE final impact location | Variants |
-|---|---:|
-| Decision | 57 |
-| Transmission | 15 |
-| Protocol | 25 |
-| Execution | 93 |
+## ライセンス
 
-| Attack type | Variants |
-|---|---:|
-| Tool Poisoning Attack | 20 |
-| Command Injection Attack | 18 |
-| Prompt Injection Attack | 17 |
-| Credential Leakage | 15 |
-| Unauthorized Invocation | 14 |
-| Sandbox Escape | 13 |
-| Backdoor Attack | 12 |
-| Rug Pulls Attacks | 11 |
-| Other 7 attack types | 10 each |
-
----
-
-## Metadata
-
-Malicious variant directories under `malicious-mcp-variants/` preserve the original MCP server/project names. Attack labels are stored in `variant_name_mapping.csv`, `variant_label_schema.json`, `attack_expansion_manifest.json`, and per-attack `attack_summary.md` files.
-
+各ソースプロジェクトの元ライセンスが維持されます。再配布前にライセンスと来歴メタデータを確認してください。

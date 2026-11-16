@@ -1,0 +1,60 @@
+[project]
+name = "mcp-telegram"
+version = "0.1.11"
+description = "MCP Server for Telegram"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Yeabsira Driba" }]
+maintainers = [
+    { name = "Yeabsira Driba", email = "dryeab@gmail.com" }
+]
+keywords = ["git", "mcp", "llm", "automation", "telegram"]
+license = { text = "MIT" }
+dependencies = [
+    "cryptg>=0.5.0.post0",
+    "mcp[cli]>=1.6.0",
+    "pydantic>=2.11.1",
+    "pydantic-settings>=2.8.1",
+    "rich>=14.0.0",
+    "telethon>=1.39.0",
+    "typer>=0.15.2",
+    "xdg-base-dirs>=6.0.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pyright>=1.1.389",
+    "ruff>=0.8.0",
+    "twine>=6.1.0",
+]
+
+[project.scripts]
+mcp-telegram = "mcp_telegram:app"
+
+[tool.pyright]
+include = ["src/mcp_telegram/**/*.py"]
+venvPath = "."
+venv = ".venv"
+strict = ["src/mcp_telegram/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = []
+
+[tool.ruff.lint.isort]
+case-sensitive = true
+known-first-party = ["mcp_telegram"]
+lines-between-types = 1
+order-by-type = false 
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[project.urls]
+Repository = "https://github.com/dryeab/mcp-telegram"
+Issues = "https://github.com/dryeab/mcp-telegram/issues"

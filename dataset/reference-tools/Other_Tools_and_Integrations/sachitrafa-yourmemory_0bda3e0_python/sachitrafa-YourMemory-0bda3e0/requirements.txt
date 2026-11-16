@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+psycopg2-binary
+pgvector
+python-dotenv
+httpx
+apscheduler
+spacy
+sentence-transformers
+python-dateutil
+numpy
+mcp

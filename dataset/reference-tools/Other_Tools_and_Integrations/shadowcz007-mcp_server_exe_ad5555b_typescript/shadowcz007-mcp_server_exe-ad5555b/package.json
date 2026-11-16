@@ -1,0 +1,84 @@
+{
+    "name": "mcp_exe",
+    "version": "0.12.0",
+    "description": "Turn MCP server into an executable file",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "bin": {
+        "mcp_exe": "./bin/cli.js"
+    },
+    "scripts": {
+        "build": "tsc",
+        "postbuild": "copyfiles -f node_modules/node-notifier/vendor/**/* executables/notifier/",
+        "start": "node dist/server.js --port 3002 --mcp-config ./examples/mcp.json",
+        "dev": "tsx src/server.ts --port 3002 --mcp-config ./examples/mcp-sse.json",
+        "package-mac-intel": "pkg . --targets node18-macos-x64 --output executables/mcp_server-macos-x64",
+        "package-mac-arm": "pkg . --targets node18-macos-arm64 --output executables/mcp_server-macos-arm64",
+        "package-win": "pkg . --targets node18-win-x64 --output executables/mcp_server-win-x64.exe  && npm run postbuild",
+        "start-with-config": "node dist/server.js --mcp-js ./examples/test-config.js",
+        "test-custom-config": "node scripts/test-custom-config.js",
+        "test-packaged-app": "node scripts/test-packaged-app.js",
+        "dev-ws": "tsx src/server.ts --mcp-config mcp-test.json --ws wss://api.xiaozhi.me/mcp/?token=xx",
+        "dev-cronjob": "tsx src/server.ts --cronjob ./examples/cronjob.json --mcp-js ./examples/product-hunt/custom-mcp-config.js",
+        "test-database": "executables/mcp_server-win-x64.exe --mcp-js examples/notify-database/database.js --cronjob examples/notify-database/cronjob.json"
+    },
+    "exports": {
+        ".": {
+            "require": "./dist/index.js",
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+
+    "pkg": {
+        "options": [
+            "--no-bytecode",
+            "--public"
+        ],
+        "targets": [
+            "node18-win-x64",
+            "node18-macos-x64",
+            "node18-macos-arm64"
+        ],
+        "outputPath": "executables",
+        "assets": [
+            "dist/**/*",
+            "node_modules/sql.js/dist/sql-wasm.wasm"
+        ]
+    },
+    "keywords": [
+        "mcp",
+        "server",
+        "executable",
+        "mcp_server.exe"
+    ],
+    "author": "shadow",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/shadowcz007/mcp_server.exe/issues"
+    },
+    "homepage": "https://github.com/shadowcz007/mcp_server.exe#readme",
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.12.1",
+        "@types/cors": "^2.8.18",
+        "@types/uuid": "^10.0.0",
+        "@types/ws": "^8.18.1",
+        "cors": "^2.8.5",
+        "dotenv": "^16.4.1",
+        "express": "^4.18.2",
+        "node-cron": "^4.0.7",
+        "node-notifier": "^10.0.1",
+        "sql.js": "^1.13.0",
+        "uuid": "^11.1.0",
+        "ws": "^8.18.2"
+    },
+    "devDependencies": {
+        "@types/express": "^4.17.21",
+        "@types/node": "^20.17.50",
+        "copyfiles": "^2.4.1",
+        "pkg": "^5.8.1",
+        "ts-node": "^10.9.2",
+        "tsx": "^4.19.4",
+        "typescript": "^5.8.3"
+    }
+}

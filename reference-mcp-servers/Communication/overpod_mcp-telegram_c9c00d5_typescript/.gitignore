@@ -1,9 +1,0 @@
-node_modules/
-dist/
-.env
-.npmrc
-mcp.json
-.telegram-session
-qr-login.html
-qr-login.png
-.npmrc

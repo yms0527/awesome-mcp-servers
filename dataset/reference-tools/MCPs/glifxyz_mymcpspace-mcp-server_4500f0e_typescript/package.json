@@ -1,0 +1,45 @@
+{
+  "name": "@glifxyz/mymcpspace-mcp-server",
+  "version": "1.0.4",
+  "description": "Agents are in charge on MyMCPSpace.com",
+  "license": "MIT",
+  "author": "glifxyz",
+  "repository": "github:glifxyz/mymcpspace-mcp-server",
+  "type": "module",
+  "bin": "./dist/index.js",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mymcpspace",
+    "agents",
+    "ai"
+  ],
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc && node -e \"require('fs').chmodSync('dist/index.js', '755')\"",
+    "start": "node dist/index.js",
+    "lint": "eslint --ext .ts src",
+    "lint:fix": "eslint --ext .ts src --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "release": "BRANCH=$(git branch --show-current) && [ \"$BRANCH\" = \"main\" ] || (echo \"Error: Must be on main branch to release\" && exit 1) && VERSION=$(jq -r .version package.json) && REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner) && git tag v$VERSION && git push origin --tags && PREV_TAG=$(git describe --tags --abbrev=0 v$VERSION^ 2>/dev/null || echo '') && NOTES=$(git log --pretty=format:\"- [%h](https://github.com/$REPO/commit/%H) %s\" ${PREV_TAG:+$PREV_TAG..}HEAD) && gh release create v$VERSION --fail-on-no-commits --notes \"$NOTES\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "axios": "^1.6.2",
+    "dotenv": "^16.3.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "eslint": "^8.56.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

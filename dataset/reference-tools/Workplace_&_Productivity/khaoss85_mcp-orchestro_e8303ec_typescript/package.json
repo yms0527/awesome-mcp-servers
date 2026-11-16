@@ -1,0 +1,57 @@
+{
+  "name": "@khaoss85/orchestro",
+  "version": "2.1.0",
+  "description": "Your AI Development Conductor - Intelligent task management for Claude Code",
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "orchestro": "./scripts/setup.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsc && node dist/server.js",
+    "setup": "node scripts/setup.cjs",
+    "configure-claude": "node scripts/configure-claude.cjs",
+    "dashboard": "cd web-dashboard && npm run dev",
+    "migrate": "node scripts/migrate.cjs",
+    "test": "node scripts/test-setup.cjs",
+    "test:setup": "node scripts/test-setup.cjs",
+    "db:analyze": "tsc && node dist/scripts/analyze-schema-usage.js",
+    "db:health": "node -e \"require('dotenv').config(); const {createClient}=require('@supabase/supabase-js'); const c=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_KEY); c.from('schema_health_dashboard').select('*').then(r=>console.table(r.data))\"",
+    "db:unused": "node -e \"require('dotenv').config(); const {createClient}=require('@supabase/supabase-js'); const c=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_KEY); c.rpc('find_unused_schema_elements',{days_threshold:30}).then(r=>console.table(r.data))\""
+  },
+  "keywords": [
+    "mcp",
+    "orchestro",
+    "claude-code",
+    "ai",
+    "task-management",
+    "development-workflow",
+    "supabase",
+    "kanban"
+  ],
+  "author": "Orchestro Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/khaoss85/mcp-orchestro.git"
+  },
+  "homepage": "https://github.com/khaoss85/mcp-orchestro#readme",
+  "mcpName": "io.github.khaoss85/orchestro",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.65.0",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@supabase/supabase-js": "^2.58.0",
+    "dotenv": "^17.2.3",
+    "fast-glob": "^3.3.3",
+    "simple-git": "^3.28.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "typescript": "^5.3.3"
+  }
+}

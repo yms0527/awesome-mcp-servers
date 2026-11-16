@@ -1,5 +1,0 @@
-# Auto detect text files and perform LF normalization
-* text=auto
-
-# Don't generate diffs for CHANGELOG.md
-CHANGELOG.md merge=union 

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.yusufcemres/uisight",
+  "description": "Your AI sees the screen but can't measure it \u2014 measured web UI findings, shared live sessions",
+  "repository": {
+    "url": "https://github.com/sololabstr/uisight",
+    "source": "github"
+  },
+  "version": "0.34.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "uisight",
+      "version": "0.34.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "UISIGHT_URL",
+          "description": "Initial target URL for the live sessions (default: http://localhost:3000)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "UISIGHT_PORT",
+          "description": "Panel server port (default: derived from the project's working directory, so parallel projects get separate panels)",
+          "isRequired": false,
+          "format": "number",
+          "isSecret": false
+        },
+        {
+          "name": "UISIGHT_LANG",
+          "description": "Set to 'tr' for Turkish tool names",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

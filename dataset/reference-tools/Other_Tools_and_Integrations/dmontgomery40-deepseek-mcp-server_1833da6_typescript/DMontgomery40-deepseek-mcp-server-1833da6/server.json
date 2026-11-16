@@ -1,0 +1,60 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.DMontgomery40/deepseek",
+  "title": "DeepSeek MCP Server",
+  "description": "DeepSeek MCP server for Flash vision, Pro chat, Responses, FIM, Files, models, and balance APIs.",
+  "websiteUrl": "https://github.com/DMontgomery40/deepseek-mcp-server",
+  "repository": {
+    "url": "https://github.com/DMontgomery40/deepseek-mcp-server",
+    "source": "github"
+  },
+  "version": "1.4.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://deepseek-mcp.ragweld.com/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Bearer token for hosted DeepSeek MCP access (format: Bearer <token>)",
+          "isRequired": true,
+          "isSecret": true,
+          "placeholder": "Bearer <token>"
+        }
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "deepseek-mcp-server",
+      "version": "1.4.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "DEEPSEEK_API_KEY",
+          "description": "DeepSeek API key used for upstream DeepSeek requests",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    },
+    {
+      "registryType": "oci",
+      "identifier": "docker.io/dmontgomery40/deepseek-mcp-server:0.5.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "DEEPSEEK_API_KEY",
+          "description": "DeepSeek API key used for upstream DeepSeek requests",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

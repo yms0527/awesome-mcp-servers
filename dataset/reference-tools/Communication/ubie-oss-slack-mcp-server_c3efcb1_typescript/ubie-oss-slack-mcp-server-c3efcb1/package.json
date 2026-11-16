@@ -1,0 +1,62 @@
+{
+  "name": "@ubie-oss/slack-mcp-server",
+  "version": "0.1.4",
+  "description": "A Slack MCP server",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "slack-mcp-server": "dist/index.js"
+  },
+  "scripts": {
+    "dev": "node --import ./ts-node-loader.js src/index.ts",
+    "build": "tsc -p tsconfig.build.json && shx chmod +x dist/*.js",
+    "start": "node dist/index.js",
+    "test": "echo \"No tests yet\"",
+    "lint": "npm run lint:eslint && npm run lint:prettier",
+    "lint:eslint": "eslint \"src/**/*.ts\" \"examples/**/*.ts\"",
+    "lint:prettier": "prettier --check \"src/**/*.ts\" \"examples/**/*.ts\"",
+    "fix": "npm run fix:eslint && npm run fix:prettier",
+    "fix:eslint": "eslint \"src/**/*.ts\" \"examples/**/*.ts\" --fix",
+    "fix:prettier": "prettier --write \"src/**/*.ts\" \"examples/**/*.ts\"",
+    "examples": "node --import ./ts-node-loader.js examples/get_users.ts",
+    "examples:http": "node --import ./ts-node-loader.js examples/get_users_http.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "slack"
+  ],
+  "author": "Ubie, Inc.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ubie-oss/slack-mcp-server.git"
+  },
+  "homepage": "https://github.com/ubie-oss/slack-mcp-server",
+  "bugs": {
+    "url": "https://github.com/ubie-oss/slack-mcp-server/issues"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@slack/web-api": "^7.15.0",
+    "@types/node": "^20.10.3",
+    "dotenv": "^16.4.7",
+    "express": "^5.2.1",
+    "typescript": "^5.3.2",
+    "zod": "^3.22.4",
+    "zod-to-json-schema": "^3.22.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "@types/express": "^5.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.58.1",
+    "@typescript-eslint/parser": "^8.58.1",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.2.2",
+    "shx": "^0.3.4",
+    "ts-node": "^10.9.2",
+    "typescript-eslint": "^8.58.1"
+  }
+}

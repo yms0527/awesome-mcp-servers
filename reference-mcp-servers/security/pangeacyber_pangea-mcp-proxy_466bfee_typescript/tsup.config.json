@@ -1,7 +1,0 @@
-{
-  "entry": ["src/proxy.ts"],
-  "format": ["esm"],
-  "dts": true,
-  "clean": true,
-  "outDir": "dist"
-}

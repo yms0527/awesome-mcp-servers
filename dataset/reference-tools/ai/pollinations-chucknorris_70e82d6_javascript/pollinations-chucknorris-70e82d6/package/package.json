@@ -1,0 +1,32 @@
+{
+  "name": "@pollinations/chucknorris",
+  "version": "1.0.10",
+  "description": "Chuck Norris Superpowers Service - Simple API for enhancing language model capabilities",
+  "type": "module",
+  "bin": "./chucknorris-mcp-server.js",
+  "files": [
+    "schemas.js",
+    "chucknorris-mcp-server.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node chucknorris-mcp-server.js"
+  },
+  "keywords": [
+    "chuck-norris",
+    "prompt-service",
+    "enhancement",
+    "mcp",
+    "model-context-protocol"
+  ],
+  "author": "Pollinations.AI",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

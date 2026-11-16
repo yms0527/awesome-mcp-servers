@@ -1,0 +1,51 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required: []
+    properties:
+      defaultExchange:
+        type: string
+        default: binance
+        description: The default cryptocurrency exchange to use.
+      useProxy:
+        type: boolean
+        default: false
+        description: Enable proxy for exchange API requests.
+      proxyUrl:
+        type: string
+        description: Proxy URL (e.g., http://proxy-server:port).
+      logLevel:
+        type: string
+        enum: [debug, info, warning, error]
+        default: info
+        description: Server log level.
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => {
+      // Prepare environment variables from config
+      const env = {
+        DEFAULT_EXCHANGE: config.defaultExchange || 'binance',
+        LOG_LEVEL: config.logLevel || 'info'
+      };
+      
+      // Add proxy configuration if enabled
+      if (config.useProxy && config.proxyUrl) {
+        env.USE_PROXY = 'true';
+        env.PROXY_URL = config.proxyUrl;
+      }
+      
+      return {
+        command: 'npm',
+        args: ['start'],
+        env: env
+      };
+    }
+  exampleConfig:
+    defaultExchange: binance
+    logLevel: info
+    useProxy: false

@@ -1,0 +1,93 @@
+{
+  "name": "bruvtools",
+  "version": "0.2.16",
+  "description": "🚀 Your Private App Platform - Deploy Node.js, Python, Go, Java & more to CapRover, AWS, GCP with one CLI. Features MCP integration for Cursor.com, smart collision detection, auto-SSL, and costs 80% less than Heroku. Transform any $5 server into your personal Vercel.",
+  "main": "lib/core/cli.js",
+  "bin": {
+    "bruvtools": "bin/bruvtools.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "examples/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    ".env.example",
+    "bruvtools.yml.example"
+  ],
+  "scripts": {
+    "start": "node bin/bruvtools.js",
+    "test": "echo \"Tests coming soon\" && exit 0",
+    "dev": "node bin/bruvtools.js",
+    "prepublishOnly": "echo 'Publishing bruvtools to npm...' && npm test"
+  },
+  "keywords": [
+    "deployment",
+    "cloud",
+    "private-cloud",
+    "app-platform",
+    "caprover",
+    "aws",
+    "gcp",
+    "kubernetes",
+    "cli",
+    "devops",
+    "docker",
+    "container",
+    "paas",
+    "heroku-alternative",
+    "vercel-alternative",
+    "railway-alternative",
+    "universal-deployment",
+    "mcp",
+    "model-context-protocol",
+    "cursor",
+    "ai-integration",
+    "nodejs",
+    "python",
+    "golang", 
+    "java",
+    "php",
+    "ruby",
+    "multi-language",
+    "auto-ssl",
+    "zero-downtime",
+    "cost-effective",
+    "self-hosted",
+    "digitalocean",
+    "microservices",
+    "ci-cd",
+    "infrastructure"
+  ],
+  "author": {
+    "name": "fcavalcantirj",
+    "email": "felipecavalcantirj@gmail.com",
+    "url": "https://github.com/fcavalcantirj"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "chalk": "^4.1.2",
+    "commander": "^11.0.0",
+    "dotenv": "^16.5.0",
+    "inquirer": "^8.2.4",
+    "yaml": "^2.8.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fcavalcantirj/bruvtools.git"
+  },
+  "homepage": "https://github.com/fcavalcantirj/bruvtools",
+  "bugs": {
+    "url": "https://github.com/fcavalcantirj/bruvtools/issues"
+  },
+  "preferGlobal": true,
+  "publishConfig": {
+    "access": "public"
+  }
+}

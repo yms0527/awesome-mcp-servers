@@ -1,6 +1,0 @@
-src/
-.git/
-.gitignore
-.prettierrc
-eslint.config.mjs
-tsconfig.json

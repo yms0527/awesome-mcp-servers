@@ -1,1 +1,0 @@
-"""GAM MCP Tools."""

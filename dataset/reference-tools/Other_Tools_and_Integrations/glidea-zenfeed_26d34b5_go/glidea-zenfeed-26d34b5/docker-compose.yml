@@ -1,0 +1,80 @@
+services:
+  zenfeed-web:
+    image: glidea/zenfeed-web:latest
+    ports:
+      - "1400:1400"
+    environment:
+      - PUBLIC_DEFAULT_API_URL=http://zenfeed:1300
+    depends_on:
+      - zenfeed
+    restart: unless-stopped
+
+  zenfeed:
+    image: glidea/zenfeed:latest
+    entrypoint: >
+      sh -c "
+      if [ ! -f /app/config/config.yaml ]; then
+        echo 'Config file not found in volume, initializing from init config...'
+        cp /app/config.init.yaml /app/config/config.yaml;
+      else
+        echo 'Existing config file found in volume.'
+      fi &&
+      echo 'Starting Zenfeed...' &&
+      exec /app/zenfeed --config /app/config/config.yaml
+      "
+    configs:
+      - source: zenfeed_init_config
+        target: /app/config.init.yaml
+    volumes:
+      - data:/app/data
+      - config:/app/config
+    ports:
+      - "1300:1300"
+      - "1301:1301"
+      - "9090:9090"
+    depends_on:
+      - rsshub
+    restart: unless-stopped
+    
+  rsshub:
+    image: diygod/rsshub:2024-12-14
+    ports:
+      - "1200:1200"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+      
+volumes:
+  data: {}
+  config: {}
+
+configs:
+  zenfeed_init_config: # After installation, you must modify the configuration through zenfeed or config volume.
+    content: |
+      timezone: ${TZ:-Asia/Shanghai}
+      llms:
+        - name: general
+          default: true
+          provider: siliconflow
+          model: Qwen/Qwen3-8B
+          api_key: ${API_KEY:-your-api-key}
+        - name: embed
+          provider: siliconflow
+          embedding_model: Qwen/Qwen3-Embedding-4B
+          api_key: ${API_KEY:-your-api-key}
+      scrape:
+        rsshub_endpoint: http://rsshub:1200
+      storage:
+        feed:
+          rewrites:
+            - transform:
+                to_text:
+                  prompt: |
+                    {{ .summary_html_snippet_for_small_model }} Respond in ${LANGUAGE:-Chinese}
+              label: summary_html_snippet
+          embedding_llm: embed
+      notify:
+        channels:
+          email:
+            feed_html_snippet_template: |
+              {{ .summary_html_snippet }}

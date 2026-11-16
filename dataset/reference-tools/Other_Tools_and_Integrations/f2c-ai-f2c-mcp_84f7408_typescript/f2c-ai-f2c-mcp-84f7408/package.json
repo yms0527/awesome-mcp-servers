@@ -1,0 +1,77 @@
+{
+  "name": "@f2c/mcp",
+  "version": "0.4.9",
+  "description": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/f2c-ai/f2c-mcp",
+    "directory": "."
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": ["f2c", "mcp"],
+  "files": ["dist"],
+  "main": "dist/stdio.js",
+  "types": "dist/stdio.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/stdio.d.mts",
+        "default": "./dist/stdio.mjs"
+      },
+      "require": {
+        "types": "./dist/stdio.d.ts",
+        "default": "./dist/stdio.js"
+      }
+    },
+    "./streamable-http": {
+      "import": {
+        "types": "./dist/streamable-http.d.mts",
+        "default": "./dist/streamable-http.mjs"
+      },
+      "require": {
+        "types": "./dist/streamable-http.d.ts",
+        "default": "./dist/streamable-http.js"
+      }
+    }
+  },
+  "bin": {
+    "f2c-mcp": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "bun run bun.build.script.ts",
+    "dev": "bun --watch run bun.build.script.ts",
+    "http": "node ./dist/streamable-http.js",
+    "http:dev": "bun --env-file=.env --watch run src/streamable-http.ts",
+    "http:prod": "bun --env-file= run src/streamable-http.ts",
+    "inspector": "npx @modelcontextprotocol/inspector node ./dist/stdio.js",
+    "lint": "biome check . --fix",
+    "test": "bun test src/test/api.test.ts",
+    "e2e": "bun test src/test/e2e.test.ts"
+  },
+  "author": "ckken",
+  "maintainers": ["ckken"],
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "node-fetch": "^3.3.2",
+    "zod": "^3.22.4",
+    "@f2c/data-reporter": "^0.0.20"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@empjs/biome-config": "^0.7.2",
+    "@modelcontextprotocol/sdk": "1.17.2",
+    "@types/bun": "^1.2.13",
+    "@types/cors": "^2.8.18",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.15.0",
+    "@types/node-fetch": "^2.6.12",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

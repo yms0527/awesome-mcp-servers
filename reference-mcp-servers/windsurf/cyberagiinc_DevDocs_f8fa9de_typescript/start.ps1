@@ -1,1 +1,0 @@
-scripts/general/start.ps1

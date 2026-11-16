@@ -1,5 +1,0 @@
-mcpServers:
-  kubernetes:
-    type: http
-    url: http://localhost:8080/mcp
-    enableAllTools: true

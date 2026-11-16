@@ -1,0 +1,85 @@
+# syntax=docker/dockerfile:1.7
+#
+# Multi-stage build with uv copied in from its official image, per
+# https://docs.astral.sh/uv/guides/integration/docker/. Two real wins over
+# the older `pip install uv && uv pip install --system` pattern:
+#
+#   1. Deps and project code live in separate layers, so a code change
+#      doesn't re-resolve the dependency graph.
+#   2. The build stage owns uv + its caches; the final stage carries only
+#      the project venv + a slim Python runtime. No uv binary, no apt
+#      caches, no build tooling in the shipped image.
+#
+# Build stage ----------------------------------------------------------------
+
+# Same Python base as the runtime stage. uv is copied in at the exact version
+# `[tool.uv] required-version` in pyproject.toml demands, so the image build
+# resolves with the same uv as CI. Bump the two together.
+FROM python:3.13-slim-bookworm AS build
+COPY --from=ghcr.io/astral-sh/uv:0.11.7 /uv /uvx /bin/
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
+
+WORKDIR /app
+
+# Resolve deps from the lockfile first, WITHOUT the project, so this layer
+# is reused across every code-only change.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    uv sync --locked --no-install-project --no-dev
+
+COPY pyproject.toml uv.lock README.md version.txt ./
+# hatch computes the build version from scripts/_build_version.py and
+# version.txt. src carries the generated src/opik_mcp/_version.py (CI writes it
+# before the build), which is what the running server reports.
+COPY scripts/_build_version.py ./scripts/
+COPY src ./src
+
+# Install the project itself into the venv; --no-editable so the runtime
+# stage doesn't need the source tree mounted.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-editable
+
+# Runtime stage --------------------------------------------------------------
+
+FROM python:3.13-slim-bookworm AS runtime
+
+# tini gives us a real PID 1 that forwards SIGTERM to uvicorn promptly,
+# so graceful shutdown actually completes within the K8s terminationGracePeriod.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tini \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --shell /bin/bash --uid 1000 app
+
+WORKDIR /app
+
+# Copy only the venv from the build stage. No uv, no pip cache, no source
+# tree in the shipped image.
+COPY --from=build --chown=app:app /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:${PATH}"
+
+# Numeric UID (not the name "app") so Kubernetes runAsNonRoot can verify
+# non-root from the image config without starting the container.
+USER 1000
+
+EXPOSE 8080
+ENV OPIK_MCP_TRANSPORT=http \
+    OPIK_MCP_HOST=0.0.0.0 \
+    OPIK_MCP_PORT=8080 \
+    OPIK_MCP_LOG_LEVEL=INFO
+
+STOPSIGNAL SIGTERM
+
+# Run via the package entrypoint (main()) rather than uvicorn directly, so the
+# full BI lifecycle fires in hosted mode exactly as in stdio: main() emits
+# server_started / server_shutdown / startup_error, runs the preflight bind
+# check and the OAuth-config guard, then serves HTTP via uvicorn (single worker,
+# access logging off). The build_app() lifespan defers to main() via the
+# _OPIK_MCP_LIFECYCLE_OWNED_BY_MAIN sentinel, so boots are never double-counted.
+# Transport/host/port come from the ENV above; single worker by design (SSE is
+# async-IO-bound and multiple workers would fragment in-memory session state;
+# see docs/hosted-auth/design-doc.md).
+ENTRYPOINT ["tini", "--", "python", "-m", "opik_mcp"]

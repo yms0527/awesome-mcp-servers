@@ -1,9 +1,0 @@
-src/
-bin/
-scripts/
-.git/
-.gitignore
-.DS_Store
-*.log
-.env
-.mcpregistry*

@@ -1,1 +1,0 @@
-"""OSP Marketing Tools package."""

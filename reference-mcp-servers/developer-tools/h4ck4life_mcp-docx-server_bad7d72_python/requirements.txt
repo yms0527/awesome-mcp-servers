@@ -1,3 +1,0 @@
-mcp[cli]
-python-docx
-docx2pdf

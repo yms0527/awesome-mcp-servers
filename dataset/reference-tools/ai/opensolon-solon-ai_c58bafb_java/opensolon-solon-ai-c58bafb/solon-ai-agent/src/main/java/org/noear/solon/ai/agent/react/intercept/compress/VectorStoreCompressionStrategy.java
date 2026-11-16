@@ -1,0 +1,159 @@
+/*
+ * Copyright 2017-2026 noear.org and authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.noear.solon.ai.agent.react.intercept.compress;
+
+import org.noear.solon.ai.agent.AgentTrace;
+import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.ai.agent.react.intercept.CompressionStrategy;
+import org.noear.solon.ai.annotation.ToolMapping;
+import org.noear.solon.ai.chat.ChatModel;
+import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.prompt.Prompt;
+import org.noear.solon.ai.chat.talent.AbsTalent;
+import org.noear.solon.ai.rag.Document;
+import org.noear.solon.ai.rag.RepositoryStorable;
+import org.noear.solon.ai.rag.util.QueryCondition;
+import org.noear.solon.annotation.Param;
+import org.noear.solon.core.util.Assert;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ * 向量检索增强压缩策略 (RAG-based Memory Strategy)
+ * 核心逻辑：将裁减的消息持久化到向量库，并提取关键词或最新压缩结果作为上下文索引。
+ *
+ * @author noear
+ * @since 3.9.4
+ */
+public class VectorStoreCompressionStrategy extends AbsTalent implements CompressionStrategy {
+    private static final Logger log = LoggerFactory.getLogger(VectorStoreCompressionStrategy.class);
+
+    private final RepositoryStorable vectorRepository;
+
+    public VectorStoreCompressionStrategy(RepositoryStorable vectorRepository) {
+        this.vectorRepository = vectorRepository;
+    }
+
+    @Override
+    public String description() {
+        return "历史记忆回溯";
+    }
+
+    @Override
+    public String getInstruction(Prompt prompt) {
+        return "- 当你看到内容包含 '--- [历史细节已归档] ---' 标记时，说明部分执行细节已转入冷记忆。\n" +
+                "- 如果后续任务需要早前的具体事实、ID 或详细数据，请调用 `recall_history` 工具找回。";
+    }
+
+    // --- Tool 实现（负责"取"） ---
+    @ToolMapping(name = "recall_history", description = "回溯本会话中早前已归档的长记忆、历史细节或事实")
+    public String recall(@Param(name = "query", description = "检索关键词或核心短语") String query,
+                         @Param(name = "limit", description = "返回记忆片段的数量", defaultValue = "3") int limit,
+                         String __sessionId) {
+
+        if (Assert.isEmpty(query)) {
+            return "请提供具体的关键词以进行历史回溯。";
+        }
+
+        // sessionId 防护：白名单校验优于转义。不同向量库的 filterExpression 方言对元字符
+        // （\ ; # $ {} 等）处理不一，仅转义单引号不够鲁棒。系统生成的 sessionId
+        // 本就仅包含字母、数字、-_。不符合白名单则拒绝查询，从根本上消除表达式注入面。
+        if (__sessionId == null || !isSafeSessionId(__sessionId)) {
+            log.warn("Recall history rejected: invalid sessionId format: {}", __sessionId);
+            return "[系统通知] 当前会话标识异常，无法进行历史回溯。请基于当前已知对话继续执行。";
+        }
+
+        QueryCondition condition = new QueryCondition(query)
+                .filterExpression("sessionId = '" + __sessionId + "'")
+                .limit(limit);
+
+        try {
+            List<Document> docs = vectorRepository.search(condition);
+
+            if (docs.isEmpty()) {
+                return "记忆库中暂未找到关于 '" + query + "' 的相关记录。可能是该话题未被归档，或关键词不匹配。";
+            }
+
+            return docs.stream()
+                    .map(d -> {
+                        String time = d.getMetadataAs("timestamp");
+                        return (time != null ? "[" + time + "] " : "") + d.getContent();
+                    })
+                    .collect(Collectors.joining("\n\n---\n\n"));
+
+        } catch (Throwable e) {
+            log.error("Recall history failed. SessionId: {}, Query: {}", __sessionId, query, e);
+            return "[系统通知] 历史记忆访问受阻。请尝试基于当前已知对话继续执行。";
+        }
+    }
+
+    /**
+     * 校验 sessionId 是否为安全白名单格式（仅允许字母、数字、连字符、下划线、点、冒号）。
+     * <p>系统生成的会话标识（如 UUID / 雪花算法 ID）均落在此集合内；任何含引号、
+     * 反斜杠、分号、{@code #$\{}} 等表达式元字符的输入均被拒绝，从根本上消除注入面。
+     */
+    private boolean isSafeSessionId(String sessionId) {
+        if (Assert.isEmpty(sessionId) || sessionId.length() > 128) {
+            return false;
+        }
+        for (int i = 0; i < sessionId.length(); i++) {
+            char c = sessionId.charAt(i);
+            boolean ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9')
+                    || c == '-' || c == '_' || c == '.' || c == ':';
+            if (!ok) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public ChatMessage compress(ChatModel chatModel, int maxRetries, ReActTrace trace, List<ChatMessage> messagesToCompress) {
+        if (messagesToCompress == null || messagesToCompress.isEmpty()) {
+            return null;
+        }
+
+        // 使用 CompressionUtil 统一格式化消息（超长内容自动截断）
+        String archivedContent = messagesToCompress.stream()
+                .filter(m -> !m.hasMetadata(AgentTrace.META_FIRST))
+                .map(CompressionUtil::formatMessageForCompression)
+                .collect(Collectors.joining("\n"));
+
+        if (Assert.isEmpty(archivedContent.trim())) return null;
+
+        try {
+            // 封装为高质量 Document
+            Document doc = new Document(archivedContent);
+            doc.metadata("sessionId", trace.getSession().getSessionId());
+            doc.metadata("timestamp", System.currentTimeMillis());
+            doc.metadata("type", "execution_log");
+
+            // 同步保存到向量库
+            vectorRepository.save(doc);
+
+            // 返回一个紧凑的系统通知
+            return ChatMessage.ofUser("--- [历史细节已归档，必要时请使用 recall_history 工具回溯] ---");
+
+        } catch (Throwable e) {
+            log.error("Failed to archive to vector store", e);
+            return null;
+        }
+    }
+}

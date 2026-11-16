@@ -1,0 +1,52 @@
+{
+  "name": "perplexity-mcp",
+  "version": "0.2.3",
+  "description": "MCP server providing intelligent search, reasoning, and research capabilities powered by Perplexity's specialized AI models",
+  "type": "module",
+  "bin": "./build/index.js",
+  "files": [
+    "build",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc && chmod +x build/index.js",
+    "watch": "tsc --watch",
+    "start": "node build/index.js",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js",
+    "test": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "0.6.0",
+    "axios": "^1.7.9",
+    "dotenv": "^17.2.3",
+    "minimist": "^1.2.8"
+  },
+  "devDependencies": {
+    "@types/minimist": "^1.2.5",
+    "@types/node": "^20.19.19",
+    "typescript": "^5.3.3"
+  },
+  "keywords": [
+    "mcp",
+    "perplexity",
+    "ai",
+    "search",
+    "reasoning",
+    "research",
+    "sonar-pro",
+    "sonar-reasoning-pro",
+    "sonar-deep-research",
+    "model-context-protocol"
+  ],
+  "author": "MCP Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DaInfernalCoder/researcher-mcp"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

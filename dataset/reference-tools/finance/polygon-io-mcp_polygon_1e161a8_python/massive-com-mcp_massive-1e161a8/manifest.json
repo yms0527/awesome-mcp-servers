@@ -1,0 +1,69 @@
+{
+  "manifest_version": "0.4",
+  "name": "mcp_massive",
+  "display_name": "Massive Market Data",
+  "version": "1.0.11",
+  "description": "Stocks, options & indices market data via Massive.com financial data API. Access real-time and historical prices, quotes, trades, and aggregates for equities, options contracts, ETFs, FX, crypto, and more.",
+  "author": {
+    "name": "Massive",
+    "email": "support@massive.com",
+    "url": "https://massive.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/massive-com/mcp_massive.git"
+  },
+  "homepage": "https://massive.com",
+  "support": "https://github.com/massive-com/mcp_massive/issues",
+  "license": "MIT",
+  "privacy_policies": [
+    "https://massive.com/legal/privacy"
+  ],
+  "icon": "assets/icon-massive-lightmode.png",
+  "keywords": [
+    "finance",
+    "market-data",
+    "stocks",
+    "forex",
+    "crypto",
+    "options",
+    "futures",
+    "trading",
+    "api"
+  ],
+  "server": {
+    "type": "uv",
+    "entry_point": "entrypoint.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "mcp_massive"],
+      "env": {
+        "MASSIVE_API_KEY": "${user_config.MASSIVE_API_KEY}"
+      }
+    }
+  },
+  "user_config": {
+    "MASSIVE_API_KEY": {
+      "type": "string",
+      "title": "Massive API Key",
+      "description": "Your Massive.com API key for accessing market data",
+      "required": true,
+      "sensitive": true
+    }
+  },
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "python": ">=3.12"
+    }
+  },
+  "tools": [
+    { "name": "search_endpoints", "description": "Search for market data API endpoints and built-in finance functions by natural language query. Use this FIRST to find the right endpoint before calling call_api. Covers stocks, options, forex, crypto, futures, indices, ETFs, and economic data. Use detail='more' to see query parameter docs needed for building call_api requests." },
+    { "name": "call_api", "description": "Fetch data from a Massive.com REST API endpoint. Use a path from search_endpoints results. Set store_as to save results as an in-memory table for SQL querying with query_data. Paginated responses include a next-page hint with the exact path and params for the follow-up request. The apply parameter runs built-in functions on results — string input values refer to table columns, numeric values are literals. Use search_endpoints with scope='functions' to discover available functions." },
+    { "name": "query_data", "description": "Run SQL queries against in-memory tables stored via call_api's store_as parameter. Supports standard SELECT queries with CTEs, window functions, JOINs, and scalar subqueries. Special commands: 'SHOW TABLES' lists stored tables, 'DESCRIBE <table>' shows schema, 'DROP TABLE <table>' removes a table. Tables auto-expire after 1 hour. Optionally set apply to post-process query results with built-in financial functions." }
+  ]
+}

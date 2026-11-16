@@ -1,0 +1,44 @@
+{
+  "name": "mcp-github-stars",
+  "type": "module",
+  "version": "0.0.2",
+  "packageManager": "pnpm@11.28.1",
+  "description": "",
+  "author": "",
+  "license": "MIT",
+  "keywords": [],
+  "main": "index.js",
+  "files": [],
+  "scripts": {
+    "dev:stars": "node --env-file .env scripts/index.js",
+    "build:stars": "node scripts/index.js",
+    "dev:mcp": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "postinstall": "simple-git-hooks"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.2.0",
+    "fs-extra": "^11.4.1",
+    "ofetch": "^1.5.1",
+    "zod": "^4.6.5"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^9.5.1",
+    "eslint": "^10.11.0",
+    "eslint-plugin-format": "^2.0.1",
+    "lint-staged": "^17.6.0",
+    "simple-git-hooks": "^2.14.0",
+    "wrangler": "^4.142.0"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm lint-staged"
+  },
+  "lint-staged": {
+    "*": "eslint --fix"
+  }
+}

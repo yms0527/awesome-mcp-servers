@@ -1,6 +1,0 @@
-node_modules/
-build/
-lib/
-dist/
-pnpm-lock.yaml
-package-lock.json

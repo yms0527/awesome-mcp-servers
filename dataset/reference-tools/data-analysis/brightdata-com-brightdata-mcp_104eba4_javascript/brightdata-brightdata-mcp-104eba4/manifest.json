@@ -1,0 +1,98 @@
+{
+  "manifest_version": "0.3",
+  "name": "brightdata-mcp",
+  "display_name": "Bright Data MCP",
+  "version": "4.1.0",
+  "description": "Enhance AI Agents with Real-Time Web Data via Bright Data's web scraping and unblocking services",
+  "long_description": "The official Bright Data Model Context Protocol (MCP) server enables LLMs to access, discover and extract web data in real-time. This server allows MCP clients to seamlessly search the web, navigate websites, take action and retrieve data - without getting blocked - perfect for scraping tasks. Features include search engine scraping, web page scraping as markdown/HTML, structured data extraction from popular sites, and browser automation capabilities.",
+  "author": {
+    "name": "Bright Data",
+    "email": "support@brightdata.com",
+    "url": "https://brightdata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brightdata/brightdata-mcp.git"
+  },
+  "homepage": "https://brightdata.com",
+  "documentation": "https://github.com/brightdata/brightdata-mcp/blob/main/README.md",
+  "support": "https://github.com/brightdata/brightdata-mcp/issues",
+  "icon": "icon.png",
+  "keywords": ["web-scraping", "data-extraction", "proxy", "automation", "unblocking", "serp", "ecommerce", "social-media", "browser-automation"],
+  "license": "MIT",
+  "server": {
+    "type": "node",
+    "entry_point": "@brightdata/mcp",
+    "mcp_config": {
+      "command": "npx",
+      "args": ["@brightdata/mcp"],
+      "env": {
+        "API_TOKEN": "${user_config.api_token}",
+        "WEB_UNLOCKER_ZONE": "${user_config.web_unlocker_zone}",
+        "BROWSER_ZONE": "${user_config.browser_zone}"
+      }
+    }
+  },
+  "tools": [
+    {"name": "search_engine", "description": "Scrape search results from Google, Bing or Yandex. Returns SERP results in JSON or Markdown (URL, title, description). Ideal for gathering current information, news, and detailed search results."},
+    {"name": "scrape_as_markdown", "description": "Scrape a single webpage URL with advanced options for content extraction and get back the results in Markdown."},
+    {"name": "search_engine_batch", "description": "Run multiple search queries simultaneously. Returns JSON for Google, Markdown for Bing/Yandex. Processes up to 10 queries in parallel."},
+    {"name": "scrape_batch", "description": "Scrape multiple webpage URLs with advanced options for content extraction and get back the results in Markdown. Processes up to 10 URLs."},
+    {"name": "scrape_as_html", "description": "Scrape a single webpage URL with advanced options for content extraction and get back the results in HTML."},
+    {"name": "extract", "description": "Scrape a webpage and extract structured data as JSON. First scrapes the page as markdown, then uses AI sampling to convert it to structured JSON format."},
+    {"name": "ask_brightdata_assistant", "description": "Ask Bright Data's support assistant (Sophie) about Bright Data products, APIs, MCP usage, zones, scraping, or account setup. Supports threaded follow-ups via dialog_id."},
+    {"name": "search_scrapers", "description": "Find a pre-built Bright Data scraper (Web Scraper API, 1,200+ sites) by site or data type."},
+    {"name": "get_scraper_details", "description": "Show a scraper's description, input fields, example input and main output fields for one collection method."},
+    {"name": "run_scraper", "description": "Run any pre-built scraper. Waits up to 45 seconds, then returns a snapshot ID to check later."},
+    {"name": "get_scraper_progress", "description": "Check the status of a scraper run."},
+    {"name": "get_scraper_results", "description": "Get the records of a finished scraper run."},
+    {"name": "refresh_scrapers", "description": "Reload the list of pre-built scrapers now."},
+    {"name": "chatgpt_ai_insights", "description": "Send a prompt to ChatGPT and get its answer back as Markdown. Useful for GEO and LLM as a judge."},
+    {"name": "perplexity_ai_insights", "description": "Send a prompt to Perplexity and get its answer back as Markdown. Useful for GEO and LLM as a judge."},
+    {"name": "list_dataset_fields", "description": "List the filterable fields of a searchable dataset (field name, type, and description). Call this before search_dataset."},
+    {"name": "search_dataset", "description": "Search a Bright Data dataset by a filter and get matching records back directly, up to 10 per call, with a cursor for more."},
+    {"name": "session_stats", "description": "Tell the user about the tool usage during this session"},
+    {"name": "scraping_browser_navigate", "description": "Navigate a scraping browser session to a new URL"},
+    {"name": "scraping_browser_go_back", "description": "Go back to the previous page in the browser session"},
+    {"name": "scraping_browser_go_forward", "description": "Go forward to the next page in the browser session"},
+    {"name": "scraping_browser_snapshot", "description": "Capture an ARIA snapshot of the current page showing all interactive elements with their refs. This provides accurate element references that can be used with ref-based tools. Use this before interacting with elements to get proper refs instead of guessing selectors."},
+    {"name": "scraping_browser_click_ref", "description": "Click on an element using its ref from the ARIA snapshot. Use scraping_browser_snapshot first to get the correct ref values. This is more reliable than CSS selectors."},
+    {"name": "scraping_browser_type_ref", "description": "Type text into an element using its ref from the ARIA snapshot. Use scraping_browser_snapshot first to get the correct ref values. This is more reliable than CSS selectors."},
+    {"name": "scraping_browser_fill_form", "description": "Fill multiple form fields in one operation. Use scraping_browser_snapshot first to get the correct ref values."},
+    {"name": "scraping_browser_screenshot", "description": "Take a screenshot of the current page"},
+    {"name": "scraping_browser_network_requests", "description": "Get all network requests made since loading the current page. Shows HTTP method, URL, status code and status text for each request. Useful for debugging API calls, tracking data fetching, and understanding page behavior."},
+    {"name": "scraping_browser_wait_for_ref", "description": "Wait for an element to be visible using its ref from the ARIA snapshot. Use scraping_browser_snapshot first to get the correct ref values. This is more reliable than CSS selectors."},
+    {"name": "scraping_browser_get_text", "description": "Get the text content of the current page"},
+    {"name": "scraping_browser_get_html", "description": "Get the HTML content of the current page. Avoid using the full_page option unless it is important to see things like script tags since this can be large."},
+    {"name": "scraping_browser_scroll", "description": "Scroll to the bottom of the current page"},
+    {"name": "scraping_browser_scroll_to_ref", "description": "Scroll to a specific element using its ref from the ARIA snapshot. Use scraping_browser_snapshot first to get the correct ref values. This is more reliable than CSS selectors."}
+  ],
+  "user_config": {
+    "api_token": {
+      "type": "string",
+      "title": "API Token",
+      "description": "Your Bright Data API token from https://brightdata.com/cp/setting/users",
+      "sensitive": true,
+      "required": true
+    },
+    "web_unlocker_zone": {
+      "type": "string",
+      "title": "Web Unlocker Zone",
+      "description": "Custom Web Unlocker zone name (default: mcp_unlocker)",
+      "required": false,
+      "default": "mcp_unlocker"
+    },
+    "browser_zone": {
+      "type": "string",
+      "title": "Browser Zone",
+      "description": "Browser API zone name for browser automation (default: mcp_browser)",
+      "required": false,
+      "default": "mcp_browser"
+    }
+  },
+  "compatibility": {
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  }
+}

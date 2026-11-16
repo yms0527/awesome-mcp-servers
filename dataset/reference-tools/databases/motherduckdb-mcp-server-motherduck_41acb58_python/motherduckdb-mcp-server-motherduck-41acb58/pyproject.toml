@@ -1,0 +1,73 @@
+[project]
+name = "mcp-server-motherduck"
+version = "1.1.0"
+description = "A MCP server for MotherDuck and local DuckDB"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "duckdb==1.5.6",
+    "fastmcp>=4.0.11",
+    "click>=8.5.0",
+    "pytz>=2026.5",
+]
+
+[[project.authors]]
+name = "tdoehmen"
+email = "till@motherduck.com"
+
+[project.optional-dependencies]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "python-dotenv>=1.2.4",
+    "ruff>=0.16.10",
+]
+
+[build-system]
+requires = [ "hatchling",]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcp_server_motherduck"]
+
+[project.scripts]
+mcp-server-motherduck = "mcp_server_motherduck:main"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.bumpver]
+current_version = "1.1.0"
+version_pattern = "MAJOR.MINOR.PATCH"
+commit = false
+tag = false
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = [
+    '^version = "{version}"',
+    '^current_version = "{version}"',
+]
+"server.json" = ['"version": "{version}"']
+"manifest.json" = ['"version": "{version}"']
+"src/mcp_server_motherduck/configs.py" = ['SERVER_VERSION = "{version}"']
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]

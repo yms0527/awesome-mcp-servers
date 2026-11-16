@@ -1,1 +1,0 @@
-export { definition, handler } from './design-critique.js';

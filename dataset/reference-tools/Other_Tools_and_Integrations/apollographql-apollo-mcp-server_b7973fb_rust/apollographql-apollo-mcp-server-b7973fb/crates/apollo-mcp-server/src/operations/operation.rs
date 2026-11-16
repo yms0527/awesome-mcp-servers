@@ -1,0 +1,6128 @@
+use std::collections::HashMap;
+
+use apollo_compiler::{
+    Node, Schema as GraphqlSchema,
+    ast::{Definition, Document, OperationDefinition, OperationType, Selection, Type},
+    parser::Parser,
+    schema::ExtendedType,
+};
+use http::{HeaderMap, HeaderValue};
+use regex::Regex;
+use rmcp::model::{Tool, ToolAnnotations};
+use schemars::{Schema, json_schema};
+use serde::Serialize;
+use serde_json::{Map, Value};
+use tracing::{debug, info, warn};
+
+use crate::{
+    custom_scalar_map::CustomScalarMap,
+    errors::OperationError,
+    graphql::{self, OperationDetails, ValidationError},
+    schema_tree_shake::{DepthLimit, SchemaTreeShaker},
+};
+
+use super::{
+    AnnotationOverrides, MutationMode, ParamHeaders, RawOperation, UnmirrorableReason,
+    UnmirrorableVariable,
+    executable_descriptions::{non_blank_description, strip_executable_descriptions},
+    param_headers::X_MCP_HEADER,
+    private_fields::{
+        PrivateFieldTree, collect_named_fragments, collect_private_fields, strip_private_directives,
+    },
+    schema_walker,
+};
+
+/// A syntactically parsed, named GraphQL operation exposed as an MCP tool.
+///
+/// Construction derives model-facing metadata from the configured schema, but it does not
+/// validate the executable document against that schema. The upstream GraphQL service performs
+/// execution-time GraphQL validation.
+#[derive(Debug, Clone, Serialize)]
+pub struct Operation {
+    pub(crate) tool: Tool,
+    pub(crate) inner: RawOperation,
+    operation_name: String,
+    /// Query text with `@private` directives and executable descriptions stripped, sent
+    /// downstream instead of `source_text`. `None` when the operation has neither.
+    stripped_source_text: Option<String>,
+    /// Tree of field paths marked `@private`, used for response filtering.
+    /// `None` when the operation has no `@private` directives.
+    #[serde(skip)]
+    pub(crate) private_fields: Option<PrivateFieldTree>,
+}
+
+impl AsRef<Tool> for Operation {
+    fn as_ref(&self) -> &Tool {
+        &self.tool
+    }
+}
+
+impl From<Operation> for Tool {
+    fn from(value: Operation) -> Tool {
+        value.tool
+    }
+}
+
+impl Operation {
+    pub(crate) fn into_inner(self) -> RawOperation {
+        self.inner
+    }
+
+    #[expect(clippy::too_many_arguments)]
+    #[tracing::instrument(skip_all, name = "load_tool")]
+    pub fn from_raw(
+        raw_operation: RawOperation,
+        graphql_schema: &GraphqlSchema,
+        custom_scalar_map: Option<&CustomScalarMap>,
+        mutation_mode: MutationMode,
+        disable_type_description: bool,
+        disable_schema_description: bool,
+        enable_output_schema: bool,
+        annotation_overrides: &HashMap<String, AnnotationOverrides>,
+        description_overrides: &HashMap<String, String>,
+        param_headers: &HashMap<String, ParamHeaders>,
+    ) -> Result<Option<Self>, OperationError> {
+        if let Some((document, operation, comments)) = operation_defs(
+            &raw_operation.source_text,
+            mutation_mode != MutationMode::None,
+            raw_operation.source_path.clone(),
+        )? {
+            let operation_name = match operation_name(&operation, raw_operation.source_path.clone())
+            {
+                Ok(name) => name,
+                Err(OperationError::MissingName {
+                    source_path,
+                    operation,
+                }) => {
+                    if let Some(path) = source_path {
+                        warn!("Skipping unnamed operation in {path}: {operation}");
+                    } else {
+                        warn!("Skipping unnamed operation: {operation}");
+                    }
+                    return Ok(None);
+                }
+                Err(e) => return Err(e),
+            };
+            let variable_description_overrides =
+                variable_description_overrides(&raw_operation.source_text, &operation);
+            let mut tree_shaker = SchemaTreeShaker::new(graphql_schema);
+            tree_shaker.retain_operation(&operation, &document, DepthLimit::Unlimited);
+
+            let description = description_overrides
+                .get(&operation_name)
+                .cloned()
+                .unwrap_or_else(|| {
+                    Self::tool_description(
+                        comments,
+                        &mut tree_shaker,
+                        graphql_schema,
+                        &operation,
+                        disable_type_description,
+                        disable_schema_description,
+                    )
+                });
+
+            let mut object = serde_json::to_value(
+                get_json_schema(
+                    &operation,
+                    tree_shaker.argument_descriptions(),
+                    &variable_description_overrides,
+                    graphql_schema,
+                    custom_scalar_map,
+                    raw_operation.variables.as_ref(),
+                    param_headers.get(&operation_name),
+                )
+                .map_err(|source| OperationError::ParamHeader {
+                    operation: operation_name.clone(),
+                    source,
+                })?,
+            )?;
+
+            // make sure that the properties field exists since schemas::ObjectValidation is
+            // configured to skip empty maps (in the case where there are no input args)
+            ensure_properties_exists(&mut object);
+
+            let Value::Object(schema) = object else {
+                return Err(OperationError::Internal(
+                    "Schemars should have returned an object".to_string(),
+                ));
+            };
+
+            // Collect named fragments for use by output schema and @private detection
+            let named_fragments = collect_named_fragments(&document);
+
+            // Detect @private directives and prepare stripped query text
+            let private_tree = collect_private_fields(&operation.selection_set, &named_fragments);
+            let has_private_fields = private_tree.has_private_fields();
+
+            // Generate output schema from selection set (only if enabled).
+            let output_schema = if enable_output_schema {
+                if let Some(root_type_name) =
+                    graphql_schema.root_operation(operation.operation_type)
+                {
+                    if let Some(root_type) = graphql_schema.types.get(root_type_name) {
+                        serde_json::to_value(schema_walker::selection_set_to_schema(
+                            &operation.selection_set,
+                            root_type,
+                            graphql_schema,
+                            custom_scalar_map,
+                            &named_fragments,
+                            if has_private_fields {
+                                Some(&private_tree)
+                            } else {
+                                None
+                            },
+                        ))
+                        .ok()
+                        .and_then(|v| match v {
+                            Value::Object(obj) => Some(obj),
+                            _ => None,
+                        })
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let mut outgoing = if has_private_fields {
+                strip_private_directives(&document)
+            } else {
+                document.clone()
+            };
+            let stripped_descriptions = strip_executable_descriptions(&mut outgoing);
+            let stripped_source_text = (has_private_fields || stripped_descriptions)
+                .then(|| outgoing.serialize().no_indent().to_string());
+            let private_fields = has_private_fields.then_some(private_tree);
+
+            let is_query = operation.operation_type != OperationType::Mutation;
+            let mut annotations = ToolAnnotations::new()
+                .read_only(is_query)
+                .destructive(!is_query);
+            if is_query {
+                annotations.idempotent_hint = Some(true);
+            }
+            annotations.open_world_hint = Some(true);
+
+            if let Some(overrides) = annotation_overrides.get(operation_name.as_str()) {
+                overrides.apply_to(&mut annotations);
+            }
+
+            let mut tool: Tool =
+                Tool::new(operation_name.clone(), description, schema).annotate(annotations);
+            tool.output_schema = output_schema.map(std::sync::Arc::new);
+            let character_count = tool_character_length(&tool);
+            match character_count {
+                Ok(length) => info!(
+                    "Tool {} loaded with a character count of {}. Estimated tokens: {}",
+                    operation_name,
+                    length,
+                    length / 4 // We don't know the tokenization algorithm, so we just use 4 characters per token as a rough estimate. https://docs.anthropic.com/en/docs/resources/glossary#tokens
+                ),
+                Err(_) => info!(
+                    "Tool {} loaded with an unknown character count",
+                    operation_name
+                ),
+            }
+            Ok(Some(Operation {
+                tool,
+                inner: raw_operation,
+                operation_name,
+                stripped_source_text,
+                private_fields,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Generate a tool description from the operation's description, its leading comments,
+    /// or documentation in the schema, in that order
+    #[tracing::instrument(skip(comments, tree_shaker, graphql_schema, operation_def), fields(operation_type = ?operation_def.operation_type, operation_id = ?operation_def.name))]
+    fn tool_description(
+        comments: Option<String>,
+        tree_shaker: &mut SchemaTreeShaker,
+        graphql_schema: &GraphqlSchema,
+        operation_def: &Node<OperationDefinition>,
+        disable_type_description: bool,
+        disable_schema_description: bool,
+    ) -> String {
+        let operation_description = non_blank_description(operation_def.description.as_ref());
+
+        match operation_description.or_else(|| extract_and_format_comments(comments)) {
+            Some(description) => description,
+            None => {
+                // Add the tree-shaken types to the end of the tool description
+                let mut lines = vec![];
+                if !disable_type_description {
+                    let descriptions = operation_def
+                        .selection_set
+                        .iter()
+                        .filter_map(|selection| {
+                            match selection {
+                                Selection::Field(field) => {
+                                    let field_name = field.name.to_string();
+                                    let operation_type = operation_def.operation_type;
+                                    if let Some(root_name) =
+                                        graphql_schema.root_operation(operation_type)
+                                    {
+                                        // Find the root field referenced by the operation
+                                        let root = graphql_schema.get_object(root_name)?;
+                                        let field_definition = root
+                                            .fields
+                                            .iter()
+                                            .find(|(name, _)| {
+                                                let name = name.to_string();
+                                                name == field_name
+                                            })
+                                            .map(|(_, field_definition)| field_definition.clone());
+
+                                        // Add the root field description to the tool description
+                                        let field_description = field_definition
+                                            .clone()
+                                            .and_then(|field| field.description.clone())
+                                            .map(|node| node.to_string());
+
+                                        // Add information about the return type
+                                        let ty = field_definition.map(|field| field.ty.clone());
+                                        let type_description =
+                                            ty.as_ref().map(Self::type_description);
+
+                                        Some(
+                                            vec![field_description, type_description]
+                                                .into_iter()
+                                                .flatten()
+                                                .collect::<Vec<String>>()
+                                                .join("\n"),
+                                        )
+                                    } else {
+                                        None
+                                    }
+                                }
+                                _ => None,
+                            }
+                        })
+                        .collect::<Vec<String>>()
+                        .join("\n---\n");
+
+                    // Add the tree-shaken types to the end of the tool description
+
+                    lines.push(descriptions);
+                }
+                if !disable_schema_description {
+                    let shaken_schema =
+                        tree_shaker.shaken().unwrap_or_else(|schema| schema.partial);
+
+                    let mut types = shaken_schema
+                        .types
+                        .iter()
+                        .filter(|(_name, extended_type)| {
+                            !extended_type.is_built_in()
+                                && matches!(
+                                    extended_type,
+                                    ExtendedType::Object(_)
+                                        | ExtendedType::Scalar(_)
+                                        | ExtendedType::Enum(_)
+                                        | ExtendedType::Interface(_)
+                                        | ExtendedType::Union(_)
+                                )
+                                && graphql_schema
+                                    .root_operation(operation_def.operation_type)
+                                    .is_none_or(|op_name| extended_type.name() != op_name)
+                                && graphql_schema
+                                    .root_operation(OperationType::Query)
+                                    .is_none_or(|op_name| extended_type.name() != op_name)
+                        })
+                        .peekable();
+                    if types.peek().is_some() {
+                        lines.push(String::from("---"));
+                    }
+
+                    for ty in types {
+                        lines.push(ty.1.serialize().to_string());
+                    }
+                }
+                lines.join("\n")
+            }
+        }
+    }
+
+    fn type_description(ty: &Type) -> String {
+        let type_name = ty.inner_named_type();
+        let mut lines = vec![];
+        let optional = if ty.is_non_null() {
+            ""
+        } else {
+            "is optional and "
+        };
+        let array = if ty.is_list() {
+            "is an array of type"
+        } else {
+            "has type"
+        };
+        lines.push(format!(
+            "The returned value {optional}{array} `{type_name}`"
+        ));
+
+        lines.join("\n")
+    }
+}
+
+impl graphql::Executable for Operation {
+    fn operation(&self, _input: Value) -> Result<OperationDetails, ValidationError> {
+        // Tool metadata does not select the executable document. Predefined tools use the
+        // operation body retained when the tool was constructed.
+        Ok(OperationDetails {
+            query: self
+                .stripped_source_text
+                .clone()
+                .unwrap_or_else(|| self.inner.source_text.clone()),
+            operation_name: Some(self.operation_name.clone()),
+            private_fields: self.private_fields.clone(),
+        })
+    }
+
+    fn variables(&self, input_variables: Value) -> Result<Value, ValidationError> {
+        if let Some(raw_variables) = self.inner.variables.as_ref() {
+            let mut variables = match input_variables {
+                Value::Null => Ok(serde_json::Map::new()),
+                Value::Object(obj) => Ok(obj.clone()),
+                _ => Err(ValidationError(
+                    "Variables must be a JSON object or null".into(),
+                )),
+            }?;
+
+            raw_variables.iter().try_for_each(|(key, value)| {
+                if variables.contains_key(key) {
+                    Err(ValidationError(format!(
+                        "Parameter '{key}' conflicts with operation-defined variable"
+                    )))
+                } else {
+                    variables.insert(key.clone(), value.clone());
+                    Ok(())
+                }
+            })?;
+
+            Ok(Value::Object(variables))
+        } else {
+            Ok(input_variables)
+        }
+    }
+
+    fn headers(&self, default_headers: &HeaderMap<HeaderValue>) -> HeaderMap<HeaderValue> {
+        match self.inner.headers.as_ref() {
+            None => default_headers.clone(),
+            Some(raw_headers) if default_headers.is_empty() => raw_headers.clone(),
+            Some(raw_headers) => {
+                let mut headers = default_headers.clone();
+                raw_headers.iter().for_each(|(key, value)| {
+                    if headers.contains_key(key) {
+                        tracing::debug!(
+                            "Header {} has a default value, overwriting with operation value",
+                            key
+                        );
+                    }
+                    headers.insert(key, value.clone());
+                });
+                headers
+            }
+        }
+    }
+}
+
+/// Parses exactly one GraphQL operation and filters disallowed operation types.
+///
+/// This performs syntactic parsing only; it does not validate the executable document against a
+/// schema.
+#[allow(clippy::type_complexity)]
+#[tracing::instrument(skip_all)]
+pub fn operation_defs(
+    source_text: &str,
+    allow_mutations: bool,
+    source_path: Option<String>,
+) -> Result<Option<(Document, Node<OperationDefinition>, Option<String>)>, OperationError> {
+    let source_path_clone = source_path.clone();
+    let document = Parser::new()
+        .parse_ast(
+            source_text,
+            source_path_clone.unwrap_or_else(|| "operation.graphql".to_string()),
+        )
+        .map_err(|e| OperationError::GraphQLDocument(Box::new(e)))?;
+    let mut last_offset: Option<usize> = Some(0);
+    let mut operation_defs = document.definitions.clone().into_iter().filter_map(|def| {
+            let description = match def.location() {
+                Some(source_span) => {
+                    let description = last_offset
+                        .map(|start_offset| &source_text[start_offset..source_span.offset()]);
+                    last_offset = Some(source_span.end_offset());
+                    description
+                }
+                None => {
+                    last_offset = None;
+                    None
+                }
+            };
+
+            match def {
+                Definition::OperationDefinition(operation_def) => {
+                    Some((operation_def, description))
+                }
+                Definition::FragmentDefinition(_) => None,
+                _ => {
+                    eprintln!("Schema definitions were passed in, but only operations and fragments are allowed");
+                    None
+                }
+            }
+        });
+
+    let (operation, comments) = match (operation_defs.next(), operation_defs.next()) {
+        (None, _) => {
+            return Err(OperationError::NoOperations { source_path });
+        }
+        (_, Some(_)) => {
+            return Err(OperationError::TooManyOperations {
+                source_path,
+                count: 2 + operation_defs.count(),
+            });
+        }
+        (Some(op), None) => op,
+    };
+
+    match operation.operation_type {
+        OperationType::Subscription => {
+            debug!(
+                "Skipping subscription operation {}",
+                operation_name(&operation, source_path)?
+            );
+            return Ok(None);
+        }
+        OperationType::Mutation => {
+            if !allow_mutations {
+                warn!(
+                    "Skipping mutation operation {}",
+                    operation_name(&operation, source_path)?
+                );
+                return Ok(None);
+            }
+        }
+        OperationType::Query => {}
+    }
+
+    Ok(Some((document, operation, comments.map(|c| c.to_string()))))
+}
+
+pub fn operation_name(
+    operation: &Node<OperationDefinition>,
+    source_path: Option<String>,
+) -> Result<String, OperationError> {
+    Ok(operation
+        .name
+        .as_ref()
+        .ok_or_else(|| OperationError::MissingName {
+            source_path,
+            operation: operation.serialize().no_indent().to_string(),
+        })?
+        .to_string())
+}
+
+#[tracing::instrument(skip_all, fields(operation_type = ?operation_definition.operation_type, operation_id = ?operation_definition.name))]
+pub fn variable_description_overrides(
+    source_text: &str,
+    operation_definition: &Node<OperationDefinition>,
+) -> HashMap<String, String> {
+    let mut argument_overrides_map: HashMap<String, String> = HashMap::new();
+    let mut last_offset = find_opening_parens_offset(source_text, operation_definition);
+    operation_definition
+        .variables
+        .iter()
+        .for_each(|v| match v.location() {
+            Some(source_span) => {
+                let comment = last_offset
+                    .map(|start_offset| &source_text[start_offset..source_span.offset()]);
+
+                let variable_description = non_blank_description(v.description.as_ref());
+                let comment_description = || {
+                    comment
+                        .filter(|d| !d.is_empty() && d.contains('#'))
+                        .and_then(|d| extract_and_format_comments(Some(d.to_string())))
+                };
+
+                if let Some(description) = variable_description.or_else(comment_description) {
+                    argument_overrides_map.insert(v.name.to_string(), description);
+                }
+
+                last_offset = Some(source_span.end_offset());
+            }
+            None => {
+                last_offset = None;
+            }
+        });
+
+    argument_overrides_map
+}
+
+#[tracing::instrument(skip_all, fields(operation_type = ?operation_definition.operation_type, operation_id = ?operation_definition.name))]
+pub fn find_opening_parens_offset(
+    source_text: &str,
+    operation_definition: &Node<OperationDefinition>,
+) -> Option<usize> {
+    let regex = match Regex::new(r"(?m)^\s*\(") {
+        Ok(regex) => regex,
+        Err(_) => return None,
+    };
+
+    operation_definition
+        .name
+        .as_ref()
+        .and_then(|n| n.location())
+        .map(|span| {
+            regex
+                .find(source_text[span.end_offset()..].as_ref())
+                .map(|m| m.start() + m.len() + span.end_offset())
+                .unwrap_or(0)
+        })
+}
+
+pub fn extract_and_format_comments(comments: Option<String>) -> Option<String> {
+    comments.and_then(|comments| {
+        let content = Regex::new(r"(\n|^)(\s*,*)*#")
+            .ok()?
+            .replace_all(comments.as_str(), "$1");
+        let trimmed = content.trim();
+
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
+}
+
+fn ensure_properties_exists(json_object: &mut Value) {
+    if let Some(obj_type) = json_object.get("type")
+        && obj_type == "object"
+        && let Some(obj_map) = json_object.as_object_mut()
+    {
+        let props = obj_map
+            .entry("properties")
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        if !props.is_object() {
+            *props = Value::Object(serde_json::Map::new());
+        }
+    }
+}
+
+fn tool_character_length(tool: &Tool) -> Result<usize, serde_json::Error> {
+    let input_schema_len =
+        serde_json::to_string_pretty(&serde_json::json!(tool.input_schema))?.len();
+    let output_schema_len = match &tool.output_schema {
+        Some(schema) => serde_json::to_string_pretty(schema.as_ref())?.len(),
+        None => 0,
+    };
+    Ok(tool.name.len()
+        + tool.description.as_ref().map(|d| d.len()).unwrap_or(0)
+        + input_schema_len
+        + output_schema_len)
+}
+
+#[tracing::instrument(skip_all)]
+fn get_json_schema(
+    operation: &Node<OperationDefinition>,
+    schema_argument_descriptions: &HashMap<String, Vec<String>>,
+    argument_descriptions_overrides: &HashMap<String, String>,
+    graphql_schema: &GraphqlSchema,
+    custom_scalar_map: Option<&CustomScalarMap>,
+    variable_overrides: Option<&HashMap<String, Value>>,
+    param_headers: Option<&ParamHeaders>,
+) -> Result<Schema, UnmirrorableVariable> {
+    // Default initialize the schema with the bare minimum needed to be a valid object
+    let mut schema = json_schema!({"type": "object", "properties": {}});
+    let mut definitions = Map::new();
+    let is_fixed = |variable_name: &str| {
+        variable_overrides
+            .map(|o| o.contains_key(variable_name))
+            .unwrap_or_default()
+    };
+
+    for variable in param_headers.into_iter().flat_map(ParamHeaders::variables) {
+        let declared = operation.variables.iter().any(|v| v.name == variable);
+        let reason = match (declared, is_fixed(variable)) {
+            (false, _) => UnmirrorableReason::Undeclared,
+            (true, true) => UnmirrorableReason::Fixed,
+            (true, false) => continue,
+        };
+        return Err(UnmirrorableVariable {
+            variable: variable.to_string(),
+            reason,
+        });
+    }
+
+    // TODO: Can this be unwrapped to use `schema_walker::walk` instead? This functionality is doubled
+    // in some cases.
+    for variable in &operation.variables {
+        let variable_name = variable.name.to_string();
+        if !is_fixed(&variable_name) {
+            // use overridden description if there is one, otherwise use the schema description
+            let description = argument_descriptions_overrides
+                .get(&variable_name)
+                .cloned()
+                .or_else(|| {
+                    schema_argument_descriptions
+                        .get(&variable_name)
+                        .filter(|d| !d.is_empty())
+                        .map(|d| d.join("#"))
+                });
+
+            let nested = match param_headers.and_then(|headers| headers.get(&variable_name)) {
+                Some(header) => {
+                    let mut nested = schema_walker::header_param_to_schema(
+                        variable.ty.as_ref(),
+                        graphql_schema,
+                        custom_scalar_map,
+                        description,
+                        variable.default_value.as_deref(),
+                    )
+                    .map_err(|reason| UnmirrorableVariable {
+                        variable: variable_name.clone(),
+                        reason: reason.into(),
+                    })?;
+                    nested
+                        .ensure_object()
+                        .insert(X_MCP_HEADER.to_string(), header.into());
+                    nested
+                }
+                None => schema_walker::type_to_schema(
+                    variable.ty.as_ref(),
+                    graphql_schema,
+                    &mut definitions,
+                    custom_scalar_map,
+                    description,
+                    variable.default_value.as_deref(),
+                ),
+            };
+            schema
+                .ensure_object()
+                .entry("properties")
+                .or_insert(Value::Object(Default::default()))
+                .as_object_mut()
+                .get_or_insert(&mut Map::default())
+                .insert(variable_name.clone(), nested.into());
+
+            if variable.ty.is_non_null() && variable.default_value.is_none() {
+                schema
+                    .ensure_object()
+                    .entry("required")
+                    .or_insert(serde_json::Value::Array(Vec::new()))
+                    .as_array_mut()
+                    .get_or_insert(&mut Vec::default())
+                    .push(variable_name.into());
+            }
+        }
+    }
+
+    // Add the definitions to the overall schema if needed
+    if !definitions.is_empty() {
+        schema
+            .ensure_object()
+            .insert("definitions".to_string(), definitions.into());
+    }
+
+    Ok(schema)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::HashMap, str::FromStr as _, sync::LazyLock};
+
+    use apollo_compiler::{Schema, parser::Parser, validation::Valid};
+    use rmcp::model::Tool;
+    use serde_json::Value;
+    use tracing_test::traced_test;
+
+    use crate::{
+        custom_scalar_map::CustomScalarMap,
+        graphql::Executable as _,
+        operations::{
+            AnnotationOverrides, MutationMode, Operation, RawOperation,
+            operation::tool_character_length,
+        },
+    };
+
+    // Example schema for tests
+    static SCHEMA: LazyLock<Valid<Schema>> = LazyLock::new(|| {
+        Schema::parse(
+            r#"
+                type Query {
+                    id: String
+                    enum: RealEnum
+                    customQuery(""" id description """ id: ID!, """ a flag """ flag: Boolean): OutputType
+                    testOp: OpResponse
+                }
+                type Mutation {id: String }
+
+                """
+                RealCustomScalar exists
+                """
+                scalar RealCustomScalar
+                input RealInputObject {
+                    """
+                    optional is a input field that is optional
+                    """
+                    optional: String
+
+                    """
+                    required is a input field that is required
+                    """
+                    required: String!
+                }
+
+                type OpResponse {
+                  id: String
+                }
+
+                """
+                the description for the enum
+                """
+                enum RealEnum {
+                    """
+                    ENUM_VALUE_1 is a value
+                    """
+                    ENUM_VALUE_1
+
+                    """
+                    ENUM_VALUE_2 is a value
+                    """
+                    ENUM_VALUE_2
+                }
+
+                """
+                custom output type
+                """
+                type OutputType {
+                    id: ID!
+                }
+            "#,
+            "operation.graphql",
+        )
+        .expect("schema should parse")
+        .validate()
+        .expect("schema should be valid")
+    });
+
+    /// Serializes the input to JSON, sorting the object keys
+    macro_rules! to_sorted_json {
+        ($json:expr) => {{
+            let mut j = serde_json::json!($json);
+            j.sort_all_objects();
+
+            j
+        }};
+    }
+
+    #[test]
+    fn nullable_named_type() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: ID) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r#"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "id": Object {
+                        "anyOf": Array [
+                            Object {
+                                "type": String("string"),
+                            },
+                            Object {
+                                "type": String("null"),
+                            },
+                        ],
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "#);
+
+        let json = to_sorted_json!(tool.input_schema);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&json).unwrap(), @r#"
+        {
+          "properties": {
+            "id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        }
+        "#);
+    }
+
+    #[test]
+    fn variables_with_defaults_expose_default_and_are_optional() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: r#"query QueryName($id: ID = "abc", $flag: Boolean! = true, $limit: Int!) { id }"#
+                    .to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool.input_schema, @r#"
+        {
+            "type": String("object"),
+            "properties": Object {
+                "id": Object {
+                    "anyOf": Array [
+                        Object {
+                            "type": String("string"),
+                        },
+                        Object {
+                            "type": String("null"),
+                        },
+                    ],
+                    "default": String("abc"),
+                },
+                "flag": Object {
+                    "type": String("boolean"),
+                    "default": Bool(true),
+                },
+                "limit": Object {
+                    "type": String("integer"),
+                },
+            },
+            "required": Array [
+                String("limit"),
+            ],
+        }
+        "#);
+    }
+
+    #[test]
+    fn non_nullable_named_type() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: ID!) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r#"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "id": Object {
+                        "type": String("string"),
+                    },
+                },
+                "required": Array [
+                    String("id"),
+                ],
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "#);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&serde_json::json!(tool.input_schema)).unwrap(), @r###"
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+        "###);
+    }
+
+    #[test]
+    fn non_nullable_list_of_nullable_named_type() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: [ID]!) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r#"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "id": Object {
+                        "type": String("array"),
+                        "items": Object {
+                            "anyOf": Array [
+                                Object {
+                                    "type": String("string"),
+                                },
+                                Object {
+                                    "type": String("null"),
+                                },
+                            ],
+                        },
+                    },
+                },
+                "required": Array [
+                    String("id"),
+                ],
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "#);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&serde_json::json!(tool.input_schema)).unwrap(), @r#"
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+        "#);
+    }
+
+    #[test]
+    fn non_nullable_list_of_non_nullable_named_type() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: [ID!]!) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r#"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "id": Object {
+                        "type": String("array"),
+                        "items": Object {
+                            "type": String("string"),
+                        },
+                    },
+                },
+                "required": Array [
+                    String("id"),
+                ],
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "#);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&serde_json::json!(tool.input_schema)).unwrap(), @r###"
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+        "###);
+    }
+
+    #[test]
+    fn nullable_list_of_nullable_named_type() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: [ID]) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r#"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "id": Object {
+                        "anyOf": Array [
+                            Object {
+                                "type": String("array"),
+                                "items": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                            Object {
+                                "type": String("null"),
+                            },
+                        ],
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "#);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&serde_json::json!(tool.input_schema)).unwrap(), @r#"
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn nullable_list_of_non_nullable_named_type() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: [ID!]) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r#"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "id": Object {
+                        "anyOf": Array [
+                            Object {
+                                "type": String("array"),
+                                "items": Object {
+                                    "type": String("string"),
+                                },
+                            },
+                            Object {
+                                "type": String("null"),
+                            },
+                        ],
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "#);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&serde_json::json!(tool.input_schema)).unwrap(), @r#"
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn nullable_list_of_nullable_lists_of_nullable_named_types() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: [[ID]]) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r#"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "id": Object {
+                        "anyOf": Array [
+                            Object {
+                                "type": String("array"),
+                                "items": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("array"),
+                                            "items": Object {
+                                                "anyOf": Array [
+                                                    Object {
+                                                        "type": String("string"),
+                                                    },
+                                                    Object {
+                                                        "type": String("null"),
+                                                    },
+                                                ],
+                                            },
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                            Object {
+                                "type": String("null"),
+                            },
+                        ],
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "#);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&serde_json::json!(tool.input_schema)).unwrap(), @r#"
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn nullable_input_object() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: RealInputObject) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r##"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "id": Object {
+                        "anyOf": Array [
+                            Object {
+                                "$ref": String("#/definitions/RealInputObject"),
+                            },
+                            Object {
+                                "type": String("null"),
+                            },
+                        ],
+                    },
+                },
+                "definitions": Object {
+                    "RealInputObject": Object {
+                        "type": String("object"),
+                        "properties": Object {
+                            "optional": Object {
+                                "description": String("optional is a input field that is optional"),
+                                "anyOf": Array [
+                                    Object {
+                                        "type": String("string"),
+                                    },
+                                    Object {
+                                        "type": String("null"),
+                                    },
+                                ],
+                            },
+                            "required": Object {
+                                "description": String("required is a input field that is required"),
+                                "type": String("string"),
+                            },
+                        },
+                        "required": Array [
+                            String("required"),
+                        ],
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "##);
+    }
+
+    #[test]
+    fn non_nullable_enum() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: RealEnum!) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r##"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "id": Object {
+                        "$ref": String("#/definitions/RealEnum"),
+                    },
+                },
+                "required": Array [
+                    String("id"),
+                ],
+                "definitions": Object {
+                    "RealEnum": Object {
+                        "description": String("the description for the enum\n\nValues:\nENUM_VALUE_1: ENUM_VALUE_1 is a value\nENUM_VALUE_2: ENUM_VALUE_2 is a value"),
+                        "type": String("string"),
+                        "enum": Array [
+                            String("ENUM_VALUE_1"),
+                            String("ENUM_VALUE_2"),
+                        ],
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "##);
+    }
+
+    #[test]
+    fn multiple_operations_should_error() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName { id } query QueryName { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: Some("operation.graphql".to_string()),
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        );
+        insta::assert_debug_snapshot!(operation, @r#"
+        Err(
+            TooManyOperations {
+                source_path: Some(
+                    "operation.graphql",
+                ),
+                count: 2,
+            },
+        )
+        "#);
+    }
+
+    #[test]
+    #[traced_test]
+    fn unnamed_operations_should_be_skipped() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: Some("operation.graphql".to_string()),
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        );
+        assert!(operation.unwrap().is_none());
+
+        logs_assert(|lines: &[&str]| {
+            lines
+                .iter()
+                .filter(|line| line.contains("WARN"))
+                .any(|line| {
+                    line.contains("Skipping unnamed operation in operation.graphql: { id }")
+                })
+                .then_some(())
+                .ok_or("Expected warning about unnamed operation in logs".to_string())
+        });
+    }
+
+    #[test]
+    fn no_operations_should_error() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "fragment Test on Query { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: Some("operation.graphql".to_string()),
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        );
+        insta::assert_debug_snapshot!(operation, @r#"
+        Err(
+            NoOperations {
+                source_path: Some(
+                    "operation.graphql",
+                ),
+            },
+        )
+        "#);
+    }
+
+    #[test]
+    fn schema_should_error() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "type Query { id: String }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        );
+        insta::assert_debug_snapshot!(operation, @r"
+        Err(
+            NoOperations {
+                source_path: None,
+            },
+        )
+        ");
+    }
+
+    #[test]
+    #[traced_test]
+    fn unknown_type_should_be_any() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: FakeType) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        // Verify that a warning was logged
+        logs_assert(|lines: &[&str]| {
+            lines
+                .iter()
+                .filter(|line| line.contains("WARN"))
+                .any(|line| line.contains("Type not found in schema name=\"FakeType\""))
+                .then_some(())
+                .ok_or("Expected warning about unknown type in logs".to_string())
+        });
+
+        insta::assert_debug_snapshot!(tool, @r#"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "id": Object {
+                        "anyOf": Array [
+                            Object {},
+                            Object {
+                                "type": String("null"),
+                            },
+                        ],
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "#);
+    }
+
+    #[test]
+    #[traced_test]
+    fn custom_scalar_without_map_should_be_any() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: RealCustomScalar) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        // Verify that a warning was logged
+        logs_assert(|lines: &[&str]| {
+            lines
+                .iter()
+                .filter(|line| line.contains("WARN"))
+                .any(|line| line.contains("custom scalars aren't currently supported without a custom_scalar_map name=\"RealCustomScalar\""))
+                .then_some(())
+                .ok_or("Expected warning about custom scalar without map in logs".to_string())
+        });
+
+        insta::assert_debug_snapshot!(tool, @r##"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "id": Object {
+                        "anyOf": Array [
+                            Object {
+                                "$ref": String("#/definitions/RealCustomScalar"),
+                            },
+                            Object {
+                                "type": String("null"),
+                            },
+                        ],
+                    },
+                },
+                "definitions": Object {
+                    "RealCustomScalar": Object {
+                        "description": String("RealCustomScalar exists"),
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "##);
+    }
+
+    #[test]
+    #[traced_test]
+    fn custom_scalar_with_map_but_not_found_should_error() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: RealCustomScalar) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            Some(&CustomScalarMap::from_str("{}").unwrap()),
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        // Verify that a warning was logged
+        logs_assert(|lines: &[&str]| {
+            lines
+                .iter()
+                .filter(|line| line.contains("WARN"))
+                .any(|line| {
+                    line.contains(
+                        "custom scalar missing from custom_scalar_map name=\"RealCustomScalar\"",
+                    )
+                })
+                .then_some(())
+                .ok_or("Expected warning about custom scalar missing in logs".to_string())
+        });
+
+        insta::assert_debug_snapshot!(tool, @r##"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "id": Object {
+                        "anyOf": Array [
+                            Object {
+                                "$ref": String("#/definitions/RealCustomScalar"),
+                            },
+                            Object {
+                                "type": String("null"),
+                            },
+                        ],
+                    },
+                },
+                "definitions": Object {
+                    "RealCustomScalar": Object {
+                        "description": String("RealCustomScalar exists"),
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "##);
+    }
+
+    #[test]
+    fn custom_scalar_with_map() {
+        let custom_scalar_map =
+            CustomScalarMap::from_str("{ \"RealCustomScalar\": { \"type\": \"string\" }}");
+
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: RealCustomScalar) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            custom_scalar_map.ok().as_ref(),
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r##"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "id": Object {
+                        "anyOf": Array [
+                            Object {
+                                "$ref": String("#/definitions/RealCustomScalar"),
+                            },
+                            Object {
+                                "type": String("null"),
+                            },
+                        ],
+                    },
+                },
+                "definitions": Object {
+                    "RealCustomScalar": Object {
+                        "description": String("RealCustomScalar exists"),
+                        "type": String("string"),
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "##);
+    }
+
+    #[test]
+    fn tool_description() {
+        const SCHEMA: &str = r#"
+        type Query {
+          """
+          Get a list of A
+          """
+          a(input: String!): [A]!
+
+          """
+          Get a B
+          """
+          b: B
+
+          """
+          Get a Z
+          """
+          z: Z
+        }
+
+        """
+        A
+        """
+        type A {
+          c: String
+          d: D
+        }
+
+        """
+        B
+        """
+        type B {
+          d: D
+          u: U
+        }
+
+        """
+        D
+        """
+        type D {
+          e: E
+          f: String
+          g: String
+        }
+
+        """
+        E
+        """
+        enum E {
+          """
+          one
+          """
+          ONE
+          """
+          two
+          """
+          TWO
+        }
+
+        """
+        F
+        """
+        scalar F
+
+        """
+        U
+        """
+        union U = M | W
+
+        """
+        M
+        """
+        type M {
+          m: Int
+        }
+
+        """
+        W
+        """
+        type W {
+          w: Int
+        }
+
+        """
+        Z
+        """
+        type Z {
+          z: Int
+          zz: Int
+          zzz: Int
+        }
+        "#;
+
+        let document = Parser::new().parse_ast(SCHEMA, "schema.graphql").unwrap();
+        let schema = document.to_schema().unwrap();
+
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: r###"
+            query GetABZ($state: String!) {
+              a(input: $input) {
+                d {
+                  e
+                }
+              }
+              b {
+                d {
+                  ...JustF
+                }
+                u {
+                  ... on M {
+                    m
+                  }
+                  ... on W {
+                    w
+                  }
+                }
+              }
+              z {
+                ...JustZZZ
+              }
+            }
+
+            fragment JustF on D {
+              f
+            }
+
+            fragment JustZZZ on Z {
+              zzz
+            }
+            "###
+                .to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &schema,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        insta::assert_snapshot!(
+            operation.tool.description.unwrap(),
+            @r#"
+        Get a list of A
+        The returned value is an array of type `A`
+        ---
+        Get a B
+        The returned value is optional and has type `B`
+        ---
+        Get a Z
+        The returned value is optional and has type `Z`
+        ---
+        """A"""
+        type A {
+          d: D
+        }
+
+        """B"""
+        type B {
+          d: D
+          u: U
+        }
+
+        """D"""
+        type D {
+          e: E
+          f: String
+        }
+
+        """E"""
+        enum E {
+          """one"""
+          ONE
+          """two"""
+          TWO
+        }
+
+        """U"""
+        union U = M | W
+
+        """M"""
+        type M {
+          m: Int
+        }
+
+        """W"""
+        type W {
+          w: Int
+        }
+
+        """Z"""
+        type Z {
+          zzz: Int
+        }
+        "#
+        );
+    }
+
+    #[test]
+    fn tool_comment_description() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: r###"
+            # Overridden tool #description
+            query GetABZ($state: String!) {
+              b {
+                d {
+                  f
+                }
+              }
+            }
+            "###
+                .to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        insta::assert_snapshot!(
+            operation.tool.description.unwrap(),
+            @"Overridden tool #description"
+        );
+    }
+
+    #[test]
+    fn tool_empty_comment_description() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: r###"
+            #
+
+            #
+            query GetABZ($state: String!) {
+              id
+            }
+            "###
+                .to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        insta::assert_snapshot!(
+            operation.tool.description.unwrap(),
+            @"The returned value is optional and has type `String`"
+        );
+    }
+
+    #[test]
+    fn no_schema_description() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: r###"query GetABZ($state: String!) { id enum }"###.to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            true,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        insta::assert_snapshot!(
+            operation.tool.description.unwrap(),
+            @r"
+        The returned value is optional and has type `String`
+        ---
+        The returned value is optional and has type `RealEnum`
+        "
+        );
+    }
+
+    #[test]
+    fn no_type_description() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: r###"query GetABZ($state: String!) { id enum }"###.to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            true,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        insta::assert_snapshot!(
+            operation.tool.description.unwrap(),
+            @r#"
+        ---
+        """the description for the enum"""
+        enum RealEnum {
+          """ENUM_VALUE_1 is a value"""
+          ENUM_VALUE_1
+          """ENUM_VALUE_2 is a value"""
+          ENUM_VALUE_2
+        }
+        "#
+        );
+    }
+
+    #[test]
+    fn no_type_description_or_schema_description() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: r###"query GetABZ($state: String!) { id enum }"###.to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            true,
+            true,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        insta::assert_snapshot!(
+            operation.tool.description.unwrap(),
+            @""
+        );
+    }
+
+    #[test]
+    fn recursive_inputs() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: r###"query Test($filter: Filter){
+                field(filter: $filter) {
+                    id
+                }
+            }"###
+                    .to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &Schema::parse(
+                r#"
+                """the filter input"""
+                input Filter {
+                """the filter.field field"""
+                    field: String
+                    """the filter.filter field"""
+                    filter: Filter
+                }
+                type Query {
+                """the Query.field field"""
+                  field(
+                    """the filter argument"""
+                    filter: Filter
+                  ): String
+                }
+            "#,
+                "operation.graphql",
+            )
+            .unwrap(),
+            None,
+            MutationMode::None,
+            true,
+            true,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        insta::assert_debug_snapshot!(operation.tool, @r##"
+        Tool {
+            name: "Test",
+            title: None,
+            description: Some(
+                "",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "filter": Object {
+                        "description": String("the filter argument"),
+                        "anyOf": Array [
+                            Object {
+                                "$ref": String("#/definitions/Filter"),
+                            },
+                            Object {
+                                "type": String("null"),
+                            },
+                        ],
+                    },
+                },
+                "definitions": Object {
+                    "Filter": Object {
+                        "description": String("the filter input"),
+                        "type": String("object"),
+                        "properties": Object {
+                            "field": Object {
+                                "description": String("the filter.field field"),
+                                "anyOf": Array [
+                                    Object {
+                                        "type": String("string"),
+                                    },
+                                    Object {
+                                        "type": String("null"),
+                                    },
+                                ],
+                            },
+                            "filter": Object {
+                                "description": String("the filter.filter field"),
+                                "anyOf": Array [
+                                    Object {
+                                        "$ref": String("#/definitions/Filter"),
+                                    },
+                                    Object {
+                                        "type": String("null"),
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "field": Object {
+                                    "description": String("the Query.field field"),
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "##);
+    }
+
+    #[test]
+    fn with_variable_overrides() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: ID, $name: String) { id }".to_string(),
+                headers: None,
+                variables: Some(HashMap::from([(
+                    "id".to_string(),
+                    serde_json::Value::String("v".to_string()),
+                )])),
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r#"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "name": Object {
+                        "anyOf": Array [
+                            Object {
+                                "type": String("string"),
+                            },
+                            Object {
+                                "type": String("null"),
+                            },
+                        ],
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "#);
+    }
+
+    #[test]
+    fn input_schema_includes_variable_descriptions() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($idArg: ID) { customQuery(id: $idArg) { id } }"
+                    .to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        let json = to_sorted_json!(tool.input_schema);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&json).unwrap(), @r#"
+        {
+          "properties": {
+            "idArg": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "id description"
+            }
+          },
+          "type": "object"
+        }
+        "#);
+    }
+
+    #[test]
+    fn input_schema_includes_joined_variable_descriptions_if_multiple() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($idArg: ID, $flag: Boolean) { customQuery(id: $idArg, flag: $flag) { id @skip(if: $flag) } }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+            .unwrap()
+            .unwrap();
+        let tool = Tool::from(operation);
+
+        let json = to_sorted_json!(tool.input_schema);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&json).unwrap(), @r#"
+        {
+          "properties": {
+            "flag": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Skipped when true.#a flag"
+            },
+            "idArg": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "id description"
+            }
+          },
+          "type": "object"
+        }
+        "#);
+    }
+
+    #[test]
+    fn input_schema_includes_directive_variable_descriptions() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($idArg: ID, $skipArg: Boolean) { customQuery(id: $idArg) { id @skip(if: $skipArg) } }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+            .unwrap()
+            .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_snapshot!(serde_json::to_string_pretty(&serde_json::json!(tool.input_schema)).unwrap(), @r#"
+        {
+          "type": "object",
+          "properties": {
+            "idArg": {
+              "description": "id description",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "skipArg": {
+              "description": "Skipped when true.",
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn operation_name_with_named_query() {
+        let source_text = "query GetUser($id: ID!) { user(id: $id) { name email } }";
+        let raw_op = RawOperation {
+            source_text: source_text.to_string(),
+            headers: None,
+            variables: None,
+            source_path: None,
+        };
+        let operation = Operation::from_raw(
+            raw_op,
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        let op_details = operation.operation(Value::Null).unwrap();
+        assert_eq!(op_details.operation_name, Some(String::from("GetUser")));
+    }
+
+    #[test]
+    fn operation_name_with_named_mutation() {
+        let source_text =
+            "mutation CreateUser($input: UserInput!) { createUser(input: $input) { id name } }";
+        let raw_op = RawOperation {
+            source_text: source_text.to_string(),
+            headers: None,
+            variables: None,
+            source_path: None,
+        };
+        let operation = Operation::from_raw(
+            raw_op,
+            &SCHEMA,
+            None,
+            MutationMode::Explicit,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        let op_details = operation.operation(Value::Null).unwrap();
+        assert_eq!(op_details.operation_name, Some(String::from("CreateUser")));
+    }
+
+    #[test]
+    fn operation_variable_comments_override_schema_descriptions() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "# operation description\nquery QueryName(# id comment override\n$idArg: ID) { customQuery(id: $idArg) { id } }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+            .unwrap()
+            .unwrap();
+        let tool = Tool::from(operation);
+
+        let json = to_sorted_json!(tool.input_schema);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&json).unwrap(), @r#"
+        {
+          "properties": {
+            "idArg": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "id comment override"
+            }
+          },
+          "type": "object"
+        }
+        "#);
+    }
+
+    #[test]
+    fn operation_variable_comment_override_supports_multiline_comments() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "# operation description\nquery QueryName(# id comment override\n # multi-line comment \n$idArg: ID) { customQuery(id: $idArg) { id } }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+            .unwrap()
+            .unwrap();
+        let tool = Tool::from(operation);
+
+        let json = to_sorted_json!(tool.input_schema);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&json).unwrap(), @r#"
+        {
+          "properties": {
+            "idArg": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "id comment override\n multi-line comment"
+            }
+          },
+          "type": "object"
+        }
+        "#);
+    }
+
+    #[test]
+    fn operation_variable_descriptions_override_schema_descriptions() {
+        let operation = RawOperation::from((
+            "query QueryName(\"\"\"Spec description\"\"\" $idArg: ID) { customQuery(id: $idArg) { id } }".to_string(),
+            None,
+        ))
+        .into_operation(
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        assert_eq!(
+            tool.input_schema["properties"]["idArg"]["description"],
+            "Spec description"
+        );
+    }
+
+    #[test]
+    fn operation_variable_descriptions_override_variable_comments() {
+        let operation = RawOperation::from((
+            "query QueryName(# id comment override\n\"\"\"Spec description\"\"\" $idArg: ID) { customQuery(id: $idArg) { id } }".to_string(),
+            None,
+        ))
+        .into_operation(
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        assert_eq!(
+            tool.input_schema["properties"]["idArg"]["description"], "Spec description",
+            "the variable description should take priority over its comment"
+        );
+    }
+
+    #[test]
+    fn blank_operation_variable_description_falls_back_to_variable_comment() {
+        let operation = RawOperation::from((
+            "query QueryName(# id comment override\n\"\"\"   \"\"\" $idArg: ID) { customQuery(id: $idArg) { id } }".to_string(),
+            None,
+        ))
+        .into_operation(
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        assert_eq!(
+            tool.input_schema["properties"]["idArg"]["description"],
+            "id comment override"
+        );
+    }
+
+    #[test]
+    fn comment_with_parens_has_comments_extracted_correctly() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName # a comment (with parens)\n(# id comment override\n # multi-line comment \n$idArg: ID) { customQuery(id: $idArg) { id } }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+            .unwrap()
+            .unwrap();
+        let tool = Tool::from(operation);
+
+        let json = to_sorted_json!(tool.input_schema);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&json).unwrap(), @r#"
+        {
+          "properties": {
+            "idArg": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "id comment override\n multi-line comment"
+            }
+          },
+          "type": "object"
+        }
+        "#);
+    }
+
+    #[test]
+    fn multiline_comment_with_odd_spacing_and_parens_has_comments_extracted_correctly() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "#  operation comment\n\nquery QueryName # a comment \n#     extra space\n\n\n#  blank lines (with parens)\n\n# another (paren)\n(# id comment override\n # multi-line comment \n$idArg: ID\n, \n# a flag\n$flag: Boolean) { customQuery(id: $idArg, skip: $flag) { id } }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+            .unwrap()
+            .unwrap();
+        let tool = Tool::from(operation);
+
+        let json = to_sorted_json!(tool.input_schema);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&json).unwrap(), @r#"
+        {
+          "properties": {
+            "flag": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a flag"
+            },
+            "idArg": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "id comment override\n multi-line comment"
+            }
+          },
+          "type": "object"
+        }
+        "#);
+    }
+
+    #[test]
+    fn operation_with_no_variables_is_handled_properly() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName { customQuery(id: \"123\") { id } }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        let json = to_sorted_json!(tool.input_schema);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&json).unwrap(), @r###"
+        {
+          "properties": {},
+          "type": "object"
+        }
+        "###);
+    }
+
+    #[test]
+    fn commas_between_variables_are_ignored() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName(# id arg\n $idArg: ID,,\n,,\n # a flag\n $flag: Boolean,  ,,) { customQuery(id: $idArg, flag: $flag) { id } }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+            .unwrap()
+            .unwrap();
+        let tool = Tool::from(operation);
+
+        let json = to_sorted_json!(tool.input_schema);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&json).unwrap(), @r#"
+        {
+          "properties": {
+            "flag": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a flag"
+            },
+            "idArg": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "id arg"
+            }
+          },
+          "type": "object"
+        }
+        "#);
+    }
+
+    #[test]
+    fn input_schema_include_properties_field_even_when_operation_has_no_input_args() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query TestOp { testOp { id } }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        let json = to_sorted_json!(tool.input_schema);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&json).unwrap(), @r#"
+        {
+          "properties": {},
+          "type": "object"
+        }
+        "#);
+    }
+
+    #[test]
+    fn nullable_list_of_nullable_input_objects() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($objects: [RealInputObject]) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r##"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "objects": Object {
+                        "anyOf": Array [
+                            Object {
+                                "type": String("array"),
+                                "items": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "$ref": String("#/definitions/RealInputObject"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                            Object {
+                                "type": String("null"),
+                            },
+                        ],
+                    },
+                },
+                "definitions": Object {
+                    "RealInputObject": Object {
+                        "type": String("object"),
+                        "properties": Object {
+                            "optional": Object {
+                                "description": String("optional is a input field that is optional"),
+                                "anyOf": Array [
+                                    Object {
+                                        "type": String("string"),
+                                    },
+                                    Object {
+                                        "type": String("null"),
+                                    },
+                                ],
+                            },
+                            "required": Object {
+                                "description": String("required is a input field that is required"),
+                                "type": String("string"),
+                            },
+                        },
+                        "required": Array [
+                            String("required"),
+                        ],
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "##);
+
+        let json = to_sorted_json!(tool.input_schema);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&json).unwrap(), @r##"
+        {
+          "definitions": {
+            "RealInputObject": {
+              "properties": {
+                "optional": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "optional is a input field that is optional"
+                },
+                "required": {
+                  "description": "required is a input field that is required",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "required"
+              ],
+              "type": "object"
+            }
+          },
+          "properties": {
+            "objects": {
+              "anyOf": [
+                {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/definitions/RealInputObject"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        }
+        "##);
+    }
+
+    #[test]
+    fn non_nullable_list_of_non_nullable_input_objects() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($objects: [RealInputObject!]!) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r##"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {
+                    "objects": Object {
+                        "type": String("array"),
+                        "items": Object {
+                            "$ref": String("#/definitions/RealInputObject"),
+                        },
+                    },
+                },
+                "required": Array [
+                    String("objects"),
+                ],
+                "definitions": Object {
+                    "RealInputObject": Object {
+                        "type": String("object"),
+                        "properties": Object {
+                            "optional": Object {
+                                "description": String("optional is a input field that is optional"),
+                                "anyOf": Array [
+                                    Object {
+                                        "type": String("string"),
+                                    },
+                                    Object {
+                                        "type": String("null"),
+                                    },
+                                ],
+                            },
+                            "required": Object {
+                                "description": String("required is a input field that is required"),
+                                "type": String("string"),
+                            },
+                        },
+                        "required": Array [
+                            String("required"),
+                        ],
+                    },
+                },
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "##);
+
+        let json = to_sorted_json!(tool.input_schema);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&json).unwrap(), @r##"
+        {
+          "definitions": {
+            "RealInputObject": {
+              "properties": {
+                "optional": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "optional is a input field that is optional"
+                },
+                "required": {
+                  "description": "required is a input field that is required",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "required"
+              ],
+              "type": "object"
+            }
+          },
+          "properties": {
+            "objects": {
+              "items": {
+                "$ref": "#/definitions/RealInputObject"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "objects"
+          ],
+          "type": "object"
+        }
+        "##);
+    }
+
+    #[test]
+    fn subscriptions() {
+        assert!(
+            Operation::from_raw(
+                RawOperation {
+                    source_text: "subscription SubscriptionName { id }".to_string(),
+                    headers: None,
+                    variables: None,
+                    source_path: None,
+                },
+                &SCHEMA,
+                None,
+                MutationMode::None,
+                false,
+                false,
+                true,
+                &HashMap::new(),
+                &HashMap::new(),
+                &HashMap::new(),
+            )
+            .unwrap()
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn mutation_mode_none() {
+        assert!(
+            Operation::from_raw(
+                RawOperation {
+                    source_text: "mutation MutationName { id }".to_string(),
+                    headers: None,
+                    variables: None,
+                    source_path: None,
+                },
+                &SCHEMA,
+                None,
+                MutationMode::None,
+                false,
+                false,
+                true,
+                &HashMap::new(),
+                &HashMap::new(),
+                &HashMap::new(),
+            )
+            .ok()
+            .unwrap()
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn mutation_mode_explicit() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "mutation MutationName { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::Explicit,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        insta::assert_debug_snapshot!(operation, @r#"
+        Operation {
+            tool: Tool {
+                name: "MutationName",
+                title: None,
+                description: Some(
+                    "The returned value is optional and has type `String`",
+                ),
+                input_schema: {
+                    "type": String("object"),
+                    "properties": Object {},
+                },
+                output_schema: Some(
+                    {
+                        "type": String("object"),
+                        "properties": Object {
+                            "data": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "id": Object {
+                                        "anyOf": Array [
+                                            Object {
+                                                "type": String("string"),
+                                            },
+                                            Object {
+                                                "type": String("null"),
+                                            },
+                                        ],
+                                    },
+                                },
+                            },
+                            "errors": Object {
+                                "type": String("array"),
+                                "items": Object {
+                                    "type": String("object"),
+                                    "properties": Object {
+                                        "message": Object {
+                                            "type": String("string"),
+                                        },
+                                        "locations": Object {
+                                            "type": String("array"),
+                                            "items": Object {
+                                                "type": String("object"),
+                                                "properties": Object {
+                                                    "line": Object {
+                                                        "type": String("integer"),
+                                                    },
+                                                    "column": Object {
+                                                        "type": String("integer"),
+                                                    },
+                                                },
+                                            },
+                                        },
+                                        "path": Object {
+                                            "type": String("array"),
+                                            "items": Object {
+                                                "oneOf": Array [
+                                                    Object {
+                                                        "type": String("string"),
+                                                    },
+                                                    Object {
+                                                        "type": String("integer"),
+                                                    },
+                                                ],
+                                            },
+                                        },
+                                        "extensions": Object {
+                                            "type": String("object"),
+                                        },
+                                    },
+                                    "required": Array [
+                                        String("message"),
+                                    ],
+                                },
+                            },
+                            "extensions": Object {
+                                "type": String("object"),
+                            },
+                        },
+                    },
+                ),
+                annotations: Some(
+                    ToolAnnotations {
+                        title: None,
+                        read_only_hint: Some(
+                            false,
+                        ),
+                        destructive_hint: Some(
+                            true,
+                        ),
+                        idempotent_hint: None,
+                        open_world_hint: Some(
+                            true,
+                        ),
+                    },
+                ),
+                icons: None,
+                meta: None,
+            },
+            inner: RawOperation {
+                source_text: "mutation MutationName { id }",
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            operation_name: "MutationName",
+            stripped_source_text: None,
+            private_fields: None,
+        }
+        "#);
+    }
+
+    #[test]
+    fn mutation_mode_all() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "mutation MutationName { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::All,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        insta::assert_debug_snapshot!(operation, @r#"
+        Operation {
+            tool: Tool {
+                name: "MutationName",
+                title: None,
+                description: Some(
+                    "The returned value is optional and has type `String`",
+                ),
+                input_schema: {
+                    "type": String("object"),
+                    "properties": Object {},
+                },
+                output_schema: Some(
+                    {
+                        "type": String("object"),
+                        "properties": Object {
+                            "data": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "id": Object {
+                                        "anyOf": Array [
+                                            Object {
+                                                "type": String("string"),
+                                            },
+                                            Object {
+                                                "type": String("null"),
+                                            },
+                                        ],
+                                    },
+                                },
+                            },
+                            "errors": Object {
+                                "type": String("array"),
+                                "items": Object {
+                                    "type": String("object"),
+                                    "properties": Object {
+                                        "message": Object {
+                                            "type": String("string"),
+                                        },
+                                        "locations": Object {
+                                            "type": String("array"),
+                                            "items": Object {
+                                                "type": String("object"),
+                                                "properties": Object {
+                                                    "line": Object {
+                                                        "type": String("integer"),
+                                                    },
+                                                    "column": Object {
+                                                        "type": String("integer"),
+                                                    },
+                                                },
+                                            },
+                                        },
+                                        "path": Object {
+                                            "type": String("array"),
+                                            "items": Object {
+                                                "oneOf": Array [
+                                                    Object {
+                                                        "type": String("string"),
+                                                    },
+                                                    Object {
+                                                        "type": String("integer"),
+                                                    },
+                                                ],
+                                            },
+                                        },
+                                        "extensions": Object {
+                                            "type": String("object"),
+                                        },
+                                    },
+                                    "required": Array [
+                                        String("message"),
+                                    ],
+                                },
+                            },
+                            "extensions": Object {
+                                "type": String("object"),
+                            },
+                        },
+                    },
+                ),
+                annotations: Some(
+                    ToolAnnotations {
+                        title: None,
+                        read_only_hint: Some(
+                            false,
+                        ),
+                        destructive_hint: Some(
+                            true,
+                        ),
+                        idempotent_hint: None,
+                        open_world_hint: Some(
+                            true,
+                        ),
+                    },
+                ),
+                icons: None,
+                meta: None,
+            },
+            inner: RawOperation {
+                source_text: "mutation MutationName { id }",
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            operation_name: "MutationName",
+            stripped_source_text: None,
+            private_fields: None,
+        }
+        "#);
+    }
+
+    #[test]
+    fn no_variables() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        let tool = Tool::from(operation);
+
+        insta::assert_debug_snapshot!(tool, @r#"
+        Tool {
+            name: "QueryName",
+            title: None,
+            description: Some(
+                "The returned value is optional and has type `String`",
+            ),
+            input_schema: {
+                "type": String("object"),
+                "properties": Object {},
+            },
+            output_schema: Some(
+                {
+                    "type": String("object"),
+                    "properties": Object {
+                        "data": Object {
+                            "type": String("object"),
+                            "properties": Object {
+                                "id": Object {
+                                    "anyOf": Array [
+                                        Object {
+                                            "type": String("string"),
+                                        },
+                                        Object {
+                                            "type": String("null"),
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                        "errors": Object {
+                            "type": String("array"),
+                            "items": Object {
+                                "type": String("object"),
+                                "properties": Object {
+                                    "message": Object {
+                                        "type": String("string"),
+                                    },
+                                    "locations": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "type": String("object"),
+                                            "properties": Object {
+                                                "line": Object {
+                                                    "type": String("integer"),
+                                                },
+                                                "column": Object {
+                                                    "type": String("integer"),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "path": Object {
+                                        "type": String("array"),
+                                        "items": Object {
+                                            "oneOf": Array [
+                                                Object {
+                                                    "type": String("string"),
+                                                },
+                                                Object {
+                                                    "type": String("integer"),
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    "extensions": Object {
+                                        "type": String("object"),
+                                    },
+                                },
+                                "required": Array [
+                                    String("message"),
+                                ],
+                            },
+                        },
+                        "extensions": Object {
+                            "type": String("object"),
+                        },
+                    },
+                },
+            ),
+            annotations: Some(
+                ToolAnnotations {
+                    title: None,
+                    read_only_hint: Some(
+                        true,
+                    ),
+                    destructive_hint: Some(
+                        false,
+                    ),
+                    idempotent_hint: Some(
+                        true,
+                    ),
+                    open_world_hint: Some(
+                        true,
+                    ),
+                },
+            ),
+            icons: None,
+            meta: None,
+        }
+        "#);
+        insta::assert_snapshot!(serde_json::to_string_pretty(&serde_json::json!(tool.input_schema)).unwrap(), @r#"
+        {
+          "type": "object",
+          "properties": {}
+        }
+        "#);
+    }
+
+    #[test]
+    fn tool_character_length_without_output_schema() {
+        use serde_json::Map;
+
+        let mut input_schema = Map::new();
+        input_schema.insert("type".to_string(), serde_json::json!("object"));
+        input_schema.insert(
+            "properties".to_string(),
+            serde_json::json!({ "id": { "type": "string" } }),
+        );
+
+        let tool = Tool::new("test_tool", "A test tool description", input_schema.clone());
+
+        let length = tool_character_length(&tool).unwrap();
+
+        let expected_input_schema_len =
+            serde_json::to_string_pretty(&serde_json::json!(input_schema))
+                .unwrap()
+                .len();
+
+        assert_eq!(
+            length,
+            "test_tool".len() + "A test tool description".len() + expected_input_schema_len
+        );
+    }
+
+    #[test]
+    fn tool_character_length_with_output_schema() {
+        use serde_json::Map;
+
+        let mut input_schema = Map::new();
+        input_schema.insert("type".to_string(), serde_json::json!("object"));
+        input_schema.insert(
+            "properties".to_string(),
+            serde_json::json!({ "id": { "type": "string" } }),
+        );
+
+        let mut tool = Tool::new("test_tool", "A test tool description", input_schema.clone());
+
+        let mut output_schema = Map::new();
+        output_schema.insert("type".to_string(), serde_json::json!("object"));
+        output_schema.insert(
+            "properties".to_string(),
+            serde_json::json!({
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "result": { "type": "string" }
+                    }
+                }
+            }),
+        );
+        tool.output_schema = Some(std::sync::Arc::new(output_schema.clone()));
+
+        let length = tool_character_length(&tool).unwrap();
+
+        let expected_input_schema_len =
+            serde_json::to_string_pretty(&serde_json::json!(input_schema))
+                .unwrap()
+                .len();
+
+        let expected_output_schema_len =
+            serde_json::to_string_pretty(&serde_json::json!(output_schema))
+                .unwrap()
+                .len();
+
+        assert_eq!(
+            length,
+            "test_tool".len()
+                + "A test tool description".len()
+                + expected_input_schema_len
+                + expected_output_schema_len
+        );
+    }
+
+    #[test]
+    fn tool_character_length_output_schema_adds_to_total() {
+        use serde_json::Map;
+
+        let mut input_schema = Map::new();
+        input_schema.insert("type".to_string(), serde_json::json!("object"));
+
+        let tool_without = Tool::new("test_tool", "A test tool description", input_schema.clone());
+
+        let mut tool_with = tool_without.clone();
+        let mut output_schema = Map::new();
+        output_schema.insert("type".to_string(), serde_json::json!("object"));
+        output_schema.insert(
+            "properties".to_string(),
+            serde_json::json!({ "data": { "type": "string" } }),
+        );
+        tool_with.output_schema = Some(std::sync::Arc::new(output_schema.clone()));
+
+        let length_without = tool_character_length(&tool_without).unwrap();
+        let length_with = tool_character_length(&tool_with).unwrap();
+
+        let expected_output_schema_len =
+            serde_json::to_string_pretty(&serde_json::json!(output_schema))
+                .unwrap()
+                .len();
+
+        assert_eq!(length_with - length_without, expected_output_schema_len);
+    }
+
+    #[test]
+    fn explicit_description_overrides_auto_generated() {
+        let explicit_desc = "My custom tool description from PQ manifest";
+        let description_overrides =
+            HashMap::from([("QueryName".to_string(), explicit_desc.to_string())]);
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: ID) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &HashMap::new(),
+            &description_overrides,
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(
+            operation.tool.description.as_deref(),
+            Some(explicit_desc),
+            "tool description should use the override keyed by operation name"
+        );
+    }
+
+    #[test]
+    fn no_explicit_description_falls_back_to_auto_generated() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query QueryName($id: ID) { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert!(
+            operation.tool.description.is_some(),
+            "tool description should be auto-generated when no explicit description"
+        );
+        assert_ne!(
+            operation.tool.description.as_deref(),
+            Some(""),
+            "auto-generated description should not be empty"
+        );
+    }
+
+    #[test]
+    fn explicit_description_overrides_comments() {
+        let explicit_desc = "Override from manifest";
+        let description_overrides =
+            HashMap::from([("QueryName".to_string(), explicit_desc.to_string())]);
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "# Comment-based description\nquery QueryName($id: ID) { id }"
+                    .to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &HashMap::new(),
+            &description_overrides,
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(
+            operation.tool.description.as_deref(),
+            Some(explicit_desc),
+            "explicit description should take priority over comment-based description"
+        );
+    }
+
+    #[test]
+    fn operation_description_becomes_tool_description() {
+        let operation = RawOperation::from((
+            "\"\"\"Look up a thing by ID\"\"\"\nquery QueryName($id: ID) { id }".to_string(),
+            None,
+        ))
+        .into_operation(
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(
+            operation.tool.description.as_deref(),
+            Some("Look up a thing by ID")
+        );
+    }
+
+    #[test]
+    fn multiline_operation_description_is_dedented() {
+        let operation = RawOperation::from((
+            "\"\"\"\n    Look up a thing\n    by its ID\n\"\"\"\nquery QueryName($id: ID) { id }"
+                .to_string(),
+            None,
+        ))
+        .into_operation(
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(
+            operation.tool.description.as_deref(),
+            Some("Look up a thing\nby its ID")
+        );
+    }
+
+    #[test]
+    fn operation_description_overrides_comments() {
+        let operation = RawOperation::from((
+            "# Comment-based description\n\"\"\"Spec description\"\"\"\nquery QueryName($id: ID) { id }"
+                .to_string(),
+            None,
+        ))
+        .into_operation(
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(
+            operation.tool.description.as_deref(),
+            Some("Spec description"),
+            "the operation description should take priority over comment-based description"
+        );
+    }
+
+    #[test]
+    fn explicit_description_overrides_operation_description() {
+        let explicit_desc = "Override from manifest";
+        let description_overrides =
+            HashMap::from([("QueryName".to_string(), explicit_desc.to_string())]);
+        let operation = RawOperation::from((
+            "\"\"\"Spec description\"\"\"\nquery QueryName($id: ID) { id }".to_string(),
+            None,
+        ))
+        .into_operation(
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &HashMap::new(),
+            &description_overrides,
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(
+            operation.tool.description.as_deref(),
+            Some(explicit_desc),
+            "explicit description should take priority over the operation description"
+        );
+    }
+
+    #[test]
+    fn blank_operation_description_falls_back_to_comments() {
+        let operation = RawOperation::from((
+            "# Comment-based description\n\"\"\"   \"\"\"\nquery QueryName($id: ID) { id }"
+                .to_string(),
+            None,
+        ))
+        .into_operation(
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(
+            operation.tool.description.as_deref(),
+            Some("Comment-based description")
+        );
+    }
+
+    #[test]
+    fn operation_with_descriptions_sends_text_without_them() {
+        let operation = RawOperation::from((
+            "\"\"\"Look up a thing\"\"\"\nquery QueryName(\"\"\"The ID\"\"\" $id: ID) { id }"
+                .to_string(),
+            None,
+        ))
+        .into_operation(
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        insta::assert_snapshot!(
+            operation.stripped_source_text.unwrap(),
+            @"query QueryName($id: ID) { id }"
+        );
+    }
+
+    #[test]
+    fn operation_with_private_field_and_description_sends_text_without_either() {
+        let schema = Schema::parse(
+            "type Query { fieldA: String, fieldB: String }",
+            "schema.graphql",
+        )
+        .unwrap()
+        .validate()
+        .unwrap();
+        let operation = RawOperation::from((
+            "\"\"\"Look up fields\"\"\"\nquery TestOp { fieldA fieldB @private }".to_string(),
+            None,
+        ))
+        .into_operation(
+            &schema,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        insta::assert_snapshot!(
+            operation.stripped_source_text.unwrap(),
+            @"query TestOp { fieldA fieldB }"
+        );
+    }
+
+    #[test]
+    fn operation_without_private_has_no_stripped_text() {
+        let operation = RawOperation::from(("query TestOp { id }".to_string(), None))
+            .into_operation(
+                &SCHEMA,
+                None,
+                MutationMode::All,
+                false,
+                false,
+                true,
+                &HashMap::new(),
+                &HashMap::new(),
+                &HashMap::new(),
+            )
+            .unwrap()
+            .unwrap();
+
+        assert!(operation.stripped_source_text.is_none());
+        assert!(operation.private_fields.is_none());
+    }
+
+    #[test]
+    fn operation_with_private_has_stripped_text() {
+        let schema = Schema::parse(
+            "type Query { fieldA: String, fieldB: String, fieldC: String }",
+            "schema.graphql",
+        )
+        .unwrap()
+        .validate()
+        .unwrap();
+
+        let operation = RawOperation::from((
+            "query TestOp { fieldA fieldB @private fieldC }".to_string(),
+            None,
+        ))
+        .into_operation(
+            &schema,
+            None,
+            MutationMode::All,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert!(operation.stripped_source_text.is_some());
+        assert!(operation.private_fields.is_some());
+    }
+
+    #[test]
+    fn stripped_text_does_not_contain_private_directive() {
+        let schema = Schema::parse(
+            "type Query { fieldA: String, fieldB: String, fieldC: String }",
+            "schema.graphql",
+        )
+        .unwrap()
+        .validate()
+        .unwrap();
+
+        let operation = RawOperation::from((
+            "query TestOp { fieldA fieldB @private fieldC }".to_string(),
+            None,
+        ))
+        .into_operation(
+            &schema,
+            None,
+            MutationMode::All,
+            false,
+            false,
+            true,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        let stripped = operation.stripped_source_text.unwrap();
+        assert!(!stripped.contains("@private"));
+        assert!(stripped.contains("fieldB"));
+    }
+
+    #[test]
+    fn operation_method_returns_stripped_text_when_private() {
+        let schema = Schema::parse(
+            "type Query { fieldA: String, fieldB: String }",
+            "schema.graphql",
+        )
+        .unwrap()
+        .validate()
+        .unwrap();
+
+        let operation =
+            RawOperation::from(("query TestOp { fieldA fieldB @private }".to_string(), None))
+                .into_operation(
+                    &schema,
+                    None,
+                    MutationMode::All,
+                    false,
+                    false,
+                    true,
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                )
+                .unwrap()
+                .unwrap();
+
+        let details = operation.operation(Value::Null).unwrap();
+        assert!(!details.query.contains("@private"));
+    }
+
+    #[test]
+    fn operation_method_returns_original_text_when_no_private() {
+        let operation = RawOperation::from(("query TestOp { id }".to_string(), None))
+            .into_operation(
+                &SCHEMA,
+                None,
+                MutationMode::All,
+                false,
+                false,
+                true,
+                &HashMap::new(),
+                &HashMap::new(),
+                &HashMap::new(),
+            )
+            .unwrap()
+            .unwrap();
+
+        let details = operation.operation(Value::Null).unwrap();
+        assert_eq!(details.query, "query TestOp { id }");
+    }
+
+    #[test]
+    fn stripped_text_includes_fragment_definitions() {
+        let schema = Schema::parse(
+            r#"
+            type Query { user: User }
+            type User { name: String, email: String }
+            "#,
+            "schema.graphql",
+        )
+        .unwrap()
+        .validate()
+        .unwrap();
+
+        let source = r#"
+            query GetUser { user { ...UserFields } }
+            fragment UserFields on User { name email @private }
+        "#;
+
+        let operation = RawOperation::from((source.to_string(), None))
+            .into_operation(
+                &schema,
+                None,
+                MutationMode::All,
+                false,
+                false,
+                true,
+                &HashMap::new(),
+                &HashMap::new(),
+                &HashMap::new(),
+            )
+            .unwrap()
+            .unwrap();
+
+        let stripped = operation.stripped_source_text.unwrap();
+        assert!(
+            stripped.contains("fragment UserFields"),
+            "stripped text should include fragment definitions, got: {stripped}"
+        );
+    }
+
+    #[test]
+    fn annotation_overrides_merge_with_auto_detected_for_query() {
+        let overrides = HashMap::from([(
+            "GetId".to_string(),
+            AnnotationOverrides {
+                idempotent_hint: Some(true),
+                open_world_hint: Some(false),
+                ..Default::default()
+            },
+        )]);
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query GetId { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &overrides,
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        let ann = operation.tool.annotations.as_ref().unwrap();
+        assert_eq!(ann.read_only_hint, Some(true), "query auto-detected");
+        assert_eq!(ann.destructive_hint, Some(false), "query auto-detected");
+        assert_eq!(ann.idempotent_hint, Some(true), "user override applied");
+        assert_eq!(ann.open_world_hint, Some(false), "user override applied");
+        assert_eq!(ann.title, None, "not overridden");
+    }
+
+    #[test]
+    fn annotation_overrides_can_flip_auto_detected_hints() {
+        let overrides = HashMap::from([(
+            "GetId".to_string(),
+            AnnotationOverrides {
+                read_only_hint: Some(false),
+                destructive_hint: Some(true),
+                ..Default::default()
+            },
+        )]);
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query GetId { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &overrides,
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        let ann = operation.tool.annotations.as_ref().unwrap();
+        assert_eq!(ann.read_only_hint, Some(false), "overridden from true");
+        assert_eq!(ann.destructive_hint, Some(true), "overridden from false");
+    }
+
+    #[test]
+    fn annotation_overrides_set_title() {
+        let overrides = HashMap::from([(
+            "GetId".to_string(),
+            AnnotationOverrides {
+                title: Some("My Tool Title".to_string()),
+                ..Default::default()
+            },
+        )]);
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query GetId { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &overrides,
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        let ann = operation.tool.annotations.as_ref().unwrap();
+        assert_eq!(ann.title.as_deref(), Some("My Tool Title"));
+    }
+
+    #[test]
+    fn no_annotation_overrides_keeps_auto_detected() {
+        let operation = Operation::from_raw(
+            RawOperation {
+                source_text: "query GetId { id }".to_string(),
+                headers: None,
+                variables: None,
+                source_path: None,
+            },
+            &SCHEMA,
+            None,
+            MutationMode::None,
+            false,
+            false,
+            false,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        let ann = operation.tool.annotations.as_ref().unwrap();
+        assert_eq!(ann.read_only_hint, Some(true));
+        assert_eq!(ann.destructive_hint, Some(false));
+        assert_eq!(ann.idempotent_hint, Some(true), "queries are idempotent");
+        assert_eq!(
+            ann.open_world_hint,
+            Some(true),
+            "operations hit external API"
+        );
+        assert_eq!(ann.title, None);
+    }
+
+    mod param_headers {
+        use rstest::rstest;
+        use serde_json::json;
+
+        use super::*;
+        use crate::{
+            errors::OperationError,
+            operations::{
+                ParamHeaders, UnmirrorableReason, UnmirrorableVariable,
+                schema_walker::NotHeaderPrimitive,
+            },
+        };
+
+        static SCHEMA: LazyLock<Valid<Schema>> = LazyLock::new(|| {
+            Schema::parse_and_validate(
+                r#"
+                    scalar Handle
+                    scalar Json
+                    scalar Slug
+                    enum Region { US EU }
+                    input Filter { id: ID }
+                    type Query {
+                        workflow(
+                            id: ID, count: Int, flag: Boolean, region: Region, handle: Handle,
+                            json: Json, slug: Slug, ratio: Float, ids: [ID], filter: Filter
+                        ): String
+                    }
+                "#,
+                "schema.graphql",
+            )
+            .unwrap()
+        });
+
+        fn input_schema(variables: &str) -> Result<Value, OperationError> {
+            let custom_scalars = CustomScalarMap::from_str(
+                r#"{
+                    "Handle": {"type": "string", "pattern": "^wf-"},
+                    "Json": {"type": "object"},
+                    "Slug": {"type": "string", "anyOf": [{"pattern": "^a"}, {"pattern": "^b"}]}
+                }"#,
+            )
+            .unwrap();
+            let raw = RawOperation {
+                source_text: format!("query GetWorkflow({variables}) {{ workflow }}"),
+                headers: None,
+                variables: Some(HashMap::from([("fixed".to_string(), json!("value"))])),
+                source_path: None,
+            };
+            let param_headers = HashMap::from([(
+                "GetWorkflow".to_string(),
+                ParamHeaders::try_from(HashMap::from([("v".to_string(), "Value".to_string())]))
+                    .unwrap(),
+            )]);
+            let operation = Operation::from_raw(
+                raw,
+                &SCHEMA,
+                Some(&custom_scalars),
+                MutationMode::None,
+                false,
+                false,
+                false,
+                &HashMap::new(),
+                &HashMap::new(),
+                &param_headers,
+            )?
+            .unwrap();
+            Ok(Value::Object(operation.tool.input_schema.as_ref().clone()))
+        }
+
+        fn header_schema(variables: &str) -> Result<Value, OperationError> {
+            input_schema(variables).map(|schema| schema["properties"]["v"].clone())
+        }
+
+        fn rejection(variables: &str) -> UnmirrorableReason {
+            match header_schema(variables) {
+                Err(OperationError::ParamHeader {
+                    source: UnmirrorableVariable { reason, .. },
+                    ..
+                }) => reason,
+                other => panic!("expected a param header error, got {other:?}"),
+            }
+        }
+
+        #[rstest]
+        #[case::id("$v: ID!", json!({"type": "string", "x-mcp-header": "Value"}))]
+        #[case::nullable_int("$v: Int", json!({"type": "integer", "x-mcp-header": "Value"}))]
+        #[case::boolean_default(
+            "$v: Boolean = true",
+            json!({"type": "boolean", "default": true, "x-mcp-header": "Value"})
+        )]
+        #[case::nullable_enum(
+            "$v: Region",
+            json!({"type": "string", "enum": ["US", "EU"], "x-mcp-header": "Value"})
+        )]
+        #[case::custom_scalar(
+            "$v: Handle!",
+            json!({"type": "string", "pattern": "^wf-", "x-mcp-header": "Value"})
+        )]
+        fn primitive_variable_gets_flat_annotated_schema(
+            #[case] variables: &str,
+            #[case] expected: Value,
+        ) {
+            assert_eq!(header_schema(variables).unwrap(), expected);
+        }
+
+        #[test]
+        fn nullable_variable_stays_optional() {
+            let schema = input_schema("$v: String, $id: ID!").unwrap();
+
+            assert_eq!(schema["required"], json!(["id"]));
+        }
+
+        #[rstest]
+        #[case::float("$v: Float", NotHeaderPrimitive::Float)]
+        #[case::list("$v: [ID]", NotHeaderPrimitive::List)]
+        #[case::input_object("$v: Filter", NotHeaderPrimitive::NotScalar("Filter".into()))]
+        #[case::object_scalar("$v: Json", NotHeaderPrimitive::CustomScalar("Json".into()))]
+        #[case::composite_scalar("$v: Slug", NotHeaderPrimitive::CustomScalar("Slug".into()))]
+        fn non_primitive_variable_is_rejected(
+            #[case] variables: &str,
+            #[case] expected: NotHeaderPrimitive,
+        ) {
+            assert_eq!(rejection(variables), UnmirrorableReason::Type(expected));
+        }
+
+        #[test]
+        fn undeclared_variable_is_rejected() {
+            assert_eq!(rejection("$other: ID"), UnmirrorableReason::Undeclared);
+        }
+
+        #[test]
+        fn fixed_variable_is_rejected() {
+            let raw = RawOperation {
+                source_text: "query GetWorkflow($fixed: ID) { workflow(id: $fixed) }".into(),
+                headers: None,
+                variables: Some(HashMap::from([("fixed".to_string(), json!("value"))])),
+                source_path: None,
+            };
+            let param_headers = HashMap::from([(
+                "GetWorkflow".to_string(),
+                ParamHeaders::try_from(HashMap::from([("fixed".to_string(), "Fixed".to_string())]))
+                    .unwrap(),
+            )]);
+
+            let error = Operation::from_raw(
+                raw,
+                &SCHEMA,
+                None,
+                MutationMode::None,
+                false,
+                false,
+                false,
+                &HashMap::new(),
+                &HashMap::new(),
+                &param_headers,
+            )
+            .unwrap_err();
+
+            assert_eq!(
+                error.to_string(),
+                "Operation GetWorkflow: variable `$fixed` can't be mirrored into a header: \
+                 the operation's `variables` fix its value, so it is not a tool parameter"
+            );
+        }
+    }
+}

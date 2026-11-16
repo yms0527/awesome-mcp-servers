@@ -1,0 +1,246 @@
+# Search1API MCP Server
+
+[![Smithery](https://img.shields.io/badge/Smithery-listed-6C5CE7)](https://smithery.ai/servers/superagents-lab/search1api-mcp)
+[![Glama](https://img.shields.io/badge/Glama-listed-6C5CE7)](https://glama.ai/mcp/servers/superagents-lab/search1api-mcp)
+
+[中文文档](./README_zh.md)
+
+The official MCP server for [Search1API](https://s1.dev/?utm_source=mcp) — web search, news, page retrieval, sitemap discovery, and trending topics in one API.
+
+## Authentication
+
+- OAuth-aware clients can connect to the Remote MCP URL directly, then sign in and approve access in the browser.
+- Existing integrations can continue to use an API key from the [Search1API dashboard](https://dashboard.search1api.com).
+- Every MCP request — including tool discovery (`initialize`, `tools/list`) — requires a credential. Unauthenticated requests draw the OAuth challenge, which is how clients trigger sign-in; pre-connect inspection is served by the static [server card](https://mcp.search1api.com/.well-known/mcp/server-card.json) instead.
+
+## Quick Start (Remote MCP)
+
+No installation required. Configure your MCP client with the remote URL. Use OAuth when the client supports it, or provide an API key.
+
+### Authentication
+
+Three methods are supported — use whichever your client supports:
+
+| Method | Format |
+|--------|--------|
+| OAuth 2.1 | Connect to `https://mcp.search1api.com/mcp` without a key and follow the client sign-in flow |
+| Authorization Header | `Authorization: Bearer YOUR_SEARCH1API_KEY` |
+| URL Query Parameter (legacy) | `https://mcp.search1api.com/mcp?apiKey=YOUR_SEARCH1API_KEY` |
+
+Prefer OAuth or the Authorization header. Query-parameter credentials can be exposed in URLs, logs, and shell history.
+
+### Optional search and news UI
+
+Remote MCP exposes `render_results` at the standard endpoint above. Data tools such as `search`, `news` and `ask` return results without automatically showing cards. When a source list helps, the model can select or combine existing results and pass them to `render_results`. It returns source cards in MCP Apps clients and a complete readable text list elsewhere. Rendering does not repeat a search or consume search credits; no UI URL parameter is required.
+
+Both HTTP and stdio advertise the square Search1API logo through standard `serverInfo.icons` metadata. The 512×512 PNG is served publicly at `https://mcp.search1api.com/assets/icon-square.png`, without authentication or redirects. The server card and registry manifest use the same icon. Clients choose whether to display it; this does not replace an icon stored separately by a plugin directory.
+
+See [the rendering contract](docs/render-results.md) for arguments, limits and fallback behavior. The npm package includes this renderer from version 0.8.0. Update existing installations and restart the MCP connection; `npx -y search1api-mcp@latest` starts the latest published package.
+
+After changing the URL, reconnect or refresh the connector's tool definitions; clients may cache them. This URL setting applies to Remote MCP only; local stdio behavior is unchanged. See [MCP Apps UI](docs/mcp-ui.md) for details and release status.
+
+### Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "search1api": {
+      "url": "https://mcp.search1api.com/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_SEARCH1API_KEY"
+      }
+    }
+  }
+}
+```
+
+### Claude.ai (Web)
+
+Install Search1API from the [Claude directory](https://claude.ai/directory/search1api), click **Connect**, and sign in with your Search1API account.
+
+Avoid adding `https://mcp.search1api.com/mcp` through **Add custom connector**: that creates a separate custom connector, which Claude names after the URL's host (`mcp.search1api.com`) unless you type a name.
+
+### Cursor
+
+Install as a Cursor plugin (recommended): this repo includes Agent Plugins `plugin.json` + `mcp.json` (portable) and `.cursor-plugin/plugin.json` (Cursor Marketplace metadata / logo) for Remote MCP with OAuth. Submit or install from [cursor.directory](https://cursor.directory) / the Cursor Marketplace, then sign in when prompted.
+
+For local testing, copy the plugin files into `~/.cursor/plugins/local/search1api` (`plugin.json`, `.cursor-plugin/`, `mcp.json`, `assets/`). Do not symlink from outside that directory — Cursor rejects external symlink targets.
+
+Or configure manually:
+
+```json
+{
+  "mcpServers": {
+    "search1api": {
+      "url": "https://mcp.search1api.com/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_SEARCH1API_KEY"
+      }
+    }
+  }
+}
+```
+
+### VS Code
+
+```json
+{
+  "servers": {
+    "search1api": {
+      "type": "http",
+      "url": "https://mcp.search1api.com/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_SEARCH1API_KEY"
+      }
+    }
+  }
+}
+```
+
+### Claude Code
+
+```bash
+claude mcp add --transport http search1api https://mcp.search1api.com/mcp \
+  --header "Authorization: Bearer YOUR_SEARCH1API_KEY"
+```
+
+### Windsurf
+
+```json
+{
+  "mcpServers": {
+    "search1api": {
+      "serverUrl": "https://mcp.search1api.com/mcp?apiKey=YOUR_SEARCH1API_KEY"
+    }
+  }
+}
+```
+
+## Agent Skill
+
+The Agent Skill has moved to [search1api-cli](https://github.com/superagents-lab/search1api-cli). Install it with:
+
+```bash
+npm install -g search1api-cli
+npx skills add superagents-lab/search1api-cli
+```
+
+## Local Mode (stdio)
+
+If you prefer to run the server locally, use Node.js 20 or newer with npx — no cloning required:
+
+```json
+{
+  "mcpServers": {
+    "search1api": {
+      "command": "npx",
+      "args": ["-y", "search1api-mcp"],
+      "env": {
+        "SEARCH1API_KEY": "YOUR_SEARCH1API_KEY"
+      }
+    }
+  }
+}
+```
+
+For self-hosted HTTP deployments behind a proxy, add any internal hostnames
+that reach the Node.js process to the comma-separated `MCP_ALLOWED_HOSTS`
+environment variable. `mcp.search1api.com` and localhost addresses are allowed
+by default. Browser-based clients that send an `Origin` header must also have
+their trusted origin hostnames added to the comma-separated
+`MCP_ALLOWED_ORIGINS` variable. Requests from server-side MCP clients normally
+omit `Origin` and do not require an entry.
+
+## Tools
+
+### search
+Search the web using Search1API. Results include a citable `id`/`title`/`url` structure. Pass a result URL to `crawl` when you need the full page.
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `query` | Yes | - | Search query |
+| `max_results` | No | 10 | Number of results |
+| `search_service` | No | google | google, bing, bingcn, duckduckgo, yahoo, yandex, x, reddit, github, youtube, arxiv, wechat, bilibili, imdb, wikipedia, grokipedia |
+| `page` | No | 1 | Results page (1-100); only bing, bingcn, baidu, and grokipedia paginate |
+| `crawl_results` | No | 0 | Number of top results to crawl for full content; each successful crawl adds 1 credit to the base 1-credit search request |
+| `include_sites` | No | [] | Sites to include |
+| `exclude_sites` | No | [] | Sites to exclude |
+| `time_range` | No | - | day, week, month, year |
+
+Results carry `published_date` in `metadata` when the engine exposes one; `github` results add `kind`, `stars`, `language`, and `num_comments`.
+
+### news
+Search for news articles. `hackernews` results link to the discussion thread and add `story_url`, `points`, and `num_comments` to `metadata`.
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `query` | Yes | - | Search query |
+| `max_results` | No | 10 | Number of results |
+| `search_service` | No | bing | google, bing, duckduckgo, yahoo, hackernews |
+| `crawl_results` | No | 0 | Number of top results to crawl for full content; each successful crawl adds 1 credit to the base 1-credit news request |
+| `include_sites` | No | [] | Sites to include |
+| `exclude_sites` | No | [] | Sites to exclude |
+| `time_range` | No | - | day, week, month, year |
+
+### crawl
+Extract content from a URL.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `url` | Yes | URL to crawl |
+
+### sitemap
+Get all related links from a URL.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `url` | Yes | URL to get sitemap |
+
+### trending
+Get trending topics from popular platforms.
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `search_service` | Yes | - | github, hackernews |
+| `max_results` | No | 10 | Number of items |
+
+### ask
+Agentic search: describe the need in natural language and Search1API picks up to five engines and a time window, drops off-topic results, and returns at most 10 citable results ranked by relevance. The result also carries `intent` (keywords, engines, and window used) and `errors` (engines that failed while others completed). Costs 5 credits per completed request; use `search` when you already know the engine.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `query` | Yes | The request in natural language, up to 500 characters |
+
+## Version History
+
+- v0.7.0: New `ask` tool for agentic search. `search` adds the `bingcn`, `yandex`, and `grokipedia` engines and a `page` parameter; `search` and `news` accept `time_range: "week"` and pass `published_date`, GitHub, and Hacker News fields through in result `metadata`
+
+- v0.6.1: Bug fix — MCP discovery (`initialize`, `tools/list`, `resources/*`, `prompts/list`, `server/discover`) requires a credential again. Serving it anonymously made clients that equate "tools listed" with "signed in" show a connected state with no way to trigger the OAuth flow; the 401 challenge now answers every unauthenticated request, restoring OAuth sign-in at connect time. Directory visibility is unchanged via the static server card and registry metadata
+- v0.6.0: MCP discovery (`initialize`, `tools/list`, `resources/*`, `prompts/list`, `server/discover`) is served without a credential so clients and directories can enumerate tools before signing in; tool calls still require OAuth or an API key. Stdio mode starts without `SEARCH1API_KEY` and serves tool metadata, refusing only at call time. Malformed requests answer as JSON-RPC instead of an HTML error page
+- v0.5.4: OAuth issuer moved to `clerk.s1.dev` and is configurable with `OAUTH_AUTHORIZATION_SERVER`; MCP server card published at `/.well-known/mcp/server-card.json`; OAuth discovery documents now send cache headers
+- v0.5.3: OAuth resource and tool metadata no longer require OIDC session scopes; Smithery and Glama registry badges added
+- v0.5.2: MCP `Origin` validation now runs before request parsing and authentication; self-hosted HTTP deployments can configure trusted browser origins with `MCP_ALLOWED_ORIGINS`
+- v0.5.1: Documentation, LobeHub manifest, and MCP Registry metadata synchronized; `robots.txt` served on the transport host
+- v0.5.0: MCP 2026-07-28 support with automatic protocol negotiation; stateless compatibility for 2025-era HTTP clients; request-level authentication
+- v0.4.0: Structured output schemas, OAuth security schemes, safety annotations, and Official MCP Registry metadata
+- v0.3.1: OAuth 2.1 support for Remote MCP; retired reasoning tool removed
+- v0.3.0: Remote MCP support via Streamable HTTP; per-session API key authentication
+- v0.2.0: Fallback `.env` support for LibreChat integration
+- v0.1.8: X (Twitter) and Reddit search services
+- v0.1.7: Trending tool for GitHub and Hacker News
+- v0.1.6: Wikipedia search service
+- v0.1.5: New search parameters and services (arxiv, wechat, bilibili, imdb)
+- v0.1.3: News search
+- v0.1.2: Sitemap
+- v0.1.1: Web crawling
+- v0.1.0: Initial release
+
+## License
+
+MIT
+
+## UI and third-party credits
+
+The `render_results` MCP Apps view shows existing sources as cards with titles and domains. Every client also receives the full text and structured result list. The component is adapted from [Rare UI](https://rareui.com), by Swami Malode. Its MIT + Commons Clause + Attribution terms are reproduced in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+UI setup, sandbox origin, and release checks: [MCP Apps UI](docs/mcp-ui.md).

@@ -1,8 +1,0 @@
-[allowlist]
-  paths = []
-  # PostHog write-only (ingest) API key — public by design, safe to commit.
-  # See: https://posthog.com/docs/api#authentication
-  regexTarget = "match"
-  regexes = [
-    '''phc_TGfFqCGdnF0p68wuFzd5WSw1IsBvOJW0YgoMJDyZPjm'''
-  ]

@@ -1,0 +1,47 @@
+{
+  "name": "mcp-windows-desktop-automation",
+  "version": "2.0.0",
+  "description": "Windows desktop automation with bounded native workers and MCP 2026/legacy transports",
+  "type": "module",
+  "main": "./dist/server/server.js",
+  "types": "./dist/server/server.d.ts",
+  "exports": {
+    ".": "./dist/server/server.js"
+  },
+  "bin": {
+    "mcp-windows-desktop-automation": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/copy-assets.mjs",
+    "start": "node dist/index.js",
+    "check": "npm run build && npm test",
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "test:package": "node scripts/package-acceptance.mjs",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "@modelcontextprotocol/node": "2.0.0",
+    "node-autoit-koffi": "1.0.7",
+    "zod": "4.5.4",
+    "koffi": "2.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.15",
+    "typescript": "5.9.3",
+    "pngjs": "7.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mario-andreschak/mcp-windows-desktop-automation.git"
+  },
+  "license": "MIT"
+}

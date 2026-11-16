@@ -1,8 +1,0 @@
-node_modules/
-dist/
-*.sqlite
-.env
-.env.*
-.DS_Store
-*.tsbuildinfo
-.mcpregistry_*

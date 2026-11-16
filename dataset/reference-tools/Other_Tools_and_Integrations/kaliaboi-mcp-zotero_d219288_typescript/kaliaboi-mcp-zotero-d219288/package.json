@@ -1,0 +1,43 @@
+{
+  "name": "mcp-zotero",
+  "type": "module",
+  "version": "1.0.6",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kaliaboi/mcp-zotero"
+  },
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc && chmod +x build/server.js",
+    "postbuild": "echo '#!/usr/bin/env node' | cat - build/server.js > temp && mv temp build/server.js",
+    "start": "node build/server.js"
+  },
+  "bin": {
+    "mcp-zotero": "./build/server.js"
+  },
+  "files": [
+    "build",
+    "README.md"
+  ],
+  "keywords": [
+    "mcp",
+    "zotero",
+    "zotero-api",
+    "zotero-api-client",
+    "claude"
+  ],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "dotenv": "^16.4.7",
+    "zod": "^3.24.1",
+    "zotero-api-client": "^0.46.0"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest"
+  }
+}

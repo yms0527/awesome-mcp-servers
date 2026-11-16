@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  roam-mcp:
+    image: roam-research-mcp
+    build: .
+    container_name: roam-mcp
+    ports:
+      - "127.0.0.1:8048:8088"
+    env_file:
+      - .env
+    environment:
+      HTTP_STREAM_HOST: "0.0.0.0"
+      HTTP_STREAM_PORT: "8088"
+      HTTP_AUTH_TOKEN: "${HTTP_AUTH_TOKEN:?Set HTTP_AUTH_TOKEN in .env}"
+    command: ["--server"]
+    init: true
+    networks:
+      - n8n-net
+
+  # n8n:
+  #   image: n8nio/n8n:latest
+  #   container_name: n8n
+  #   ports:
+  #     - "5678:5678"
+  #   volumes:
+  #     - ~/.n8n:/home/node/.n8n
+  #   environment:
+  #     - N8N_BASIC_AUTH_ACTIVE=true
+  #     - N8N_BASIC_AUTH_USER=admin
+  #     - N8N_BASIC_AUTH_PASSWORD=hallelujah
+  #   depends_on:
+  #     - roam-mcp
+  #   networks:
+  #     - n8n-net
+
+networks:
+  n8n-net:
+    driver: bridge

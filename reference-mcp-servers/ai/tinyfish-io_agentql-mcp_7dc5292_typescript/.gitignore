@@ -1,7 +1,0 @@
-node_modules/
-build/
-dist/
-*.log
-.env*
-.npmrc
-.DS_Store

@@ -1,0 +1,54 @@
+{
+  "name": "dart-mcp-server",
+  "version": "0.2.2",
+  "description": "The Dart MCP server",
+  "license": "MIT",
+  "author": "Dart (software@dartai.com)",
+  "engines": {
+    "node": ">=20"
+  },
+  "homepage": "https://github.com/its-dart/dart-mcp-server",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/its-dart/dart-mcp-server.git"
+  },
+  "bugs": "https://app.dartai.com/p/r/JFyPnhL9En61",
+  "type": "module",
+  "bin": {
+    "dart-mcp-server": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "start:mcp-inspector": "bun run build && DANGEROUSLY_OMIT_AUTH=true bunx @modelcontextprotocol/inspector node dist/index.js",
+    "prepare": "bun run build",
+    "build": "tsc && node -e \"require('node:fs').chmodSync('dist/index.js', 0o755)\"",
+    "format-check": "prettier --check .",
+    "format-fix": "prettier --write . --list-different",
+    "req-up-all": "bun update --latest --interactive",
+    "release": "bun run build && release-it"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "~1.30.0",
+    "dart-tools": "~0.4.15",
+    "dotenv": "~17.4.2"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/inspector": "2.3.0",
+    "@types/node": "26.2.0",
+    "prettier": "3.9.6",
+    "release-it": "21.0.2",
+    "typescript": "7.0.2"
+  },
+  "keywords": [
+    "dart",
+    "projectmanagement",
+    "taskmanagement"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "packageManager": "bun@1.3.14"
+}

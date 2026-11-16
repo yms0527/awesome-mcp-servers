@@ -1,0 +1,1135 @@
+import {
+  ServerMode,
+  type HandlerConfig,
+  type HandlerRequest,
+  type HandlerResponse,
+  type Tool,
+} from '../utils/types.js';
+import { log } from '../utils/logger.js';
+import { createErrorResponse, createSuccessResponse } from '../utils/http-utility.js';
+import type { Auth0Config } from '../utils/config.js';
+import { getManagementClient } from '../utils/auth0-client.js';
+import { resolveAndWriteCredentials } from '../utils/env-credentials.js';
+import { hasNonVerifiableCallbacks, SUPPORTED_FRAMEWORKS } from '../utils/onboarding.js';
+import { maskSensitiveFields } from '../utils/response-masker.js';
+import type {
+  ClientCreateTokenEndpointAuthMethodEnum,
+  ClientCreateAppTypeEnum,
+  ClientCreateOrganizationUsageEnum,
+  ClientCreateOrganizationRequireBehaviorEnum,
+  ClientCreate,
+  ClientUpdate,
+} from 'auth0';
+
+// Define all available application tools
+export const APPLICATION_TOOLS: Tool[] = [
+  {
+    name: 'auth0_list_applications',
+    description: 'List all applications in the Auth0 tenant or search by name',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        page: { type: 'number', description: 'Page number (0-based)' },
+        per_page: { type: 'number', description: 'Number of applications per page' },
+        include_totals: { type: 'boolean', description: 'Include total count' },
+      },
+    },
+    _meta: {
+      requiredScopes: ['read:clients'],
+      readOnly: true,
+    },
+    annotations: {
+      title: 'List Auth0 Applications',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: 'auth0_get_application',
+    description: 'Get details about a specific Auth0 application',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        client_id: { type: 'string', description: 'Client ID of the application to retrieve' },
+      },
+      required: ['client_id'],
+    },
+    _meta: {
+      requiredScopes: ['read:clients'],
+      readOnly: true,
+    },
+    annotations: {
+      title: 'Get Auth0 Application Details',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: 'auth0_create_application',
+    description:
+      'Create a new Auth0 application with the tenant. Prefer OIDC compliant unless otherwise specified. After creating, always explicitly tell the user that the client_secret is redacted in this response for security and provide the dashboard URL and API URL from _credentials_access so they know where to view the full secret. Also inform the user about any automatically applied settings (such as skip_non_verifiable_callback_uri_confirmation_prompt).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description:
+            'Name of the application (min length: 1 character, does not allow < or >). Required.',
+        },
+        app_type: {
+          type: 'string',
+          enum: ['spa', 'native', 'non_interactive', 'regular_web'],
+          description:
+            'Application type. Use non_interactive for Machine-to-Machine (M2M) or API-to-API apps. ' +
+            'Use spa for Single Page Apps, regular_web for server-rendered apps, native for mobile/desktop.',
+        },
+        description: {
+          type: 'string',
+          description: 'Free text description of this client (max length: 140 characters).',
+        },
+        callbacks: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'URLs whitelisted for Auth0 to use as callback after authentication.',
+        },
+        allowed_origins: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'URLs allowed to make requests from JavaScript to Auth0 API (typically used with CORS).',
+        },
+        allowed_clients: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'List of allowed clients and API ids for delegation requests.',
+        },
+        allowed_logout_urls: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'URLs valid to redirect to after logout from Auth0.',
+        },
+        is_first_party: {
+          type: 'boolean',
+          description: 'Whether this client is a first party client.',
+        },
+        oidc_conformant: {
+          type: 'boolean',
+          description: 'Whether this client conforms to strict OIDC specifications.',
+        },
+        sso_disabled: {
+          type: 'boolean',
+          description: 'Disable Single Sign On.',
+        },
+        cross_origin_authentication: {
+          type: 'boolean',
+          description: 'Whether this client can make cross-origin authentication requests.',
+        },
+        logo_uri: {
+          type: 'string',
+          description: 'URL of the logo to display (recommended size: 150x150 pixels).',
+        },
+        organization_usage: {
+          type: 'string',
+          enum: ['deny', 'allow', 'require'],
+          description: 'How to proceed during authentication with regards to organization.',
+        },
+        organization_require_behavior: {
+          type: 'string',
+          enum: ['no_prompt', 'pre_login_prompt', 'post_login_prompt'],
+          description: 'How to proceed during authentication when organization_usage is require.',
+        },
+        token_endpoint_auth_method: {
+          type: 'string',
+          description:
+            'Token endpoint authentication method. When creating, defaults based on app_type: "none" for SPA/Native (public clients), "client_secret_post" for Regular Web/M2M (confidential clients).',
+          enum: ['none', 'client_secret_post', 'client_secret_basic'],
+        },
+        grant_types: {
+          type: 'array',
+          items: { type: 'string', minLength: 1 },
+          description:
+            'List of grant types supported for this application. Can include ' +
+            '`authorization_code`, `implicit`, `refresh_token`, `client_credentials`, `password`, ' +
+            '`http://auth0.com/oauth/grant-type/password-realm`, ' +
+            '`http://auth0.com/oauth/grant-type/mfa-oob`, ' +
+            '`http://auth0.com/oauth/grant-type/mfa-otp`, ' +
+            '`http://auth0.com/oauth/grant-type/mfa-recovery-code`, ' +
+            '`urn:openid:params:grant-type:ciba`, ' +
+            '`urn:ietf:params:oauth:grant-type:device_code`, and ' +
+            '`urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token`.',
+        },
+        jwt_configuration: {
+          type: 'object',
+          description: 'JWT configuration.',
+          properties: {
+            alg: {
+              type: 'string',
+              enum: ['HS256', 'RS256', 'RS512', 'PS256'],
+              description: 'JWT signing algorithm.',
+            },
+            lifetime_in_seconds: {
+              type: 'number',
+              description: 'Token expiry in seconds.',
+            },
+          },
+        },
+        refresh_token: {
+          type: ['object', 'null'],
+          description: 'Refresh token configuration.',
+          additionalProperties: false,
+          properties: {
+            rotation_type: {
+              type: 'string',
+              enum: ['rotating', 'non-rotating'],
+              description: 'Rotation policy.',
+            },
+            expiration_type: {
+              type: 'string',
+              enum: ['expiring', 'non-expiring'],
+              description: 'Expiration policy.',
+            },
+            leeway: {
+              type: 'integer',
+              minimum: 0,
+              description: 'Grace period in seconds before breach detection triggers.',
+            },
+            token_lifetime: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 157788000,
+              description: 'Refresh token lifetime in seconds.',
+            },
+            infinite_token_lifetime: {
+              type: 'boolean',
+              description: 'If true, tokens never expire (overrides token_lifetime).',
+            },
+            idle_token_lifetime: {
+              type: 'integer',
+              minimum: 1,
+              description: 'Idle lifetime in seconds.',
+            },
+            infinite_idle_token_lifetime: {
+              type: 'boolean',
+              description: 'If true, tokens do not expire from inactivity (overrides idle_token_lifetime).',
+            },
+          },
+          required: ['rotation_type', 'expiration_type'],
+        },
+        mobile: {
+          type: 'object',
+          description: 'Mobile app configuration settings',
+        },
+        web_origins: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'URLs allowed to make cross-origin (CORS) requests to Auth0 from JavaScript.',
+        },
+        client_aliases: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'List of audiences or client identifiers used for SAML or delegation.',
+        },
+        cross_origin_loc: {
+          type: 'string',
+          description: 'URL of the location in your site where the cross-origin verification takes place for cross-origin authentication.',
+        },
+        oidc_logout: {
+          type: 'object',
+          description: 'Configuration for OIDC back-channel logout.',
+        },
+        sso: {
+          type: 'boolean',
+          description: 'Whether Single Sign On is enabled for this client.',
+        },
+        native_social_login: {
+          type: 'object',
+          description: 'Configuration for native social login (e.g. Apple, Facebook).',
+        },
+      },
+      required: ['name'],
+    },
+    _meta: {
+      requiredScopes: ['create:clients'],
+    },
+    annotations: {
+      title: 'Create Auth0 Application',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: 'auth0_update_application',
+    description:
+      'Update an existing Auth0 application. After updating, always inform the user about any automatically applied settings (such as skip_non_verifiable_callback_uri_confirmation_prompt).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        client_id: {
+          type: 'string',
+          description: 'Client ID of the application to update. Required.',
+        },
+        name: {
+          type: 'string',
+          description: 'Name of the application (min length: 1 character, does not allow < or >)',
+        },
+        app_type: {
+          type: 'string',
+          enum: ['spa', 'native', 'non_interactive', 'regular_web'],
+          description:
+            'Application type. Use non_interactive for Machine-to-Machine (M2M) or API-to-API apps. ' +
+            'Use spa for Single Page Apps, regular_web for server-rendered apps, native for mobile/desktop.',
+        },
+        description: {
+          type: 'string',
+          description: 'Free text description of this client (max length: 140 characters)',
+        },
+        callbacks: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'URLs whitelisted for Auth0 to use as callback after authentication',
+        },
+        allowed_origins: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'URLs allowed to make requests from JavaScript to Auth0 API (typically used with CORS)',
+        },
+        allowed_clients: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'List of allowed clients and API ids for delegation requests',
+        },
+        allowed_logout_urls: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'URLs valid to redirect to after logout from Auth0',
+        },
+        grant_types: {
+          type: 'array',
+          items: { type: 'string', minLength: 1 },
+          description:
+            'List of grant types supported for this application. Can include ' +
+            '`authorization_code`, `implicit`, `refresh_token`, `client_credentials`, `password`, ' +
+            '`http://auth0.com/oauth/grant-type/password-realm`, ' +
+            '`http://auth0.com/oauth/grant-type/mfa-oob`, ' +
+            '`http://auth0.com/oauth/grant-type/mfa-otp`, ' +
+            '`http://auth0.com/oauth/grant-type/mfa-recovery-code`, ' +
+            '`urn:openid:params:grant-type:ciba`, ' +
+            '`urn:ietf:params:oauth:grant-type:device_code`, and ' +
+            '`urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token`.',
+        },
+        token_endpoint_auth_method: {
+          type: 'string',
+          enum: ['none', 'client_secret_post', 'client_secret_basic'],
+          description: 'Client authentication method for the token endpoint',
+        },
+        is_first_party: {
+          type: 'boolean',
+          description: 'Whether this client is a first party client',
+        },
+        oidc_conformant: {
+          type: 'boolean',
+          description: 'Whether this client conforms to strict OIDC specifications',
+        },
+        sso_disabled: {
+          type: 'boolean',
+          description: 'Disable Single Sign On',
+        },
+        cross_origin_authentication: {
+          type: 'boolean',
+          description: 'Whether this client can make cross-origin authentication requests',
+        },
+        logo_uri: {
+          type: 'string',
+          description: 'URL of the logo to display (recommended size: 150x150 pixels)',
+        },
+        organization_usage: {
+          type: 'string',
+          enum: ['deny', 'allow', 'require'],
+          description: 'How to proceed during authentication with regards to organization',
+        },
+        organization_require_behavior: {
+          type: 'string',
+          enum: ['no_prompt', 'pre_login_prompt', 'post_login_prompt'],
+          description: 'How to proceed during authentication when organization_usage is require',
+        },
+        jwt_configuration: {
+          type: 'object',
+          description: 'JWT configuration.',
+          properties: {
+            alg: {
+              type: 'string',
+              enum: ['HS256', 'RS256', 'RS512', 'PS256'],
+              description: 'JWT signing algorithm.',
+            },
+            lifetime_in_seconds: {
+              type: 'number',
+              description: 'Token expiry in seconds.',
+            },
+          },
+        },
+        refresh_token: {
+          type: ['object', 'null'],
+          description: 'Refresh token configuration.',
+          additionalProperties: false,
+          properties: {
+            rotation_type: {
+              type: 'string',
+              enum: ['rotating', 'non-rotating'],
+              description: 'Rotation policy.',
+            },
+            expiration_type: {
+              type: 'string',
+              enum: ['expiring', 'non-expiring'],
+              description: 'Expiration policy.',
+            },
+            leeway: {
+              type: 'integer',
+              minimum: 0,
+              description: 'Grace period in seconds before breach detection triggers.',
+            },
+            token_lifetime: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 157788000,
+              description: 'Refresh token lifetime in seconds.',
+            },
+            infinite_token_lifetime: {
+              type: 'boolean',
+              description: 'If true, tokens never expire (overrides token_lifetime).',
+            },
+            idle_token_lifetime: {
+              type: 'integer',
+              minimum: 1,
+              description: 'Idle lifetime in seconds.',
+            },
+            infinite_idle_token_lifetime: {
+              type: 'boolean',
+              description: 'If true, tokens do not expire from inactivity (overrides idle_token_lifetime).',
+            },
+          },
+          required: ['rotation_type', 'expiration_type'],
+        },
+        mobile: {
+          type: 'object',
+          description: 'Mobile app configuration settings',
+        },
+        web_origins: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'URLs allowed to make cross-origin (CORS) requests to Auth0 from JavaScript.',
+        },
+        client_aliases: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'List of audiences or client identifiers used for SAML or delegation.',
+        },
+        cross_origin_loc: {
+          type: 'string',
+          description: 'URL of the location in your site where the cross-origin verification takes place for cross-origin authentication.',
+        },
+        oidc_logout: {
+          type: 'object',
+          description: 'Configuration for OIDC back-channel logout.',
+        },
+        sso: {
+          type: 'boolean',
+          description: 'Whether Single Sign On is enabled for this client.',
+        },
+        native_social_login: {
+          type: 'object',
+          description: 'Configuration for native social login (e.g. Apple, Facebook).',
+        },
+        skip_non_verifiable_callback_uri_confirmation_prompt: {
+          type: 'boolean',
+          description:
+            'Skip the non-verifiable callback URI confirmation prompt for localhost and custom scheme callbacks',
+        },
+      },
+      required: ['client_id'],
+    },
+    _meta: {
+      requiredScopes: ['update:clients'],
+    },
+    annotations: {
+      title: 'Update Auth0 Application',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: 'auth0_save_credentials_to_file',
+    description:
+      "Save Auth0 application credentials to the project's environment file. Only use this when you are in a project directory. Uses the framework quickstart spec to determine env variable names and target filename. Requires an explicit project path to prevent writing credentials to unintended locations. If the file already exists, conflicting keys are commented out and new credentials are appended (existing content is preserved). Additionally, a .gitignore entry is automatically added for the target file. Do NOT read, open, or echo any .env file (.env, .env.local, etc.) before or after writing — it may hold unrelated secrets, and the returned keys_written confirms success.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        client_id: {
+          type: 'string',
+          description: 'Client ID of the application whose credentials should be saved',
+        },
+        framework: {
+          type: 'string',
+          description: `The framework the project uses. Pass the exact framework name (e.g. "svelte", "express", "flask"). Only these have optimized env specs: ${SUPPORTED_FRAMEWORKS.join(', ')}. All other frameworks use a generic fallback with standard Auth0 env variables.`,
+        },
+        project_path: {
+          type: 'string',
+          description: 'Absolute path to the project root directory. The env file is written here.',
+        },
+        base_url: {
+          type: 'string',
+          description:
+            'Application base URL (e.g. http://localhost:3000). Used for BASE_URL env keys.',
+        },
+        callback_url: {
+          type: 'string',
+          description: 'Primary callback URL. Used for CALLBACK env keys.',
+        },
+        port: {
+          type: 'number',
+          description:
+            'Dev server port. Infer this from the project (e.g. vite.config.ts, package.json scripts) before calling this tool. Used for PORT env keys.',
+        },
+        dry_run: {
+          type: 'boolean',
+          description:
+            'If true, computes and returns the proposed credential key names without writing to disk. ' +
+            'Use this to confirm what would be written before committing.',
+        },
+      },
+      required: ['client_id', 'framework', 'project_path'],
+      additionalProperties: false,
+    },
+    _meta: {
+      requiredScopes: ['read:clients', 'read:client_credentials'],
+      localOnly: true,
+    },
+    annotations: {
+      title: 'Save Auth0 Credentials to File',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  },
+];
+
+interface Auth0Response {
+  clients?: {
+    client_id: string;
+    name: string;
+    app_type?: string;
+    description?: string;
+    callbacks?: string[];
+  }[];
+  total?: number;
+  limit?: number;
+  start?: number;
+}
+
+// Define handlers for each application tool
+export const APPLICATION_HANDLERS: Record<
+  string,
+  (request: HandlerRequest, config: HandlerConfig) => Promise<HandlerResponse>
+> = {
+  auth0_list_applications: async (
+    request: HandlerRequest,
+    config: HandlerConfig
+  ): Promise<HandlerResponse> => {
+    try {
+      if (!request.token) {
+        log('Warning: Token is missing');
+        return createErrorResponse('Error: Missing authorization token');
+      }
+
+      // Check if domain is configured
+      if (!config.domain) {
+        log('Error: Auth0 domain is not configured');
+        return createErrorResponse('Error: Auth0 domain is not configured');
+      }
+
+      // Initialize the Auth0 Management API client
+
+      // Build query parameters
+      const options: Record<string, any> = {};
+      if (request.parameters.page !== undefined) {
+        options.page = request.parameters.page;
+      }
+      if (request.parameters.per_page !== undefined) {
+        options.per_page = request.parameters.per_page;
+      } else {
+        // Default to 5 items per page if not specified
+        options.per_page = 5;
+      }
+      if (request.parameters.include_totals !== undefined) {
+        options.include_totals = request.parameters.include_totals;
+      } else {
+        // Default to include totals
+        options.include_totals = true;
+      }
+
+      try {
+        const managementClientConfig: Auth0Config = {
+          domain: config.domain,
+          token: request.token,
+        };
+        const managementClient = await getManagementClient(managementClientConfig, config.headers);
+        // Use the Auth0 SDK to get all clients
+        const { data: responseData } = await managementClient.clients.getAll(options);
+
+        let applications = [];
+        let total = 0;
+        let page = 0;
+        let perPage = options.per_page || 5;
+        let totalPages = 1;
+
+        // Handle different response formats based on include_totals option
+        if (responseData && Array.isArray(responseData)) {
+          // When include_totals is false, response is an array of clients
+          applications = responseData;
+          total = applications.length;
+        } else if (responseData && typeof responseData === 'object' && 'clients' in responseData) {
+          // When include_totals is true, response has pagination info
+          const typedResponse = responseData as Auth0Response;
+          applications = typedResponse.clients || [];
+
+          // Access pagination metadata if available
+          total = typedResponse.total || applications.length;
+          page = typedResponse.start || 0;
+          perPage = typedResponse.limit || applications.length;
+
+          totalPages = Math.ceil(total / perPage);
+        } else {
+          log('Invalid response format from Auth0 SDK');
+          return createErrorResponse('Error: Received invalid response format from Auth0 API.');
+        }
+
+        // Format applications list
+        const formattedApplications = applications.map((app) => ({
+          id: app.client_id,
+          name: app.name,
+          type: app.app_type || 'Unknown',
+          description: app.description || '-',
+          domain: app.callbacks?.length ? app.callbacks[0].split('/')[2] : '-',
+        }));
+
+        log(
+          `Successfully retrieved ${formattedApplications.length} applications (page ${page + 1} of ${totalPages}, total: ${total})`
+        );
+
+        const result = {
+          applications: formattedApplications,
+          count: formattedApplications.length,
+          total: total,
+          pagination: {
+            page: page,
+            per_page: perPage,
+            total_pages: totalPages,
+            has_next: page + 1 < totalPages,
+          },
+        };
+
+        return createSuccessResponse(result);
+      } catch (sdkError: any) {
+        // Handle SDK errors
+        log('Auth0 SDK error');
+
+        let errorMessage = `Failed to list applications: ${sdkError.message || 'Unknown error'}`;
+
+        // Add context based on common error scenarios
+        if (sdkError.statusCode === 401) {
+          errorMessage +=
+            '\nError: Unauthorized. Your token might be expired or invalid or missing read:clients scope.';
+        } else if (sdkError.statusCode === 403) {
+          errorMessage +=
+            '\nError: Forbidden. Your token might not have the required scopes (read:clients).';
+        } else if (sdkError.statusCode === 429) {
+          errorMessage +=
+            '\nError: Rate limited. You have made too many requests to the Auth0 API. Please try again later.';
+        } else if (sdkError.statusCode >= 500) {
+          errorMessage +=
+            '\nError: Auth0 server error. The Auth0 API might be experiencing issues. Please try again later.';
+        }
+
+        return createErrorResponse(errorMessage);
+      }
+    } catch (error: any) {
+      // Handle any other errors
+      log('Error processing request');
+
+      return createErrorResponse(
+        `Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  },
+  auth0_get_application: async (
+    request: HandlerRequest,
+    config: HandlerConfig
+  ): Promise<HandlerResponse> => {
+    try {
+      const clientId = request.parameters.client_id;
+      if (!clientId) {
+        return createErrorResponse('Error: client_id is required');
+      }
+
+      // Check for token
+      if (!request.token) {
+        log('Warning: Token is empty or undefined');
+        return createErrorResponse('Error: Missing authorization token');
+      }
+
+      // Check if domain is configured
+      if (!config.domain) {
+        log('Error: Auth0 domain is not configured');
+        return createErrorResponse('Error: Auth0 domain is not configured');
+      }
+
+      try {
+        const managementClientConfig: Auth0Config = {
+          domain: config.domain,
+          token: request.token,
+        };
+        const managementClient = await getManagementClient(managementClientConfig, config.headers);
+
+        log(`Fetching client with ID: ${clientId}`);
+
+        // Use the Auth0 SDK to get a specific client
+        const { data: application } = await managementClient.clients.get({ client_id: clientId });
+
+        // Ensure we have the required properties
+        if (!application || typeof application !== 'object') {
+          log('Invalid response from Auth0 SDK');
+          return createErrorResponse('Error: Received invalid response from Auth0 API');
+        }
+
+        // Use type assertion to access properties
+        const appData = application as any;
+        log(
+          `Successfully retrieved application: ${appData.name || 'Unknown'} (${appData.client_id || clientId})`
+        );
+
+        // Mask sensitive fields before returning response
+        const maskedApplication = maskSensitiveFields(application);
+
+        return createSuccessResponse(maskedApplication);
+      } catch (sdkError: any) {
+        // Handle SDK errors
+        log('Auth0 SDK error');
+
+        let errorMessage = `Failed to get application: ${sdkError.message || 'Unknown error'}`;
+
+        // Add context based on common error codes
+        if (sdkError.statusCode === 404) {
+          errorMessage = `Application with client_id '${clientId}' not found.`;
+        } else if (sdkError.statusCode === 401) {
+          errorMessage +=
+            '\nError: Unauthorized. Your token might be expired or invalid or missing read:clients scope.';
+        }
+
+        return createErrorResponse(errorMessage);
+      }
+    } catch (error: any) {
+      // Handle any other errors
+      log('Error processing request');
+
+      return createErrorResponse(
+        `Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  },
+  auth0_create_application: async (
+    request: HandlerRequest,
+    config: HandlerConfig
+  ): Promise<HandlerResponse> => {
+    try {
+      const {
+        name,
+        description,
+        logo_uri,
+        callbacks,
+        oidc_logout,
+        allowed_origins,
+        web_origins,
+        client_aliases,
+        allowed_clients,
+        allowed_logout_urls,
+        grant_types,
+        token_endpoint_auth_method,
+        app_type,
+        is_first_party,
+        oidc_conformant,
+        jwt_configuration,
+        sso,
+        cross_origin_authentication,
+        cross_origin_loc,
+        sso_disabled,
+        mobile,
+        native_social_login,
+        refresh_token,
+        organization_usage,
+        organization_require_behavior,
+      } = request.parameters;
+
+      if (!name) {
+        return createErrorResponse('Error: name is required');
+      }
+
+      // Check for token
+      if (!request.token) {
+        log('Warning: Token is empty or undefined');
+        return createErrorResponse('Error: Missing authorization token');
+      }
+
+      // Check if domain is configured
+      if (!config.domain) {
+        log('Error: Auth0 domain is not configured');
+        return createErrorResponse('Error: Auth0 domain is not configured');
+      }
+
+      // Prepare request body with all available parameters
+      const clientData: ClientCreate = {
+        name,
+      };
+
+      // Add all optional parameters if they exist
+      if (app_type !== undefined) clientData.app_type = app_type as ClientCreateAppTypeEnum;
+      if (description !== undefined) clientData.description = description;
+      if (logo_uri !== undefined) clientData.logo_uri = logo_uri;
+      if (callbacks !== undefined) clientData.callbacks = callbacks;
+      if (oidc_logout !== undefined) clientData.oidc_logout = oidc_logout;
+      if (allowed_origins !== undefined) clientData.allowed_origins = allowed_origins;
+      if (web_origins !== undefined) clientData.web_origins = web_origins;
+      if (client_aliases !== undefined) clientData.client_aliases = client_aliases;
+      if (allowed_clients !== undefined) clientData.allowed_clients = allowed_clients;
+      if (allowed_logout_urls !== undefined) clientData.allowed_logout_urls = allowed_logout_urls;
+      if (grant_types !== undefined) clientData.grant_types = grant_types;
+      const defaultAuthMethod =
+        app_type === 'spa' || app_type === 'native'
+          ? 'none'
+          : app_type !== undefined
+            ? 'client_secret_post'
+            : undefined;
+      const resolvedAuthMethod = token_endpoint_auth_method ?? defaultAuthMethod;
+      if (resolvedAuthMethod !== undefined)
+        clientData.token_endpoint_auth_method =
+          resolvedAuthMethod as ClientCreateTokenEndpointAuthMethodEnum;
+      if (is_first_party !== undefined) clientData.is_first_party = is_first_party;
+      if (oidc_conformant !== undefined) clientData.oidc_conformant = oidc_conformant;
+      if (jwt_configuration !== undefined) clientData.jwt_configuration = jwt_configuration;
+      if (sso !== undefined) clientData.sso = sso;
+      if (cross_origin_authentication !== undefined)
+        clientData.cross_origin_authentication = cross_origin_authentication;
+      if (cross_origin_loc !== undefined) clientData.cross_origin_loc = cross_origin_loc;
+      if (sso_disabled !== undefined) clientData.sso_disabled = sso_disabled;
+      if (mobile !== undefined) clientData.mobile = mobile;
+      if (native_social_login !== undefined) clientData.native_social_login = native_social_login;
+      if (refresh_token !== undefined) clientData.refresh_token = refresh_token;
+      if (organization_usage !== undefined)
+        clientData.organization_usage = organization_usage as ClientCreateOrganizationUsageEnum;
+      if (organization_require_behavior !== undefined)
+        clientData.organization_require_behavior =
+          organization_require_behavior as ClientCreateOrganizationRequireBehaviorEnum;
+      if (callbacks && hasNonVerifiableCallbacks(callbacks)) {
+        clientData.skip_non_verifiable_callback_uri_confirmation_prompt = true;
+      }
+
+      clientData.oidc_conformant = true;
+      clientData.jwt_configuration = {
+        alg: 'RS256',
+        lifetime_in_seconds: 36000,
+      };
+
+      try {
+        const managementClientConfig: Auth0Config = {
+          domain: config.domain,
+          token: request.token,
+        };
+        const managementClient = await getManagementClient(managementClientConfig, config.headers);
+
+        log(`Creating new application with name: ${name}, type: ${app_type}`);
+
+        // Use the Auth0 SDK to create a client
+        const { data: newApplication } = await managementClient.clients.create(clientData);
+
+        // Use type assertion to access properties
+        const appData = newApplication as any;
+        log(
+          `Successfully created application: ${appData.name || name} (${appData.client_id || 'new client'})`
+        );
+
+        // Mask sensitive fields before returning response
+        const maskedApplication = maskSensitiveFields(newApplication);
+
+        // Add credentials access instructions if client_secret exists
+        const response: any = { ...maskedApplication };
+        if (appData.client_secret) {
+          const howToAccess = [
+            `View in Auth0 Dashboard: https://manage.auth0.com/dashboard/us/${config.domain.split('.')[0]}/applications/${appData.client_id}/settings`,
+            `Retrieve via API: GET https://${config.domain}/api/v2/clients/${appData.client_id}`,
+          ];
+
+          if (config.mode !== ServerMode.StreamableHttp) {
+            howToAccess.unshift(
+              `To save credentials locally, you MUST first ask the user to provide a project path before calling "auth0_save_credentials_to_file" with client_id "${appData.client_id}". Do NOT assume a default path.`
+            );
+          }
+
+          response._credentials_access = {
+            note: 'Credentials are masked for security (not logged in MCP client logs)',
+            how_to_access: howToAccess,
+          };
+        }
+
+        return createSuccessResponse(response);
+      } catch (sdkError: any) {
+        // Handle SDK errors
+        log('Auth0 SDK error');
+
+        let errorMessage = `Failed to create application: ${sdkError.message || 'Unknown error'}`;
+
+        // Add context based on common error codes
+        if (sdkError.statusCode === 401) {
+          errorMessage +=
+            '\nError: Unauthorized. Your token might be expired or invalid or missing create:clients scope.';
+        } else if (sdkError.statusCode === 422) {
+          errorMessage +=
+            '\nError: Validation errors in your request. Check that your parameters are valid.';
+        }
+
+        return createErrorResponse(errorMessage);
+      }
+    } catch (error: any) {
+      // Handle any other errors
+      log('Error processing request');
+
+      return createErrorResponse(
+        `Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  },
+  auth0_update_application: async (
+    request: HandlerRequest,
+    config: HandlerConfig
+  ): Promise<HandlerResponse> => {
+    try {
+      const clientId = request.parameters.client_id;
+      if (!clientId) {
+        return createErrorResponse('Error: client_id is required');
+      }
+
+      // Extract all possible parameters to update
+      const {
+        name,
+        description,
+        logo_uri,
+        callbacks,
+        oidc_logout,
+        allowed_origins,
+        web_origins,
+        client_aliases,
+        allowed_clients,
+        allowed_logout_urls,
+        grant_types,
+        token_endpoint_auth_method,
+        app_type,
+        is_first_party,
+        oidc_conformant,
+        jwt_configuration,
+        sso,
+        cross_origin_authentication,
+        cross_origin_loc,
+        sso_disabled,
+        mobile,
+        native_social_login,
+        refresh_token,
+        organization_usage,
+        organization_require_behavior,
+        skip_non_verifiable_callback_uri_confirmation_prompt,
+      } = request.parameters;
+
+      // Prepare update body, only including fields that are present
+      const updateData: ClientUpdate = {};
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (logo_uri !== undefined) updateData.logo_uri = logo_uri;
+      if (callbacks !== undefined) updateData.callbacks = callbacks;
+      if (oidc_logout !== undefined) updateData.oidc_logout = oidc_logout;
+      if (allowed_origins !== undefined) updateData.allowed_origins = allowed_origins;
+      if (web_origins !== undefined) updateData.web_origins = web_origins;
+      if (client_aliases !== undefined) updateData.client_aliases = client_aliases;
+      if (allowed_clients !== undefined) updateData.allowed_clients = allowed_clients;
+      if (allowed_logout_urls !== undefined) updateData.allowed_logout_urls = allowed_logout_urls;
+      if (grant_types !== undefined) updateData.grant_types = grant_types;
+      if (token_endpoint_auth_method !== undefined)
+        updateData.token_endpoint_auth_method =
+          token_endpoint_auth_method as ClientCreateTokenEndpointAuthMethodEnum;
+      if (app_type !== undefined) updateData.app_type = app_type as ClientCreateAppTypeEnum;
+      if (is_first_party !== undefined) updateData.is_first_party = is_first_party;
+      if (oidc_conformant !== undefined) updateData.oidc_conformant = oidc_conformant;
+      if (jwt_configuration !== undefined) updateData.jwt_configuration = jwt_configuration;
+      if (sso !== undefined) updateData.sso = sso;
+      if (cross_origin_authentication !== undefined)
+        updateData.cross_origin_authentication = cross_origin_authentication;
+      if (cross_origin_loc !== undefined) updateData.cross_origin_loc = cross_origin_loc;
+      if (sso_disabled !== undefined) updateData.sso_disabled = sso_disabled;
+      if (mobile !== undefined) updateData.mobile = mobile;
+      if (native_social_login !== undefined) updateData.native_social_login = native_social_login;
+      if (refresh_token !== undefined) updateData.refresh_token = refresh_token;
+      if (organization_usage !== undefined)
+        updateData.organization_usage = organization_usage as ClientCreateOrganizationUsageEnum;
+      if (organization_require_behavior !== undefined)
+        updateData.organization_require_behavior =
+          organization_require_behavior as ClientCreateOrganizationRequireBehaviorEnum;
+      if (skip_non_verifiable_callback_uri_confirmation_prompt !== undefined)
+        updateData.skip_non_verifiable_callback_uri_confirmation_prompt =
+          skip_non_verifiable_callback_uri_confirmation_prompt;
+      if (
+        updateData.skip_non_verifiable_callback_uri_confirmation_prompt === undefined &&
+        callbacks &&
+        hasNonVerifiableCallbacks(callbacks)
+      ) {
+        updateData.skip_non_verifiable_callback_uri_confirmation_prompt = true;
+      }
+
+      // Check for token
+      if (!request.token) {
+        log('Warning: Token is empty or undefined');
+        return createErrorResponse('Error: Missing authorization token');
+      }
+
+      // Check if domain is configured
+      if (!config.domain) {
+        log('Error: Auth0 domain is not configured');
+        return createErrorResponse('Error: Auth0 domain is not configured');
+      }
+
+      try {
+        const managementClientConfig: Auth0Config = {
+          domain: config.domain,
+          token: request.token,
+        };
+        const managementClient = await getManagementClient(managementClientConfig, config.headers);
+
+        log(`Updating application with client_id: ${clientId}`);
+
+        // Use the Auth0 SDK to update a client
+        const { data: updatedApplication } = await managementClient.clients.update(
+          { client_id: clientId },
+          updateData
+        );
+
+        // Use type assertion to access properties
+        const appData = updatedApplication as any;
+        log(
+          `Successfully updated application: ${appData.name || 'Unknown'} (${appData.client_id || clientId})`
+        );
+
+        // Mask sensitive fields before returning response
+        const maskedApplication = maskSensitiveFields(updatedApplication);
+
+        return createSuccessResponse(maskedApplication);
+      } catch (sdkError: any) {
+        // Handle SDK errors
+        log('Auth0 SDK error');
+
+        let errorMessage = `Failed to update application: ${sdkError.message || 'Unknown error'}`;
+
+        // Add context based on common error codes
+        if (sdkError.statusCode === 404) {
+          errorMessage = `Application with client_id '${clientId}' not found.`;
+        } else if (sdkError.statusCode === 401) {
+          errorMessage +=
+            '\nError: Unauthorized. Your token might be expired or invalid or missing update:clients scope.';
+        }
+
+        return createErrorResponse(errorMessage);
+      }
+    } catch (error: any) {
+      // Handle any other errors
+      log('Error processing request');
+
+      return createErrorResponse(
+        `Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  },
+  auth0_save_credentials_to_file: async (
+    request: HandlerRequest,
+    config: HandlerConfig
+  ): Promise<HandlerResponse> => {
+    try {
+      const {
+        client_id: clientId,
+        framework,
+        project_path: projectPath,
+        base_url: baseUrl,
+        callback_url: callbackUrl,
+        port,
+        dry_run: dryRun,
+      } = request.parameters;
+
+      if (!clientId) {
+        return createErrorResponse('Error: client_id is required');
+      }
+      if (!framework) {
+        return createErrorResponse('Error: framework is required');
+      }
+
+      if (!projectPath) {
+        return createErrorResponse('Error: project_path is required');
+      }
+
+      // Check for token
+      if (!request.token) {
+        log('Warning: Token is empty or undefined');
+        return createErrorResponse('Error: Missing authorization token');
+      }
+
+      // Check if domain is configured
+      if (!config.domain) {
+        log('Error: Auth0 domain is not configured');
+        return createErrorResponse('Error: Auth0 domain is not configured');
+      }
+
+      const result = await resolveAndWriteCredentials(
+        {
+          client_id: clientId,
+          framework,
+          project_path: projectPath,
+          base_url: baseUrl,
+          callback_url: callbackUrl,
+          port,
+          dry_run: dryRun,
+        },
+        config,
+        request.token
+      );
+
+      if (!result.success) {
+        return createErrorResponse(`Error: ${result.error}`);
+      }
+      return createSuccessResponse({
+        client_id: result.client_id,
+        credentials_saved_to: result.credentials_saved_to,
+        keys_written: result.keys_written,
+        generated_keys: result.generated_keys,
+        file_created: result.file_created,
+        message: result.message,
+      });
+    } catch (error: any) {
+      log('Error processing request');
+
+      return createErrorResponse(
+        `Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  },
+};

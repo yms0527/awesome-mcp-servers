@@ -1,0 +1,65 @@
+{
+  "name": "claudia-cli",
+  "version": "0.1.3",
+  "mcpName": "io.github.yuvalsuede/claudia",
+  "description": "A task management system built for AI agents with MCP server support",
+  "author": "Yuval Suede",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuvalsuede/claudia.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yuvalsuede/claudia/issues"
+  },
+  "homepage": "https://github.com/yuvalsuede/claudia#readme",
+  "keywords": [
+    "task-manager",
+    "ai-agents",
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "cli",
+    "project-management",
+    "multi-agent",
+    "kanban",
+    "sprints"
+  ],
+  "type": "module",
+  "main": "./src/cli/index.ts",
+  "bin": {
+    "claudia": "src/cli/index.ts"
+  },
+  "files": [
+    "src",
+    "scripts",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "dev": "bun run src/cli/index.ts",
+    "build": "bun build src/cli/index.ts --compile --outfile claudia",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "seed:demo": "bun run scripts/seed-demo.ts",
+    "prepublishOnly": "bun run typecheck && bun test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "commander": "^13.0.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.14",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

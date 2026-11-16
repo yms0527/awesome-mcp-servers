@@ -1,163 +1,84 @@
-<div align="center">
+# MCP工具安全数据集
 
-# Reference MCP Servers 与 Malicious MCP Variants 数据集
+面向MCP安全研究的工具级数据集，包含参考工具和安全模拟的恶意变体工具。
 
-**面向工具增强型大语言模型安全研究的数据集，包含 786 个 reference-mcp-servers 样本和 190 个 malicious-mcp-variants 样本。**
+[English](README.md) · [简体中文](README-zh.md) · [繁體中文](README_zh_TW.md) · [日本語](README-ja.md) · [한국어](README-ko.md)
 
-[English](README.md) · [简体中文](README-zh.md) · [繁體中文](README-zh_TW.md) · [日本語](README-ja.md) · [한국어](README-ko.md)
+## 负责任使用
 
-</div>
-
----
-
-## 免责声明
-
-本仓库中的恶意 MCP 变体仅用于安全研究、数据集构建、防御评估和教学用途。
-
-请勿将这些样本用于未授权访问、恶意软件部署、凭证窃取、服务破坏，或任何可能损害第三方系统、数据和用户权益的行为。使用本仓库内容即表示你同意遵守相关法律法规，并对使用行为承担责任。
-
----
+恶意变体仅用于防御性安全研究和教学。请勿将其部署到生产环境或用于攻击第三方系统。
 
 ## 数据集概览
 
-本仓库包含两个互补的数据集：
-
-| 数据集 | 数量 | 说明 |
-|---|---:|---|
-| `reference-mcp-servers/` | 786 | 经过 MCP Server 识别与筛选规则得到的参考服务器根目录。 |
-| `malicious-mcp-variants/` | 190 | 基于真实 MCP Server 派生构造的恶意服务器变体。 |
-| 实验样本总数 | 976 | 786 个参考服务器 + 190 个恶意变体。 |
-
-需要注意的是，786 个参考 MCP Server 不是简单的物理目录数量，而是依据 MCP Server 根目录识别与筛选规则统计得到的有效实验口径。恶意变体目录保留原始 server/project 名称，攻击类型、DTPE 最终影响位置、编号等元数据记录在 `malicious-mcp-variants/variant_name_mapping.csv` 中。
-
----
-
-## 数据规模
-
 | 统计项 | 数值 |
-|---|---:|
-| 参考 MCP Server | 786 |
-| 恶意变体 | 190 |
-| 实验样本总数 | 976 |
-| 恶意样本占比 | 19.47% |
+|---|---|
+| 物理源项目 | 1,126 |
+| 逻辑MCP服务器 | 1,450 |
+| 参考工具版本 | 26,021 |
+| 包含变体的服务器目录 | 263 |
+| 恶意变体工具版本 | 1,513 |
+| 工具版本总数 | 27,534 |
 | 已实现攻击类型 | 15 |
-| 参考服务器工具数 | 6,284 |
-| 参考服务器函数数 | 218,108 |
-| 参考服务器代码文件数 | 19,459 |
-| 参考服务器代码行数 | 4,306,858 |
-
----
-
-## 参考 MCP Server 统计
-
-### 编程语言分布
-
-| 语言 | Server 数量 |
-|---|---:|
-| TypeScript | 332 |
-| Python | 328 |
-| Go | 48 |
-| JavaScript | 26 |
-| Java | 7 |
-| Other | 45 |
-
-### 应用场景分布
-
-| 应用场景 | Server 数量 | 占比 |
-|---|---:|---:|
-| AI Agent 工具 | 184 | 23.41% |
-| 云与基础设施 | 128 | 16.28% |
-| 开发辅助 | 128 | 16.28% |
-| 数据分析 | 77 | 9.80% |
-| 通信协作与办公 | 77 | 9.80% |
-| 其他 | 75 | 9.54% |
-| 信息检索与网络服务 | 68 | 8.65% |
-| 金融商业 | 32 | 4.07% |
-| 知识管理 | 13 | 1.65% |
-| 数据库管理 | 4 | 0.51% |
-
----
-
-## 恶意 MCP Server 数据集
-
-恶意数据集包含 190 个变体，覆盖 15 类已实现攻击。该分布有意保持非均衡：Tool Poisoning、Command Injection、Prompt Injection、Credential Leakage、Unauthorized Invocation 和 Sandbox Escape 等重要攻击类型包含更多样本，同时恶意数据集总规模控制在 150--200 的小规模范围内。
-
-### 按 DTPE 最终影响位置统计
-
-| 最终影响位置 | 恶意变体数量 |
-|---|---:|
-| Decision | 57 |
-| Transmission | 15 |
-| Protocol | 25 |
-| Execution | 93 |
-
-### 按攻击类型统计
-
-| 攻击类型 | 恶意变体数量 |
-|---|---:|
-| Tool Poisoning Attack | 20 |
-| Command Injection Attack | 18 |
-| Prompt Injection Attack | 17 |
-| Credential Leakage | 15 |
-| Unauthorized Invocation | 14 |
-| Sandbox Escape | 13 |
-| Backdoor Attack | 12 |
-| Rug Pulls Attacks | 11 |
-| Puppet Attack | 10 |
-| Remote Listener Attack | 10 |
-| Tool Chain Exploitation Attack | 10 |
-| Tool Preference Manipulation Attack | 10 |
-| Tool Shadowing Attack | 10 |
-| Tool Squatting Attack | 10 |
-| Webpage Poison Attack | 10 |
-
----
 
 ## 目录结构
 
 ```text
-.
-├── reference-mcp-servers/                         # 参考 MCP Server
-├── malicious-mcp-variants/                         # 恶意 MCP 变体
-│   ├── variant_name_mapping.csv       # 变体、攻击类型与元数据映射
-│   ├── variant_label_schema.json      # 元数据 schema
-│   ├── attack_expansion_manifest.json # 构造与分布清单
-│   └── */attack_summary.md            # 各攻击类型摘要
-├── 统计结果/                          # 数据集统计结果
-├── README.md                          # 英文 README
-└── README-zh.md                       # 简体中文 README
+dataset/
+├── reference-tools/
+├── malicious-variant-tools/
+└── metadata/
 ```
 
----
+## 语言分布
 
-## 命名与元数据
+| 参考服务器语言 | 服务器数 |
+|---|---|
+| Python | 752 |
+| TypeScript | 532 |
+| Go | 75 |
+| JavaScript | 44 |
+| Java | 17 |
+| Rust | 13 |
+| Swift | 5 |
+| Kotlin | 3 |
+| C# | 3 |
+| C++ | 3 |
+| Ruby | 1 |
+| PHP | 1 |
+| Unknown | 1 |
 
-`malicious-mcp-variants/` 中的恶意变体目录保留原始 MCP server/project 名称，不再把攻击类型或 DTPE 标签编码进目录名。请通过以下文件查看攻击类型、最终影响位置和变体编号：
+## 恶意变体分布
 
-- `malicious-mcp-variants/variant_name_mapping.csv`
-- `malicious-mcp-variants/variant_label_schema.json`
-- `malicious-mcp-variants/attack_expansion_manifest.json`
-- `malicious-mcp-variants/<Attack Type>/attack_summary.md`
+| 攻击类型 | DTPE阶段 | 工具数 |
+|---|---|---|
+| Tool Preference Manipulation Attack | Decision | 92 |
+| Puppet Attack | Decision | 89 |
+| Tool Squatting Attack | Decision | 92 |
+| Tool Chain Exploitation Attack | Decision | 90 |
+| Prompt Injection Attack | Decision | 118 |
+| Credential Leakage | Transmission | 107 |
+| Rug Pulls Attacks | Processing | 97 |
+| Unauthorized Invocation | Processing | 110 |
+| Tool Poisoning Attack | Execution | 133 |
+| Tool Shadowing Attack | Execution | 83 |
+| Command Injection Attack | Execution | 128 |
+| Remote Listener Attack | Execution | 91 |
+| Webpage Poison Attack | Execution | 83 |
+| Sandbox Escape | Execution | 101 |
+| Backdoor Attack | Execution | 99 |
 
----
+## 文档与元数据
+
+- `dataset/README.md`
+- `dataset/reference-tools/README.md`
+- `dataset/malicious-variant-tools/README.md`
+- `dataset/malicious-variant-tools/<Attack Type>/README.md`
+- `dataset/metadata/`
 
 ## 适用场景
 
-该数据集可用于：
+本数据集可用于工具级静态分析、机器学习评估、攻击模式研究和MCP安全研究。
 
-- MCP Server 安全分析；
-- 恶意工具/恶意服务器检测；
-- 静态分析与机器学习检测方法评估；
-- 面向工具增强型 LLM 系统的攻击分类与基准构建。
+## 许可证
 
----
-
-## 引用
-
-如果你在学术研究中使用该数据集，请在论文或项目中引用对应论文或仓库版本。
-
----
-
-## 许可与责任
-
-使用或再分发单个 MCP Server 代码前，请检查其原始项目许可证。恶意变体是研究用途样本，不应部署到生产环境，也不得用于攻击真实用户或系统。
+来源项目保留其原始许可证。再分发单个文件前，请核对许可证和来源元数据。

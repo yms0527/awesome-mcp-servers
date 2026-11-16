@@ -1,0 +1,822 @@
+import argparse
+import asyncio
+import hashlib
+import hmac
+import logging
+import sys
+from typing import Annotated, Any
+
+import httpx
+from fastmcp import FastMCP
+from fastmcp.server.auth import AccessToken, TokenVerifier
+from pydantic import Field, SecretStr
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
+
+from netbox_mcp_server.config import Settings, configure_logging
+from netbox_mcp_server.netbox_client import NetBoxRestClient
+from netbox_mcp_server.netbox_types import NETBOX_OBJECT_TYPES
+
+
+def parse_cli_args() -> dict[str, Any]:
+    """
+    Parse command-line arguments for configuration overrides.
+
+    Returns:
+        dict of configuration overrides (only includes explicitly set values)
+    """
+    parser = argparse.ArgumentParser(
+        description="NetBox MCP Server - Model Context Protocol server for NetBox",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    # Core NetBox settings
+    parser.add_argument(
+        "--netbox-url",
+        type=str,
+        help="Base URL of the NetBox instance (e.g., https://netbox.example.com/)",
+    )
+    parser.add_argument(
+        "--netbox-token",
+        type=str,
+        help="API token for NetBox authentication",
+    )
+
+    # Transport settings
+    parser.add_argument(
+        "--transport",
+        type=str,
+        choices=["stdio", "http"],
+        help="MCP transport protocol (default: stdio)",
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        help="Host address for HTTP server (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        help="Port for HTTP server (default: 8000)",
+    )
+    parser.add_argument(
+        "--cors-origins",
+        action="append",
+        help="CORS origins (repeat flag). Use * to allow any origin (default: none)",
+    )
+    parser.add_argument(
+        "--mcp-auth-token",
+        type=str,
+        help=(
+            "Bearer token required on the HTTP transport endpoint "
+            "(prefer the MCP_AUTH_TOKEN env var; default: none)"
+        ),
+    )
+
+    # Security settings
+    ssl_group = parser.add_mutually_exclusive_group()
+    ssl_group.add_argument(
+        "--verify-ssl",
+        action="store_true",
+        dest="verify_ssl",
+        default=None,
+        help="Verify SSL certificates (default)",
+    )
+    ssl_group.add_argument(
+        "--no-verify-ssl",
+        action="store_false",
+        dest="verify_ssl",
+        help="Disable SSL certificate verification (not recommended)",
+    )
+
+    # Plugin discovery settings
+    parser.add_argument(
+        "--enable-plugin-discovery",
+        action="store_true",
+        default=None,
+        dest="enable_plugin_discovery",
+        help="Auto-discover plugin object types from NetBox at startup",
+    )
+
+    # Observability settings
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Logging verbosity level (default: INFO)",
+    )
+
+    args: argparse.Namespace = parser.parse_args()
+
+    overlay: dict[str, Any] = {}
+    if args.netbox_url is not None:
+        overlay["netbox_url"] = args.netbox_url
+    if args.netbox_token is not None:
+        overlay["netbox_token"] = args.netbox_token
+    if args.transport is not None:
+        overlay["transport"] = args.transport
+    if args.host is not None:
+        overlay["host"] = args.host
+    if args.port is not None:
+        overlay["port"] = args.port
+    if args.cors_origins is not None:
+        overlay["cors_origins"] = args.cors_origins
+    if args.mcp_auth_token is not None:
+        overlay["mcp_auth_token"] = args.mcp_auth_token
+    if args.verify_ssl is not None:
+        overlay["verify_ssl"] = args.verify_ssl
+    if args.enable_plugin_discovery is not None:
+        overlay["enable_plugin_discovery"] = args.enable_plugin_discovery
+    if args.log_level is not None:
+        overlay["log_level"] = args.log_level
+
+    return overlay
+
+
+class BearerTokenVerifier(TokenVerifier):
+    """Constant-time single-secret bearer check for the HTTP transport.
+
+    This is a FastMCP Resource Server verifier: it only validates an incoming
+    'Authorization: Bearer <token>' against one configured secret and issues no
+    tokens itself. FastMCP mounts its own auth middleware around this, returning
+    401 (+ WWW-Authenticate) for unauthenticated requests to the MCP endpoint.
+    """
+
+    def __init__(self, secret: str) -> None:
+        super().__init__()
+        # Digest, not raw secret: lets verify_token compare in constant time.
+        self._secret_digest = hashlib.sha256(secret.encode("utf-8")).digest()
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        """Return an AccessToken for a matching bearer, or None to reject."""
+        if not token:
+            return None
+        # Hash both sides: compare_digest raises TypeError on a non-ASCII str, and
+        # the bearer is attacker-controlled (header bytes decode as latin-1).
+        token_digest = hashlib.sha256(token.encode("utf-8", "surrogatepass")).digest()
+        if not hmac.compare_digest(token_digest, self._secret_digest):
+            return None
+        return AccessToken(token=token, client_id="netbox-mcp-server", scopes=[])
+
+
+def build_http_auth(token: SecretStr | None) -> TokenVerifier | None:
+    """
+    Build the HTTP transport auth provider from an optional bearer token.
+
+    Returns a verifier that makes FastMCP reject unauthenticated requests to the
+    MCP endpoint with 401, or None when no token is configured. Empty or
+    whitespace-only values are normalized to None upstream in Settings, so a
+    non-None token here is always a real secret.
+
+    Args:
+        token: Optional bearer token to require on the HTTP transport endpoint
+
+    Returns:
+        A TokenVerifier requiring the token, or None when no token is set
+    """
+    if token is None:
+        return None
+    return BearerTokenVerifier(token.get_secret_value())
+
+
+# Default object types for global search
+DEFAULT_SEARCH_TYPES = [
+    "dcim.device",  # Most common search target
+    "dcim.site",  # Site names frequently searched
+    "ipam.ipaddress",  # IP searches very common
+    "dcim.interface",  # Interface names/descriptions
+    "dcim.rack",  # Rack identifiers
+    "ipam.vlan",  # VLAN names/IDs
+    "circuits.circuit",  # Circuit identifiers
+    "virtualization.virtualmachine",  # VM names
+]
+
+mcp = FastMCP("NetBox")
+netbox = None
+
+
+def validate_filters(filters: dict) -> None:
+    """
+    Validate that filters don't use unsupported lookup suffixes or multi-hop
+    relationship traversal.
+
+    NetBox API does not support:
+    - __in suffix (pass a list as the field value instead: {'id': [1, 2, 3]})
+    - nested relationship queries like device__site_id or interface__device__site
+
+    Valid patterns:
+    - Direct field filters: site_id, name, status
+    - List values for multi-value filters: {'site_id': [1, 2]}
+    - Lookup expressions supported by the target NetBox field: name__ic, id__gt
+
+    Args:
+        filters: Dictionary of filter parameters
+
+    Raises:
+        ValueError: If filter uses an unsupported lookup suffix or multi-hop
+                    relationship traversal
+    """
+    valid_suffixes = {
+        "n",
+        "ic",
+        "nic",
+        "isw",
+        "nisw",
+        "iew",
+        "niew",
+        "ie",
+        "nie",
+        "empty",
+        "regex",
+        "iregex",
+        "lt",
+        "lte",
+        "gt",
+        "gte",
+    }
+
+    for filter_name in filters:
+        # Skip special parameters
+        if filter_name in ("limit", "offset", "fields", "q"):
+            continue
+
+        if "__" not in filter_name:
+            continue
+
+        parts = filter_name.split("__")
+
+        if len(parts) == 2 and parts[-1] == "in":
+            base = parts[0]
+            raise ValueError(
+                f"Invalid filter '{filter_name}': '__in' lookup suffix is not "
+                "supported and may be silently ignored by NetBox. "
+                f"Pass a list to the field directly instead: {{'{base}': [1, 2, 3]}}"
+            )
+
+        # Allow field__suffix pattern (e.g., name__ic, id__gt)
+        if len(parts) == 2 and parts[-1] in valid_suffixes:
+            continue
+        # Block multi-hop patterns and invalid suffixes
+        if len(parts) >= 2:
+            raise ValueError(
+                f"Invalid filter '{filter_name}': Multi-hop relationship "
+                f"traversal or invalid lookup suffix not supported. Use direct field filters like "
+                f"'site_id' or two-step queries."
+            )
+
+
+@mcp.tool(
+    description="""
+    Get objects from NetBox based on their type and filters
+
+    Args:
+        object_type: String representing the NetBox object type (e.g. "dcim.device", "ipam.ipaddress")
+        filters: dict of filters to apply to the API call based on the NetBox API filtering options
+
+                FILTER RULES:
+                Valid: Direct fields like {'site_id': 1, 'name': 'router', 'status': 'active'}
+                Valid: Field-supported lookups like {'name__ic': 'switch', 'vid__gte': 100}
+                Invalid: Multi-hop like {'device__site_id': 1} - NOT supported
+
+                Lookup suffixes: n, ic, nic, isw, nisw, iew, niew, ie, nie,
+                                 empty, regex, iregex, lt, lte, gt, gte
+                Lookup support is field-specific. NetBox may silently ignore unsupported
+                lookups and return overly broad results. The '__in' suffix is not supported
+                and is rejected by this tool. For multiple values, pass a list as the field
+                value directly: {'vminterface_id': [621493, 631527]} or {'id': [1, 2, 3]}.
+
+                Two-step pattern for cross-relationship queries:
+                  sites = netbox_get_objects('dcim.site', {'name': 'NYC'})
+                  netbox_get_objects('dcim.device', {'site_id': sites[0]['id']})
+
+        fields: Optional list of specific fields to return
+                **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
+                Field filtering significantly reduces response payload and is critical for performance.
+
+                - None or [] = returns all fields (NOT RECOMMENDED - use only when you need complete objects)
+                - ['id', 'name'] = returns only specified fields (RECOMMENDED)
+
+                Examples:
+                - For counting: ['id'] (minimal payload)
+                - For listings: ['id', 'name', 'status']
+                - For IP addresses: ['address', 'dns_name', 'description']
+
+                Uses NetBox's native field filtering via ?fields= parameter.
+                **Always specify only the fields you actually need.**
+
+        brief: returns only a minimal representation of each object in the response.
+               This is useful when you need only a list of available objects without any related data.
+
+        limit: Maximum results to return (default 5, max 100)
+               Start with default, increase only if needed
+
+        offset: Skip this many results for pagination (default 0)
+                Example: offset=0 (page 1), offset=5 (page 2), offset=10 (page 3)
+
+        ordering: Fields used to determine sort order of results.
+                  Field names may be prefixed with '-' to invert the sort order.
+                  Multiple fields may be specified with a list of strings.
+
+                  Examples:
+                  - 'name' (alphabetical by name)
+                  - '-id' (ordered by ID descending)
+                  - ['facility', '-name'] (by facility, then by name descending)
+                  - None, '' or [] (default NetBox ordering)
+
+
+    Returns:
+        Paginated response dict with the following structure:
+            - count: Total number of objects matching the query
+                     ALWAYS REFER TO THIS FIELD FOR THE TOTAL NUMBER OF OBJECTS MATCHING THE QUERY
+            - next: URL to next page (or null if no more pages)
+                    ALWAYS REFER TO THIS FIELD FOR THE NEXT PAGE OF RESULTS
+            - previous: URL to previous page (or null if on first page)
+                        ALWAYS REFER TO THIS FIELD FOR THE PREVIOUS PAGE OF RESULTS
+            - results: Array of objects for this page
+                       ALWAYS REFER TO THIS FIELD FOR THE OBJECTS ON THIS PAGE
+
+    ENSURE YOU ARE AWARE THE RESULTS ARE PAGINATED BEFORE PROVIDING RESPONSE TO THE USER.
+
+    Valid object_type values:
+
+    """
+    + "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+    + """
+
+    See NetBox API documentation for filtering options for each object type.
+    """
+)
+def netbox_get_objects(
+    object_type: str,
+    filters: dict,
+    fields: list[str] | None = None,
+    brief: bool = False,
+    limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
+    offset: Annotated[int, Field(default=0, ge=0)] = 0,
+    ordering: str | list[str] | None = None,
+):
+    """
+    Get objects from NetBox based on their type and filters
+    """
+    # Validate object_type exists in mapping
+    if object_type not in NETBOX_OBJECT_TYPES:
+        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
+
+    # Validate filter patterns
+    validate_filters(filters)
+
+    # Get API endpoint and fallback from mapping
+    endpoint, fallback = _get_endpoint_info(object_type)
+
+    # Build params with pagination (parameters override filters dict)
+    params = filters.copy()
+    params["limit"] = limit
+    params["offset"] = offset
+
+    if fields:
+        params["fields"] = ",".join(fields)
+
+    if brief:
+        params["brief"] = "1"
+
+    if ordering:
+        if isinstance(ordering, list):
+            ordering = ",".join(ordering)
+        if ordering.strip() != "":
+            params["ordering"] = ordering
+
+    # Make API call
+    return netbox.get(endpoint, params=params, fallback_endpoint=fallback)
+
+
+@mcp.tool
+def netbox_get_object_by_id(
+    object_type: str,
+    object_id: int,
+    fields: list[str] | None = None,
+    brief: bool = False,
+):
+    """
+    Get detailed information about a specific NetBox object by its ID.
+
+    Args:
+        object_type: String representing the NetBox object type (e.g. "dcim.device", "ipam.ipaddress")
+        object_id: The numeric ID of the object
+        fields: Optional list of specific fields to return
+                **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
+                Field filtering reduces response payload by 80-90% and is critical for performance.
+
+                - None or [] = returns all fields (NOT RECOMMENDED - use only when you need complete objects)
+                - ['id', 'name'] = returns only specified fields (RECOMMENDED)
+
+                Examples:
+                - For basic info: ['id', 'name', 'status']
+                - For devices: ['id', 'name', 'status', 'site']
+                - For IP addresses: ['address', 'dns_name', 'vrf', 'status']
+
+                Uses NetBox's native field filtering via ?fields= parameter.
+                **Always specify only the fields you actually need.**
+        brief: returns only a minimal representation of the object in the response.
+               This is useful when you need only a summary of the object without any related data.
+
+    Returns:
+        Object dict (complete or with only requested fields based on fields parameter)
+    """
+    # Validate object_type exists in mapping
+    if object_type not in NETBOX_OBJECT_TYPES:
+        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
+
+    # Get API endpoint and fallback from mapping
+    endpoint, fallback = _get_endpoint_info(object_type)
+    full_endpoint = f"{endpoint}/{object_id}"
+    full_fallback = f"{fallback}/{object_id}" if fallback else None
+
+    params = {}
+    if fields:
+        params["fields"] = ",".join(fields)
+
+    if brief:
+        params["brief"] = "1"
+
+    return netbox.get(full_endpoint, params=params, fallback_endpoint=full_fallback)
+
+
+@mcp.tool
+def netbox_get_changelogs(filters: dict):
+    """
+    Get object change records (changelogs) from NetBox based on filters.
+
+    Args:
+        filters: dict of filters to apply to the API call based on the NetBox API filtering options
+
+    Returns:
+        Paginated response dict with the following structure:
+            - count: Total number of changelog entries matching the query
+                     ALWAYS REFER TO THIS FIELD FOR THE TOTAL NUMBER OF CHANGELOG ENTRIES MATCHING THE QUERY
+            - next: URL to next page (or null if no more pages)
+                    ALWAYS REFER TO THIS FIELD FOR THE NEXT PAGE OF RESULTS
+            - previous: URL to previous page (or null if on first page)
+                        ALWAYS REFER TO THIS FIELD FOR THE PREVIOUS PAGE OF RESULTS
+            - results: Array of changelog entries for this page
+                       ALWAYS REFER TO THIS FIELD FOR THE CHANGELOG ENTRIES ON THIS PAGE
+
+    Filtering options include:
+    - user_id: Filter by user ID who made the change
+    - user: Filter by username who made the change
+    - changed_object_type_id: Filter by numeric ContentType ID (e.g., 21 for dcim.device)
+                              Note: This expects a numeric ID, not an object type string
+    - changed_object_id: Filter by ID of the changed object
+    - object_repr: Filter by object representation (usually contains object name)
+    - action: Filter by action type (created, updated, deleted)
+    - time_before: Filter for changes made before a given time (ISO 8601 format)
+    - time_after: Filter for changes made after a given time (ISO 8601 format)
+    - q: Search term to filter by object representation
+
+    Examples:
+    To find all changes made to a specific object by ID:
+    {"changed_object_id": 123}
+
+    To find changes by object name pattern:
+    {"object_repr": "router-01"}
+
+    To find all deletions in the last 24 hours:
+    {"action": "delete", "time_after": "2023-01-01T00:00:00Z"}
+
+    Each changelog entry contains:
+    - id: The unique identifier of the changelog entry
+    - user: The user who made the change
+    - user_name: The username of the user who made the change
+    - request_id: The unique identifier of the request that made the change
+    - action: The type of action performed (created, updated, deleted)
+    - changed_object_type: The type of object that was changed
+    - changed_object_id: The ID of the object that was changed
+    - object_repr: String representation of the changed object
+    - object_data: The object's data after the change (null for deletions)
+    - object_data_v2: Enhanced data representation
+    - prechange_data: The object's data before the change (null for creations)
+    - postchange_data: The object's data after the change (null for deletions)
+    - time: The timestamp when the change was made
+    """
+    endpoint = "core/object-changes"
+
+    # Make API call
+    return netbox.get(endpoint, params=filters)
+
+
+@mcp.tool(
+    description="""
+    Perform global search across NetBox infrastructure.
+
+    Searches names, descriptions, IP addresses, serial numbers, asset tags,
+    and other key fields across multiple object types.
+
+    Args:
+        query: Search term (device names, IPs, serial numbers, hostnames, site names)
+               Examples: 'switch01', '192.168.1.1', 'NYC-DC1', 'SN123456'
+        object_types: Limit search to specific types (optional)
+                     Default: ["""
+    + "', '".join(DEFAULT_SEARCH_TYPES)
+    + """]
+                     Examples: ['dcim.device', 'ipam.ipaddress', 'dcim.site']
+        fields: Optional list of specific fields to return (reduces response size) IT IS STRONGLY RECOMMENDED TO USE THIS PARAMETER TO MINIMIZE TOKEN USAGE.
+                - None or [] = returns all fields (no filtering)
+                - ['id', 'name'] = returns only specified fields
+                Examples: ['id', 'name', 'status'], ['address', 'dns_name']
+                Uses NetBox's native field filtering via ?fields= parameter
+        limit: Max results per object type (default 5, max 100)
+
+    Returns:
+        Dictionary with object_type keys and list of matching objects.
+        All searched types present in result (empty list if no matches).
+
+    Example:
+        # Search for anything matching "switch"
+        results = netbox_search_objects('switch')
+        # Returns: {
+        #   'dcim.device': [{'id': 1, 'name': 'switch-01', ...}],
+        #   'dcim.site': [],
+        #   ...
+        # }
+
+        # Search for IP address
+        results = netbox_search_objects('192.168.1.100')
+        # Returns: {
+        #   'ipam.ipaddress': [{'id': 42, 'address': '192.168.1.100/24', ...}],
+        #   ...
+        # }
+
+        # Limit search to specific types with field projection
+        results = netbox_search_objects(
+            'NYC',
+            object_types=['dcim.site', 'dcim.location'],
+            fields=['id', 'name', 'status']
+        )
+    """
+)
+def netbox_search_objects(
+    query: str,
+    object_types: list[str] | None = None,
+    fields: list[str] | None = None,
+    limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
+) -> dict[str, list[dict]]:
+    """
+    Perform global search across NetBox infrastructure.
+    """
+    search_types = object_types if object_types is not None else DEFAULT_SEARCH_TYPES
+
+    # Validate all object types exist in mapping
+    for obj_type in search_types:
+        if obj_type not in NETBOX_OBJECT_TYPES:
+            valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+            raise ValueError(f"Invalid object_type '{obj_type}'. Must be one of:\n{valid_types}")
+
+    results = {obj_type: [] for obj_type in search_types}
+
+    # Build results dictionary (error-resilient)
+    for obj_type in search_types:
+        try:
+            endpoint, fallback = _get_endpoint_info(obj_type)
+            response = netbox.get(
+                endpoint,
+                params={
+                    "q": query,
+                    "limit": limit,
+                    "fields": ",".join(fields) if fields else None,
+                },
+                fallback_endpoint=fallback,
+            )
+            # Extract results array from paginated response
+            results[obj_type] = response.get("results", [])
+        except Exception:  # noqa: S112 - intentional error-resilient search
+            # Continue searching other types if one fails
+            # results[obj_type] already has empty list
+            continue
+
+    return results
+
+
+def _get_endpoint_info(object_type: str) -> tuple[str, str | None]:
+    """
+    Returns (endpoint, fallback_endpoint) for the given object type.
+
+    The fallback_endpoint is used for NetBox version compatibility when
+    an endpoint path has changed between versions.
+
+    Args:
+        object_type: The NetBox object type (e.g., "dcim.device")
+
+    Returns:
+        Tuple of (endpoint, fallback_endpoint). fallback_endpoint is None
+        if no fallback is needed for this object type.
+    """
+    type_info = NETBOX_OBJECT_TYPES[object_type]
+    return type_info["endpoint"], type_info.get("fallback_endpoint")
+
+
+def discover_plugin_types(client: NetBoxRestClient) -> dict[str, dict[str, str]]:
+    """Discover plugin object types from NetBox's object-types API.
+
+    Queries the NetBox instance for installed plugin models that have REST API
+    endpoints and returns them in the same format as NETBOX_OBJECT_TYPES.
+
+    Args:
+        client: Initialized NetBox REST API client
+
+    Returns:
+        Dict mapping type keys (e.g. "netbox_dns.zone") to endpoint info dicts.
+        Returns empty dict on any error (graceful degradation).
+    """
+    logger = logging.getLogger(__name__)
+    plugin_types: dict[str, dict[str, str]] = {}
+
+    try:
+        # Paginate through all object types
+        offset = 0
+        limit = 100
+        while True:
+            response = client.get(
+                "core/object-types",
+                params={"limit": limit, "offset": offset},
+                fallback_endpoint="extras/object-types",  # NetBox < 4.4
+            )
+
+            results = response.get("results", [])
+            for obj_type in results:
+                # Only include plugin models with REST API endpoints
+                if not obj_type.get("is_plugin_model", False):
+                    continue
+
+                rest_url = obj_type.get("rest_api_endpoint")
+                if not rest_url:
+                    continue
+
+                app_label = obj_type.get("app_label", "")
+                model = obj_type.get("model", "")
+                if not app_label or not model:
+                    continue
+
+                type_key = f"{app_label}.{model}"
+
+                # Skip if it would collide with a core type
+                if type_key in NETBOX_OBJECT_TYPES:
+                    logger.debug(f"Skipping plugin type '{type_key}': collides with core type")
+                    continue
+
+                # Convert REST URL to endpoint path:
+                # "/api/plugins/netbox-dns/zones/" -> "plugins/netbox-dns/zones"
+                endpoint = rest_url.strip("/")
+                if endpoint.startswith("api/"):
+                    endpoint = endpoint[4:]
+
+                # Build a display name from the model name
+                display_name = obj_type.get("display", model)
+
+                plugin_types[type_key] = {
+                    "name": display_name,
+                    "endpoint": endpoint,
+                }
+
+            # Check if there are more pages
+            if not response.get("next"):
+                break
+            offset += limit
+
+    except (httpx.HTTPError, ValueError, KeyError) as e:
+        logger.warning(f"Plugin discovery failed, continuing with core types only: {e}")
+        return {}
+
+    if plugin_types:
+        logger.info(
+            f"Discovered {len(plugin_types)} plugin object types: "
+            + ", ".join(sorted(plugin_types.keys()))
+        )
+    else:
+        logger.info("No plugin object types discovered")
+
+    return plugin_types
+
+
+async def _update_tool_descriptions() -> None:
+    """Update tool descriptions to reflect the current NETBOX_OBJECT_TYPES registry.
+
+    The type list in netbox_get_objects's description is built at import time.
+    After plugin discovery adds new types, this refreshes the description so
+    LLMs see the full list of available types.
+    """
+    type_list = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+    tool = await mcp.get_tool("netbox_get_objects")
+    if tool:
+        # Replace the type list portion of the description
+        desc = tool.description
+        marker = "Valid object_type values:"
+        idx = desc.find(marker)
+        if idx != -1:
+            # Keep everything up to and including the marker, then append new list
+            prefix = desc[: idx + len(marker)]
+            suffix_marker = "See NetBox API documentation"
+            suffix_idx = desc.find(suffix_marker)
+            suffix = (
+                f"\n\n    {suffix_marker}" + desc[suffix_idx + len(suffix_marker) :]
+                if suffix_idx != -1
+                else ""
+            )
+            tool.description = f"{prefix}\n\n{type_list}{suffix}"
+
+
+def main() -> None:
+    """Main entry point for the MCP server."""
+    global netbox
+
+    cli_overlay: dict[str, Any] = parse_cli_args()
+
+    try:
+        settings = Settings(**cli_overlay)
+    except Exception as e:
+        print(f"Configuration error: {e}", file=sys.stderr)  # noqa: T201 - before logging configured
+        sys.exit(1)
+
+    configure_logging(settings.log_level)
+    logger = logging.getLogger(__name__)
+
+    logger.info("Starting NetBox MCP Server")
+    logger.info(f"Effective configuration: {settings.get_effective_config_summary()}")
+
+    if not settings.verify_ssl:
+        logger.warning(
+            "SSL certificate verification is DISABLED. "
+            "This is insecure and should only be used for testing."
+        )
+
+    if settings.transport == "http" and settings.host in ["0.0.0.0", "::", "[::]"]:  # noqa: S104 - checking, not binding
+        logger.warning(
+            f"HTTP transport is bound to {settings.host}:{settings.port}, which exposes the "
+            "service to all network interfaces (IPv4/IPv6). This is insecure and should only be "
+            "used for testing. Ensure this is secured with TLS/reverse proxy if exposed to network."
+        )
+    elif settings.transport == "http" and settings.host not in [
+        "127.0.0.1",
+        "localhost",
+    ]:
+        logger.info(
+            f"HTTP transport is bound to {settings.host}:{settings.port}. "
+            "Ensure this is secured with TLS/reverse proxy if exposed to network."
+        )
+
+    try:
+        netbox = NetBoxRestClient(
+            url=str(settings.netbox_url),
+            token=settings.netbox_token.get_secret_value(),
+            verify_ssl=settings.verify_ssl,
+        )
+        logger.debug("NetBox client initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize NetBox client: {e}")
+        sys.exit(1)
+
+    if settings.enable_plugin_discovery:
+        plugin_types = discover_plugin_types(netbox)
+        if plugin_types:
+            NETBOX_OBJECT_TYPES.update(plugin_types)
+            asyncio.run(_update_tool_descriptions())
+
+    try:
+        if settings.transport == "stdio":
+            logger.info("Starting stdio transport")
+            mcp.run(transport="stdio")
+        elif settings.transport == "http":
+            logger.info(f"Starting HTTP transport on {settings.host}:{settings.port}")
+            auth = build_http_auth(settings.mcp_auth_token)
+            if auth is not None:
+                # FastMCP reads mcp.auth when it builds the HTTP app at run time,
+                # so this assignment wires it (the 401 tests verify enforcement).
+                mcp.auth = auth
+                logger.info("HTTP transport authentication enabled (bearer token required)")
+            else:
+                logger.warning(
+                    "HTTP transport is running without authentication. Set "
+                    "MCP_AUTH_TOKEN, or place the server behind an authenticating "
+                    "TLS reverse proxy or gateway before exposing it to a network."
+                )
+            middleware = [
+                Middleware(
+                    CORSMiddleware,
+                    allow_origins=settings.cors_origins,
+                    allow_methods=["GET", "POST", "OPTIONS"],
+                    allow_headers=[
+                        "Authorization",
+                        "mcp-protocol-version",
+                        "mcp-session-id",
+                    ],
+                    expose_headers=["mcp-session-id"],
+                )
+            ]
+            mcp.run(transport="http", host=settings.host, port=settings.port, middleware=middleware)
+    except Exception as e:
+        logger.error(f"Failed to start MCP server: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

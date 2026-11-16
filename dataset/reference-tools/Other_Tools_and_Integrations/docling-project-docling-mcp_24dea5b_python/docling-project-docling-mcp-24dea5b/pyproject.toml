@@ -1,0 +1,262 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "docling-mcp"
+version = "3.3.0"  # DO NOT EDIT, updated automatically
+description = "Running Docling as an agent using tools"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    {name="Peter Staar", email="taa@zurich.ibm.com"},
+    {name="Adel Zaalouk", email="azaalouk@redhat.com"},
+    {name="Michele Dolfi", email="dol@zurich.ibm.com"},
+    {name="Panos Vagenas", email="pva@zurich.ibm.com"},
+    {name="Christoph Auer", email="cau@zurich.ibm.com"},
+    {name="Cesar Berrospi Ramis", email="ceb@zurich.ibm.com"},
+]
+maintainers = [
+    {name="Peter Staar", email="taa@zurich.ibm.com"},
+    {name="Adel Zaalouk", email="azaalouk@redhat.com"},
+    {name="Michele Dolfi", email="dol@zurich.ibm.com"},
+    {name="Panos Vagenas", email="pva@zurich.ibm.com"},
+    {name="Christoph Auer", email="cau@zurich.ibm.com"},
+    {name="Cesar Berrospi Ramis", email="ceb@zurich.ibm.com"},
+]
+readme = "README.md"
+keywords = ["mcp", "message control protocol", "agents", "agentic", "AI", "artificial intelligence", "document understanding", "RAG", "Docling"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Build Tools",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "docling-slim[service-client]~=2.92",
+    "docling-core>=2.51.0",
+    "mcp[cli]>=2.0.0,<3.0.0",
+    "pydantic~=2.10",
+    "pydantic-settings~=2.4",
+    "python-dotenv>=1.1.0",
+]
+
+[project.optional-dependencies]
+local = [
+    "docling-slim[standard]~=2.92",
+]
+llama-index-rag = [
+    "llama-index>=0.12.33",
+    "llama-index-core>=0.12.28",
+    "llama-index-embeddings-huggingface>=0.5.2",
+    "llama-index-embeddings-openai>=0.3.1",
+    "llama-index-llms-openai-like>=0.3.0",
+    "llama-index-node-parser-docling>=0.3.1",
+    "llama-index-readers-docling>=0.3.2",
+    "llama-index-readers-file>=0.4.7",
+    "llama-index-vector-stores-milvus>=0.7.2",
+]
+llama-stack = [
+    "llama-stack-client (>=0.2.14,<0.2.18); python_version>='3.12'",
+]
+smolagents = [
+    "smolagents[mcp,litellm]>=1.0.0",
+    "torch>=2.0.0",
+    # temporary solution until huggingface/transformers#46159 is resolved
+    'transformers (>=4.42.0,<5.9.0,!=5.0.*,!=5.1.*,!=5.2.*,!=5.3.*) ; sys_platform == "darwin"',
+    'transformers (>=4.42.0,<6.0.0,!=5.0.*,!=5.1.*,!=5.2.*,!=5.3.*) ; sys_platform != "darwin"',
+    "accelerate>=0.20.0",
+    "ollama>=0.1.0",
+]
+mellea = [
+    "mellea~=0.3",
+]
+s3 = [
+    "s3fs>=2024.9.0",
+]
+gcs = [
+    "gcsfs>=2024.9.0",
+]
+azure = [
+    "adlfs>=2024.7.0",
+]
+
+[dependency-groups]
+typecheck = [
+    "ty==0.0.33",
+]
+pr-fast-checks = [
+    { include-group = "typecheck" },
+    "docling-core>=2.51.0",
+    "mcp[cli]>=2.0.0,<3.0.0",
+    "pydantic~=2.10",
+    "pydantic-settings~=2.4",
+    "ruff==0.16.10",
+]
+dev = [
+    { include-group = "typecheck" },
+    "prek>=0.3.10",
+    "pytest~=9.0",
+    "pytest-asyncio>=1.0.0",
+    "pytest-check~=2.4",
+    "pytest-cov>=6.1.1",
+    "python-semantic-release~=7.32",
+    "ruff==0.16.10",
+]
+examples = [
+    "ipykernel~=7.3",
+    "ipywidgets~=8.1",
+    "nbqa~=1.9",
+]
+
+[project.scripts]
+docling-mcp-server = "docling_mcp.servers.mcp_server:app"
+
+[project.urls]
+Homepage = "https://github.com/docling-project/docling-mcp"
+Repository = "https://github.com/docling-project/docling-mcp"
+Issues = "https://github.com/docling-project/docling-mcp/issues"
+Changelog = "https://github.com/docling-project/docling-mcp/blob/main/CHANGELOG.md"
+
+[tool.uv]
+default-groups = ["dev", "examples"]
+
+[tool.hatch.build.targets.sdist]
+include = ["docling_mcp"]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+respect-gitignore = true
+include = [
+    "docling_mcp/**/*.py",
+    "examples/**/*.{py,ipynb}",
+    "tests/**/*.py",
+    ".github/scripts/**/*.py",
+]
+
+[tool.ruff.format]
+skip-magic-trailing-comma = false
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+
+[tool.ruff.lint]
+select = [
+    "B",  # flake8-bugbear
+    "C",  # flake8-comprehensions, mccabe
+    "D",  # flake8-docstrings
+    "E",  # pycodestyle errors (default)
+    "F",  # pyflakes (default)
+    "I",  # isort
+    "PD", # pandas-vet
+    "PIE", # pie
+    # "PTH", # pathlib
+    "Q",  # flake8-quotes
+    # "RET", # return
+    "RUF", # Enable all ruff-specific checks
+    # "SIM", # simplify
+    "S307", # eval
+    # "T20",  # (disallow print statements) keep debugging statements out of the codebase
+    "W",  # pycodestyle warnings
+    "ASYNC", # async
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # Line too long, handled by ruff formatter
+    "D107", # "Missing docstring in __init__",
+    "F811", # "redefinition of the same function"
+    "PL", # Pylint
+    "RUF012", # Mutable Class Attributes
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401"]  # import violations, module imported but unused
+"docling_mcp/servers/mcp_server.py" = ["F401"]  # module imported but unused
+"tests/**.{py,ipynb}" = ["D"]  # ignore flake8-docstrings in tests
+"tests/conftest.py" = ["F401"]  # side-effect-only imports for tool registration
+"examples/**.{py,ipynb}" = ["D"]  # ignore flake8-docstrings in examples
+".github/scripts/**.py" = ["D"]  # ignore flake8-docstrings in CI helper scripts
+
+[tool.ruff.lint.pep8-naming]
+classmethod-decorators = [
+    # Allow Pydantic's `@validator` decorator to trigger class method treatment.
+    "pydantic.validator",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 20
+
+[tool.ruff.lint.isort.sections]
+"docling" = ["docling", "docling_core"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+section-order = [
+  "future",
+  "standard-library",
+  "third-party",
+  "docling",
+  "first-party",
+  "local-folder",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ty.rules]
+all = "warn"
+
+[tool.ty.environment]
+python-version = "3.10"
+
+[tool.ty.src]
+include = ["docling_mcp", "tests", ".github/scripts"]
+
+[tool.ty.analysis]
+allowed-unresolved-imports = [
+  "easyocr.**",
+  "fsspec.**",
+  "llama_stack_client.**",  # only installed on python>=3.12
+  "rapidocr_onnxruntime.**",
+  "tesserocr.**",
+  "transformers.**",
+]
+
+[tool.ty.terminal]
+output-format = "concise"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+minversion = "8.2"
+testpaths = [
+    "tests",
+]
+addopts = "-rA --color=yes --tb=short --maxfail=5"
+markers = [
+    "asyncio",
+    "anyio",
+]
+
+[tool.semantic_release]
+# for default values check:
+# https://github.com/python-semantic-release/python-semantic-release/blob/v7.32.2/semantic_release/defaults.cfg
+
+version_source = "tag_only"
+branch = "main"
+
+# configure types which should trigger minor and patch version bumps respectively
+# (note that they must be a subset of the configured allowed types):
+parser_angular_allowed_types = "build,chore,ci,docs,feat,fix,perf,style,refactor,test"
+parser_angular_minor_types = "feat"
+parser_angular_patch_types = "fix,perf"

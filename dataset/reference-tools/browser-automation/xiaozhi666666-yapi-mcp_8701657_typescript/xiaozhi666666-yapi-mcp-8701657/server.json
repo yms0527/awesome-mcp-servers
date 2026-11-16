@@ -1,0 +1,44 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.xiaozhi666666/yapi-mcp",
+  "title": "YApi MCP",
+  "description": "Read YApi interface metadata by URL, interface ID, or project ID through MCP tools.",
+  "repository": {
+    "url": "https://github.com/xiaozhi666666/yapi-mcp",
+    "source": "github"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "yapi-fetch-mcp",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "YAPI_HOST",
+          "description": "Default YApi host, for example https://yapi.example.com. Optional when each tool call passes a full YApi URL.",
+          "format": "string",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "YAPI_TOKEN",
+          "description": "YApi project token used for token-authenticated deployments.",
+          "format": "string",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "YAPI_COOKIE",
+          "description": "YApi login cookie for deployments that require browser/session authentication.",
+          "format": "string",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

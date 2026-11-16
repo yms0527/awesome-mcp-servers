@@ -1,0 +1,463 @@
+/**
+ * @fileoverview Tool definition types and `tool()` builder function.
+ * Provides the canonical `ToolDefinition` interface and `ToolAnnotations` type
+ * used by all tool definitions and the handler factory.
+ *
+ * Also re-exports `disabledTool()` and `DisabledMetadata` so consumers can
+ * import the wrapper from the same `/tools` subpath as the builder.
+ * @module src/mcp-server/tools/utils/toolDefinition
+ */
+
+import type { ContentBlock } from '@modelcontextprotocol/server';
+import { type ZodDiscriminatedUnion, type ZodObject, type ZodRawShape, z } from 'zod';
+
+import type { HandlerContext, ReasonOf } from '@/core/context.js';
+import type { ErrorContract } from '@/types-global/errors.js';
+import { assertHeaderDesignations } from './headerParam.js';
+import { isDiscriminatedUnionSchema } from './schemaShape.js';
+import { recordStrictenDiscard, type StrictenDiscard } from './strictenRecord.js';
+
+export { type DisabledMetadata, disabledTool } from './disabled-tool.js';
+export { headerParam } from './headerParam.js';
+
+/**
+ * Defines the annotations that provide hints about a tool's behavior.
+ * These are not guarantees but are useful for client-side rendering and decision-making.
+ * The index signature `[key: string]: unknown;` ensures compatibility with the MCP SDK.
+ */
+export interface ToolAnnotations {
+  /**
+   * A hint indicating that the tool may destroy or modify data in a way that cannot
+   * be undone. Only meaningful when `readOnlyHint` is false (the default).
+   * Defaults to `true` when unset.
+   */
+  destructiveHint?: boolean;
+  /**
+   * A hint indicating that repeated calls with the same arguments have no additional
+   * effect beyond the first call. Only meaningful when `readOnlyHint` is false.
+   * Defaults to `false` when unset.
+   */
+  idempotentHint?: boolean;
+  /**
+   * A hint indicating that the tool may interact with external, unpredictable,
+   * or dynamic systems (e.g., fetching from a live API, web search).
+   */
+  openWorldHint?: boolean;
+  /**
+   * A hint indicating that the tool does not modify any state.
+   * For example, a "read" operation.
+   */
+  readOnlyHint?: boolean;
+  /**
+   * An optional human-readable name for the tool, optimized for UI display.
+   * If provided, it may be used by clients instead of the programmatic `name`.
+   */
+  title?: string;
+  // allow open-indexed-named: MCP spec — annotation hints are extensible by design
+  [key: string]: unknown;
+}
+
+/**
+ * Per-field rendering config for the `enrichment` block's `content[]` trailer,
+ * keyed to the declared enrichment field names. The success-path analogue of how
+ * `format()` controls `output` rendering: `enrichment` is the data contract,
+ * `enrichmentTrailer` is its presentation.
+ *
+ * Scope: this shapes the `content[]` trailer text ONLY. It never affects
+ * `structuredContent`, which always carries the raw validated enrichment value
+ * (the object/array/scalar exactly as declared) — never the rendered markdown.
+ *
+ * Each entry is optional and may set:
+ *   - `render` — maps the field's validated value to trailer markdown. Wins over
+ *     the kind-tag and the generic `**key:** value` fallback. Use it to stop a
+ *     structured (object/array) field from collapsing to a JSON blob in
+ *     `content[]`; `structuredContent` always keeps the full structured value.
+ *   - `label` — overrides the field-name shown in the generic / `delta` rendering
+ *     (e.g. `Total Found` for a `totalFound` field, instead of the raw key).
+ *
+ * Resolves to `never` when no `enrichment` block is declared — `enrichmentTrailer`
+ * requires one.
+ */
+export type EnrichmentTrailerConfig<TEnrich extends ZodRawShape | undefined> =
+  TEnrich extends ZodRawShape
+    ? {
+        [K in keyof TEnrich]?: {
+          label?: string;
+          /**
+           * Declared with method syntax (not an arrow property) for the same
+           * reason as `format` / `handler`: method parameters are checked
+           * bivariantly, so a concrete tool's narrow `render` value stays
+           * assignable to the type-erased `AnyToolDefinition` (whose param
+           * widens to `unknown`). An arrow property would be variance-strict
+           * and break `createApp({ tools: [...] })` for every enrichment tool.
+           */
+          render?(value: z.infer<TEnrich[K]>): string;
+        };
+      }
+    : never;
+
+/**
+ * What a tool may declare as its `input` root.
+ *
+ * A `z.object()` is the common shape. A `z.discriminatedUnion()` is the
+ * multi-mode shape: mutually exclusive argument sets with a literal
+ * discriminator and per-variant required fields. It advertises as
+ * `{"type":"object","oneOf":[<branch>, …]}` — branches intact, each carrying
+ * its own `required` and `const`-tagged discriminator — with identical bytes on
+ * a 2025-11-25 and a 2026-07-28 connection, since the legacy projection
+ * inspects `outputSchema` alone.
+ *
+ * Input roots may be unions; **output roots may not**. The 2025-era projection
+ * rewrites a non-object output root to `{ result: <natural> }` and wraps
+ * `structuredContent` to match, which would break the success path for every
+ * current client. `output` and `enrichment` stay `ZodObject`-only.
+ */
+export type ToolInputSchema =
+  | ZodDiscriminatedUnion<readonly ZodObject<ZodRawShape>[]>
+  | ZodObject<ZodRawShape>;
+
+/**
+ * Represents the complete, self-contained definition of an MCP tool.
+ *
+ * `TErrors` is the const tuple of `ErrorContract` entries declared on the
+ * definition (or `undefined` when none are declared). The reason union extracted
+ * from `TErrors` flows into the handler's `ctx.fail` for compile-time-checked
+ * error throws.
+ *
+ * `TEnrich` is the `ZodRawShape` of the `enrichment` block (or `undefined` when
+ * none is declared). Its inferred fields type `ctx.enrich(...)` and are advertised
+ * to clients as part of `outputSchema`.
+ */
+export interface ToolDefinition<
+  TInput extends ToolInputSchema = ZodObject<ZodRawShape>,
+  TOutput extends ZodObject<ZodRawShape> = ZodObject<ZodRawShape>,
+  TErrors extends readonly ErrorContract[] | undefined = undefined,
+  TEnrich extends ZodRawShape | undefined = undefined,
+> {
+  /** Protocol-level metadata (e.g., MCP Apps extension). */
+  _meta?: Record<string, unknown>;
+  /** UI/behavior hints for clients. */
+  annotations?: ToolAnnotations;
+  /** Required auth scopes. Checked by handler factory before calling handler. */
+  auth?: string[];
+  /** LLM-facing description. */
+  description: string;
+  /**
+   * Declarative contract for agent-facing context on the success path — the
+   * counterpart to `errors[]`. A `ZodRawShape` (`{ <name>: <ZodType> }`) of
+   * fields the handler populates via `ctx.enrich(...)`: empty-result notices,
+   * the query/filter as the server parsed it, pagination totals.
+   *
+   * **Reaches both client surfaces.** Enrichment is merged into the validated
+   * output (→ `structuredContent`) and mirrored into `content[]` as a trailer —
+   * so `structuredContent`-only clients (e.g. Claude Code) and `content[]`-only
+   * clients (e.g. Claude Desktop) both see it, even when the tool defines no
+   * `format()`. The extended schema (`output.extend(enrichment)`) is advertised
+   * as the tool's `outputSchema` in `tools/list`.
+   *
+   * **Type-driven.** When declared, `ctx.enrich(...)` is typed to a `Partial` of
+   * these fields. Enrichment is not part of `output`, so `format-parity` never
+   * touches it. A *required* enrichment field that is never populated fails the
+   * effective-output parse — surfacing the bug rather than dropping it silently.
+   * Keys must be disjoint from `output` keys (lint-enforced; `.extend` would
+   * otherwise silently override).
+   */
+  enrichment?: TEnrich;
+  /**
+   * Per-field `content[]` trailer rendering for the `enrichment` block — the
+   * presentation layer to `enrichment`'s data contract (mirrors `output` /
+   * `format`).
+   *
+   * Supply a `render` to stop a structured (object/array) enrichment field from
+   * collapsing to a JSON blob in `content[]` (it renders as bulleted markdown
+   * instead; `structuredContent` is unaffected), or a `label` to show a
+   * human-readable field name. Keyed to the declared `enrichment` fields and
+   * type-checked against them. The `enrichment-trailer-render` lint rule requires
+   * a `render` for any non-scalar enrichment field that isn't a `delta` shape.
+   */
+  enrichmentTrailer?: EnrichmentTrailerConfig<TEnrich>;
+  /**
+   * Declarative contract describing the failure modes this tool can surface.
+   *
+   * Each entry pairs a `JsonRpcErrorCode` with a stable `reason` string and a
+   * `when` description.
+   *
+   * **Type-driven.** When declared, the handler receives `ctx.fail(reason, …)`
+   * typed against the union of `reason` strings — TypeScript enforces that you
+   * can only `fail()` with a declared reason, and the runtime auto-populates
+   * `data.reason` on the thrown `McpError`.
+   *
+   * Optional. Without it, handlers still throw `McpError` directly and the
+   * framework's auto-classifier produces correct codes at runtime — the
+   * contract just adds compile-time enforcement.
+   *
+   * The definition linter (`bun run lint:mcp`, gated in `devcheck`) validates each
+   * entry's `code` is a real `JsonRpcErrorCode` and that `reason` strings are
+   * unique within the contract.
+   */
+  errors?: TErrors;
+  /**
+   * Optional formatter mapping output to MCP `content[]`. Different MCP clients
+   * forward different surfaces to the model: some (e.g., Claude Code) read
+   * `structuredContent` from `output`, others (e.g., Claude Desktop) read
+   * `content[]` from `format()`. **Both must be content-complete** — `format()`
+   * is the markdown-rendered twin of `structuredContent`, not a separate payload.
+   *
+   * **Make `format()` content-complete.** A thin one-liner (e.g., a count or
+   * title) leaves `content[]`-only clients blind to data that `structuredContent`
+   * clients can see. The `format-parity` lint rule enforces this at build time.
+   *
+   * If omitted, the handler factory JSON-stringifies the output as a fallback.
+   *
+   * Declared as a method (not an arrow property) for the same reason as `handler`:
+   * method parameters are checked bivariantly, so a concrete tool's narrow `format`
+   * stays assignable to the type-erased `AnyToolDefinition` (whose `format` param is
+   * the widened `Record<string, unknown>`).
+   */
+  format?(result: z.infer<TOutput>): ContentBlock[];
+  /**
+   * The core handler function. Receives validated input and unified Context.
+   * Throw on failure — no try/catch needed.
+   *
+   * When `errors[]` is declared, `ctx` carries a typed `fail(reason, message?, data?)`
+   * helper keyed by the declared reason union — `ctx.fail('typo')` is a TS error.
+   * Without `errors[]`, `ctx` is plain `Context` and you throw `McpError` directly.
+   *
+   * When `enrichment` is declared, `ctx.enrich(...)` is typed to a `Partial` of
+   * the declared fields; without it, the loose base `enrich` is available (a
+   * no-op merge, since nothing reads it).
+   *
+   * Declared as a method (not an arrow property) so TypeScript checks the
+   * signature bivariantly — concrete tools with narrow `ctx.fail` / `ctx.enrich`
+   * types remain assignable to the type-erased `AnyToolDefinition` array.
+   */
+  handler(
+    input: z.infer<TInput>,
+    ctx: HandlerContext<ReasonOf<TErrors>, TEnrich>,
+  ): Promise<z.infer<TOutput>> | z.infer<TOutput>;
+  /**
+   * Zod schema for input validation. All fields need `.describe()`.
+   *
+   * A `z.object()` root, or a `z.discriminatedUnion()` of object variants for a
+   * multi-mode tool — see {@link ToolInputSchema}.
+   */
+  input: TInput;
+  /**
+   * Root-level argument-name aliases, `{ <alias>: <declared key> }`. A call
+   * naming a parameter by an alias reaches the handler under the canonical key
+   * instead of being rejected by strict input.
+   *
+   * Declare one where the meaning is certain and the mapping is one-to-one — a
+   * sibling tool's spelling for the same concept, a name the upstream API uses,
+   * a shorthand weaker models reach for. It is not fuzzy matching: an
+   * undeclared key that matches nothing is still rejected by name.
+   *
+   * ```ts
+   * input: z.object({ drug: z.string().describe('…') }),
+   * inputAliases: { drug_name: 'drug', name: 'drug' },
+   * ```
+   *
+   * Aliases are not advertised — `inputSchema` is byte-identical with or
+   * without them, so the canonical key keeps its place in `required` and the
+   * model is still told to use it. A rewrite applies only when the target key
+   * is absent; with both present the call is rejected, and its hint names the
+   * alias beside its target (`drug_name is an alias of drug; send one of them,
+   * not both.`) rather than calling it an unknown key. The exception is an
+   * `_`-prefixed alias the drop discards as a client-added key: the target's
+   * value then validates. Case-style variants of a declared key (`max_results`
+   * for `maxResults`) are rewritten without any declaration — see
+   * `createApp({ input: { caseStyleAliases } })`.
+   *
+   * Root level only, matching `.strict()` itself. `lint:mcp` rejects an alias
+   * that shadows a declared key, names a target that does not exist, or is
+   * ambiguous against another alias or key.
+   */
+  inputAliases?: Record<string, string>;
+  /** Programmatic unique name (snake_case). */
+  name: string;
+  /** Zod schema for output validation. All fields need `.describe()`. */
+  output: TOutput;
+  /**
+   * View-source URL override for the landing page. Bypasses the
+   * `landing.repoRoot`-based auto-derivation, which assumes the file lives at
+   * `<repoRoot>/blob/main/src/mcp-server/tools/definitions/<kebab-name>.tool.ts`.
+   * Set this when the file path diverges from that convention (e.g.,
+   * domain-namespaced subdirectories or a filename that doesn't mirror `name`).
+   */
+  sourceUrl?: string;
+  /** Human-readable title for UI display. */
+  title?: string;
+}
+
+/** Type-erased union for mixed arrays passed to createApp(). */
+export type AnyToolDefinition = ToolDefinition<
+  ToolInputSchema,
+  ZodObject<ZodRawShape>,
+  readonly ErrorContract[] | undefined,
+  ZodRawShape | undefined
+>;
+
+// ---------------------------------------------------------------------------
+// Builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a tool definition with full type inference from Zod schemas.
+ *
+ * The `const` modifier on `TErrors` preserves literal types in the `errors[]`
+ * array without requiring `as const` at the call site, so the reason union
+ * flows into `ctx.fail` automatically.
+ *
+ * @example Without an error contract — throw `McpError` directly:
+ * ```ts
+ * const myTool = tool('my_tool', {
+ *   description: 'Does something useful.',
+ *   input: z.object({ query: z.string().describe('Search query') }),
+ *   output: z.object({
+ *     items: z.array(z.object({
+ *       id: z.string().describe('Item ID'),
+ *       name: z.string().describe('Item name'),
+ *     })).describe('Matching items'),
+ *   }),
+ *   async handler(input, ctx) {
+ *     if (!input.query) throw notFound('Empty query');
+ *     return { items: await search(input.query) };
+ *   },
+ * });
+ * ```
+ *
+ * @example With a typed error contract — `ctx.fail(reason, …)`:
+ * ```ts
+ * const myTool = tool('my_tool', {
+ *   errors: [
+ *     { reason: 'no_match', code: JsonRpcErrorCode.NotFound,
+ *       when: 'No items match the query',
+ *       recovery: 'Broaden the query or check the spelling and try again.' },
+ *     { reason: 'rate_limited', code: JsonRpcErrorCode.RateLimited,
+ *       when: 'Upstream rate limit hit', retryable: true,
+ *       recovery: 'Wait a few seconds before retrying or reduce request frequency.' },
+ *   ],
+ *   input: z.object({ query: z.string().describe('Search query') }),
+ *   output: z.object({ items: z.array(z.string()).describe('Matched items') }),
+ *   async handler(input, ctx) {
+ *     const items = await search(input.query);
+ *     if (items.length === 0) throw ctx.fail('no_match', `No matches for "${input.query}"`);
+ *     // ctx.fail('typo')  ← TypeScript error: 'typo' isn't in the contract
+ *     return { items };
+ *   },
+ * });
+ * ```
+ */
+export function tool<
+  TInput extends ToolInputSchema,
+  TOutput extends ZodObject<ZodRawShape>,
+  const TErrors extends readonly ErrorContract[] | undefined = undefined,
+  const TEnrich extends ZodRawShape | undefined = undefined,
+>(
+  name: string,
+  options: Omit<ToolDefinition<TInput, TOutput, TErrors, TEnrich>, 'name'>,
+): ToolDefinition<TInput, TOutput, TErrors, TEnrich> {
+  assertErrorKeyUnreserved(name, options.output, options.enrichment);
+  const { discards, input } = strictenInput(options.input);
+  assertHeaderDesignations(name, input);
+  const definition = { name, ...options, input };
+  if (discards.length > 0) recordStrictenDiscard(definition, discards);
+  return definition;
+}
+
+/**
+ * Rejects a definition whose success payload declares a field named `error`.
+ *
+ * `structuredContent.error` is the framework's failure envelope on the wire, so a
+ * success field of the same name cannot be told apart from a failure by any
+ * client. It also breaks the advertised schema outright: the envelope overwrites
+ * the declared field, while the success branch still requires — and forbids —
+ * the same key, leaving a branch no result can satisfy.
+ *
+ * Thrown at definition time, so the conflict surfaces at import rather than as a
+ * client-side validation failure against a schema nothing matches.
+ */
+function assertErrorKeyUnreserved(
+  name: string,
+  output: ZodObject<ZodRawShape>,
+  enrichment: ZodRawShape | undefined,
+): void {
+  const source =
+    'error' in output.shape
+      ? 'output'
+      : enrichment && 'error' in enrichment
+        ? 'enrichment'
+        : undefined;
+  if (!source) return;
+  throw new Error(
+    `Tool '${name}' declares an 'error' field in its ${source} schema. That key is ` +
+      'reserved: a failed call returns `structuredContent.error` ({ code, message, ' +
+      'data }), so a success payload using it is indistinguishable from a failure. ' +
+      "Rename the field (e.g. 'errorText', 'failureDetail').",
+  );
+}
+
+/**
+ * Applies strict semantics to a tool's input schema.
+ *
+ * An unrecognized argument key is rejected instead of silently stripped, and
+ * the advertised `inputSchema` carries `additionalProperties: false` to match.
+ * Stripping turns a caller's misspelled key into a wrong answer they cannot
+ * detect: the value vanishes before the handler runs and the call fails
+ * downstream pointing at the wrong problem (#232).
+ *
+ * Only the default (strip) mode is upgraded. A definition that explicitly
+ * declared `.passthrough()` or `.catchall(...)` asked for an open object, and
+ * that intent wins — Zod records it as a catchall type (a `ZodNever` catchall
+ * for `.strict()` itself), which is what this checks for.
+ *
+ * A discriminated-union root is strictened per variant, since the branch is
+ * where the properties live and `additionalProperties` is emitted. The union is
+ * rebuilt from the strictened options rather than mutated: Zod indexes variants
+ * by discriminator value at construction time, so replacing the options on a
+ * built union would leave the index pointing at the loose ones.
+ *
+ * Root-level only, matching `.strict()` itself: a nested `z.object()` inside
+ * the input still strips unless it is strict in its own right.
+ *
+ * Every replacement here loses the replaced instance's `z.globalRegistry` entry
+ * — a root `.describe()` (#358) or `.meta()` (#394) — because `.strict()` clones
+ * without a `_zod.parent` link. That is the held half; what this returns
+ * alongside the schema is the *record* of what went, so `lint:mcp` can report it
+ * (see `strictenRecord`). Declaring `.strict()` before `.describe()` / `.meta()`
+ * keeps the entry, since an already-strict schema is returned untouched.
+ */
+function strictenInput<TInput extends ToolInputSchema>(
+  input: TInput,
+): { discards: StrictenDiscard[]; input: TInput } {
+  const discards: StrictenDiscard[] = [];
+  const noteDiscard = (schema: unknown, scope: string): void => {
+    const keys = Object.keys(z.globalRegistry.get(schema as never) ?? {});
+    if (keys.length > 0) discards.push({ keys, scope });
+  };
+
+  if (isDiscriminatedUnionSchema(input)) {
+    const options = input.options as readonly ZodObject<ZodRawShape>[];
+    const strictened = options.map((option) =>
+      option.def.catchall === undefined ? option.strict() : option,
+    );
+    if (strictened.every((option, i) => option === options[i])) return { discards, input };
+    // The union is rebuilt from the strictened options, so its own entry goes
+    // too — along with each variant's, for the variants that were replaced.
+    noteDiscard(input, 'input');
+    options.forEach((option, i) => {
+      if (strictened[i] !== option) noteDiscard(option, `input|${i}`);
+    });
+    return {
+      discards,
+      input: z.discriminatedUnion(
+        input.def.discriminator,
+        strictened as never,
+      ) as unknown as TInput,
+    };
+  }
+
+  if (input.def.catchall !== undefined) return { discards, input };
+  noteDiscard(input, 'input');
+  return { discards, input: input.strict() as TInput };
+}

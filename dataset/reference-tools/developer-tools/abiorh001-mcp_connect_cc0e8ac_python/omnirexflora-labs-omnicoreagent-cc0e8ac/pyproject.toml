@@ -1,0 +1,189 @@
+[build-system]
+requires = ["hatchling>=1.32.0", "uv-dynamic-versioning>=0.14.1"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+bump = true
+
+[project]
+name = "omnicoreagent"
+dynamic = ["version"]
+description = "An agent runtime for Python. Give your agent real work. Keep control: every action checked before it runs, every run survives a crash without silently redoing anything, every step on the record."
+readme = { file = "README.md", content-type = "text/markdown" }
+authors = [{ name = "Abiola Adeshina", email = "abiolaadedayo1993@gmail.com" }]
+requires-python = ">=3.12,<3.15"
+
+keywords = [
+    "agent",
+    "agent-runtime", "agent-harness",
+    "ai",
+    "ai-agents",
+    "automation",
+    "background-tasks",
+    "llm",
+    "mcp",
+    "mcp-client",
+    "python",
+    "runtime",
+    "subagents",
+    "telemetry",
+]
+license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "colorlog>=6.12.0",
+    "python-dotenv>=1.2.3",
+    "rich>=15.0.0",
+    "httpx>=0.28.1",
+    "httpx-sse>=0.4.3",
+    "pydantic[email]>=2.13.5",
+    "mcp[cli]>=2.2.0,<3",
+    "jsonschema>=4.26.0",
+    "litellm>=1.101.0",
+    "click>=8.5.0",
+    "docstring_parser>=0.18.0",
+    "packaging>=26.3",
+    # Governance parses shell commands to apply command rules (MIT, binary wheels).
+    "tree-sitter>=0.26.0",
+    "tree-sitter-bash>=0.25.1",
+]
+
+[project.optional-dependencies]
+redis = ["redis>=8.1.0"]
+docker = ["docker>=7.2.0"]
+# Code mode (run_code): an alpha interpreter, so the version is pinned exactly.
+codemode = ["pydantic-monty>=1.0.0,<2"]
+modal = ["modal>=1.5.5"]
+e2b = ["e2b>=2.51.0"]
+daytona = ["daytona>=0.214.0"]
+vercel = ["vercel-sandbox>=0.6.0"]
+# Both drivers: SQLAlchemy 2.0 uses psycopg2 for postgresql://, 2.1 uses psycopg 3.
+# With one, the documented URL failed on a fresh install (the 0.5.0rc1 gate).
+postgres = ["sqlalchemy>=2.0.54", "psycopg2-binary>=2.9.13", "psycopg[binary]>=3.2"]
+# Running as a Harbor (Terminal-Bench) agent: the adapter in
+# omnicoreagent.harbor derives from Harbor's own installed-agent base class.
+harbor = ["harbor>=0.23.0"]
+mongodb = ["motor>=3.7.1", "pymongo>=4.18.1"]
+s3 = ["boto3>=1.43.98"]
+serve = ["fastapi>=0.141.1", "uvicorn>=0.53.0", "python-multipart>=0.0.32"]
+tokenizer = ["tiktoken>=0.14.0"]
+otel = [
+    "opentelemetry-api>=1.44.0",
+    "opentelemetry-sdk>=1.44.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.44.0",
+]
+langsmith = [
+    "opentelemetry-api>=1.44.0",
+    "opentelemetry-sdk>=1.44.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.44.0",
+]
+opik = [
+    "opentelemetry-api>=1.44.0",
+    "opentelemetry-sdk>=1.44.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.44.0",
+]
+all = [
+    "redis>=8.1.0",
+    "sqlalchemy>=2.0.54",
+    "psycopg2-binary>=2.9.13",
+    "psycopg[binary]>=3.2",
+    "motor>=3.7.1",
+    "pymongo>=4.18.1",
+    "boto3>=1.43.98",
+    "fastapi>=0.141.1",
+    "uvicorn>=0.53.0",
+    "python-multipart>=0.0.32",
+    "tiktoken>=0.14.0",
+    "opentelemetry-api>=1.44.0",
+    "opentelemetry-sdk>=1.44.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.44.0",
+    "markdown>=3.10.3",
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.3",
+    "pillow>=12.3.0",
+    "requests>=2.34.2",
+    "pydantic-monty>=1.0.0,<2",
+    "docker>=7.2.0",
+    "e2b>=2.51.0",
+    "modal>=1.5.5",
+    "daytona>=0.214.0",
+    "vercel-sandbox>=0.6.0",
+]
+examples = [
+    "markdown>=3.10.3",
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.3",
+    "pillow>=12.3.0",
+    "requests>=2.34.2",
+]
+
+[project.scripts]
+omniserve = "omnicoreagent.serve.cli:main"
+omnicoreagent = "omnicoreagent._cli_entry:main"
+
+[project.urls]
+Repository = "https://github.com/omnirexflora-labs/omnicoreagent"
+Issues = "https://github.com/omnirexflora-labs/omnicoreagent/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/omnicoreagent", "cookbook"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/LICENSE",
+    "/README.md",
+    "/pyproject.toml",
+    "/src/omnicoreagent/**/*.py",
+    "/src/omnicoreagent/**/*.json",
+    "/cookbook/**/*.py",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "asyncio: marks tests that use asyncio",
+    "OpenAIIntegration: marks tests that require an OpenAI API key",
+    "requires_api_key: marks tests that require external API keys or credentials",
+    "requires_network: marks tests that require network access to external services",
+]
+
+[tool.uv.sources]
+omnicoreagent = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "boto3>=1.43.98",
+    "fastapi>=0.141.1",
+    "pre-commit>=4.6.2",
+    "motor>=3.7.1",
+    "psycopg2-binary>=2.9.13",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "python-multipart>=0.0.32",
+    "pymongo>=4.18.1",
+    "redis>=8.1.0",
+    "ruff>=0.16.8",
+    "sqlalchemy>=2.0.54",
+    "tiktoken>=0.14.0",
+    "uvicorn>=0.53.0",
+    "hatch>=1.18.1",
+    "twine>=7.0.0",
+]
+
+# Keep the existing lint policy explicit across Ruff default-rule changes.
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

@@ -1,0 +1,68 @@
+{
+  "name": "@gergelyszerovay/mcp-server-aibd-devcontainer",
+  "version": "1.0.1",
+  "description": "",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gergelyszerovay/mcp-server-aibd-devcontainer"
+  },
+  "type": "module",
+  "bin": "dist/index.js",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "pnpm pkgroll --watch",
+    "dev-rest-watch": "tsx watch --tsconfig ./tsconfig.json src/index.ts --enableHttpTransport=false --enableStdioTransport=false --enableRestServer=true --enableShellExecTool=true --allowed-directories=/workspaces/private-mcp-aib-dev/public",
+    "dev-sse-watch": "tsx watch --tsconfig ./tsconfig.json src/index.ts --enableHttpTransport=true --enableStdioTransport=false --enableRestServer=true --mcpHttpPort=3003 --qdrantUrl=http://host.docker.internal:6333",
+    "dev-stdio": "tsx src/index.ts --enableHttpTransport=false --enableStdioTransport=true --enableRestServer=false",
+    "dev-watch-stdio": "tsx watch src/index.ts --enableHttpTransport=false --enableStdioTransport=true --enableRestServer=false",
+    "inspector": "pnpm mcp-inspector http://localhost:3100",
+    "start": "node dist/index.js",
+    "tsc-watch": "tsc --watch --noEmit",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "pnpm exec eslint . --ext .ts",
+    "lint:fix": "pnpm exec eslint . --ext .ts --fix"
+  },
+  "keywords": [
+    "mcp",
+    "typescript",
+    "devcontainer"
+  ],
+  "author": "Gergely Szerovay",
+  "dependencies": {
+    "@asteasolutions/zod-to-openapi": "7.3.0",
+    "@modelcontextprotocol/sdk": "1.7.0",
+    "diff": "^7.0.0",
+    "express": "4.21.2",
+    "glob": "11.0.1",
+    "meow": "13.2.0",
+    "minimatch": "10.0.1",
+    "openapi3-ts": "4.4.0",
+    "rxjs": "7.8.1",
+    "swagger-ui-express": "5.0.1",
+    "zod": "3.24.2",
+    "zod-to-json-schema": "3.24.1"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/inspector": "^0.4.1",
+    "@types/diff": "^7.0.1",
+    "@types/express": "^5.0.0",
+    "@types/meow": "^6.0.0",
+    "@types/node": "latest",
+    "@types/swagger-ui-express": "^4.1.8",
+    "@typescript-eslint/eslint-plugin": "^7.3.1",
+    "@typescript-eslint/parser": "^7.3.1",
+    "eslint": "^8.57.0",
+    "eslint-cli": "^1.1.1",
+    "eslint-import-resolver-typescript": "^3.6.1",
+    "eslint-plugin-import": "^2.29.1",
+    "pkgroll": "^2.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "latest"
+  },
+  "packageManager": "pnpm@9.15.0+sha512.76e2379760a4328ec4415815bcd6628dee727af3779aaa4c914e3944156c4299921a89f976381ee107d41f12cfa4b66681ca9c718f0668fa0831ed4c6d8ba56c",
+  "files": [
+    "dist",
+    "package.json"
+  ]
+}

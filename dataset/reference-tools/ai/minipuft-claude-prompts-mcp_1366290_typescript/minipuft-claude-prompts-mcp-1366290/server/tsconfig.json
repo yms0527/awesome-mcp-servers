@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedIndexedAccess": true,
+    // exactOptionalPropertyTypes disabled - incompatible with Zod and ecosystem (Vue, Next.js, etc.)
+    // See: https://github.com/colinhacks/zod/issues/635
+    "noImplicitReturns": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "outDir": "dist",
+    // Required before a package.json "imports" map can resolve: without it tsc reports
+    // TS2210 "the project root is ambiguous". It also pins the emit layout rather than
+    // letting tsc infer it from whichever files happen to be included.
+    "rootDir": "./src",
+    "sourceMap": true,
+    // No `declaration`. This package ships a server binary and Python hooks, not a
+    // library: nothing imports it (`.mcpbignore` excludes server/src from the extension,
+    // manifest.json points at dist/index.js, and neither downstream plugin has a single
+    // `import ... from 'claude-prompts'`). Emitting 405 unread .d.ts files on every build
+    // is what created the broken "types" entry this replaced.
+    "resolveJsonModule": true
+    // No `paths`. Subpath imports are declared once in package.json "imports", which
+    // tsc, esbuild, Jest and Node all resolve natively — instead of the same map
+    // maintained in tsconfig, esbuild.config.mjs and jest.config.cjs.
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "tests"]
+}

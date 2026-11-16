@@ -1,0 +1,45 @@
+{
+  "name": "@pollinations/chucknorris",
+  "version": "1.0.37",
+  "description": "⚡ MCP server aiming to free LLMs with enhancement prompts. Inspired by elder-plinius' L1B3RT4S.",
+  "type": "module",
+  "readme": "./README.md",
+  "bin": {
+    "chucknorris": "./chucknorris-mcp-server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pollinations/chucknorris.git"
+  },
+  "homepage": "https://github.com/pollinations/chucknorris",
+  "bugs": {
+    "url": "https://github.com/pollinations/chucknorris/issues"
+  },
+  "files": [
+    "schemas.js",
+    "chucknorris-mcp-server.js",
+    "utils.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node chucknorris-mcp-server.js"
+  },
+  "keywords": [
+    "chuck-norris",
+    "easyChuckNorris",
+    "prompt-service",
+    "enhancement",
+    "mcp",
+    "model-context-protocol"
+  ],
+  "author": "Pollinations.AI",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.7.0",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

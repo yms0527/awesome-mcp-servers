@@ -1,0 +1,405 @@
+/**
+ * @fileoverview Defines standardized error codes, a custom error class, and related schemas
+ * for handling errors within the Model Context Protocol (MCP) server and its components.
+ * This module provides a structured way to represent and communicate errors, ensuring
+ * consistency and clarity for both server-side operations and client-side error handling.
+ * @module src/types-global/errors
+ */
+import { z } from 'zod';
+
+import type { RequestContext } from '@/utils/internal/requestContext.js';
+
+/**
+ * Structured payload for an error's JSON-RPC `data` field.
+ *
+ * `data` reaches the client verbatim — a tool returns it as
+ * `structuredContent.error.data` — so pass the explicit fields the caller acts
+ * on (the rejected key, a limit, a `reason`), never a request context. A
+ * handler `ctx` carries request metadata and, after an elicitation round, what
+ * the user typed (`ctx.inputs.responses`); the context belongs in the log.
+ *
+ * {@link RequestContext} stays in the union for existing callers: it is a
+ * closed interface, so it is not assignable to a bare `Record<string, unknown>`.
+ * `auth` is dropped by {@link McpError} before the payload is stored; see the
+ * constructor.
+ */
+export type ErrorData = Readonly<Record<string, unknown>> | RequestContext;
+
+/**
+ * Defines JSON-RPC 2.0 error codes, including standard and implementation-defined codes.
+ * @see https://www.jsonrpc.org/specification#error_object
+ */
+export enum JsonRpcErrorCode {
+  // Standard JSON-RPC 2.0 Errors
+  ParseError = -32700,
+  InvalidRequest = -32600,
+  MethodNotFound = -32601,
+  InvalidParams = -32602,
+  InternalError = -32603,
+
+  // Implementation-defined server-errors (-32000 to -32099)
+  ServiceUnavailable = -32000,
+  NotFound = -32001,
+  Conflict = -32002,
+  RateLimited = -32003,
+  Timeout = -32004,
+  Forbidden = -32005,
+  Unauthorized = -32006,
+  ValidationError = -32007,
+  ConfigurationError = -32008,
+  InitializationFailed = -32009,
+  DatabaseError = -32010,
+  RequestCancelled = -32011, // Caller abandoned the request (disconnect, abort signal)
+  SerializationError = -32070, // Data serialization/deserialization failed
+  UnknownError = -32099, // A generic fallback
+}
+
+/**
+ * Custom error class for MCP-specific errors, extending the built-in `Error` class.
+ * It standardizes error reporting by encapsulating a `JsonRpcErrorCode`, a descriptive
+ * human-readable message, and optional structured data for more context.
+ *
+ * This class is central to error handling within the MCP framework, allowing for
+ * consistent error creation and propagation.
+ */
+export class McpError extends Error {
+  /**
+   * The standardized error code from {@link JsonRpcErrorCode}.
+   */
+  public readonly code: JsonRpcErrorCode;
+
+  /**
+   * Optional additional data about the error, conforming to the JSON-RPC 2.0 specification.
+   * This can be any structured data that helps in understanding or debugging the error.
+   * @see https://www.jsonrpc.org/specification#error_object
+   */
+  public readonly data?: Record<string, unknown>;
+
+  /**
+   * Creates an instance of McpError.
+   *
+   * @param code - The standardized error code that categorizes the error.
+   * @param message - A human-readable description of the error.
+   * @param data - Optional. A record containing additional structured data about the error.
+   */
+  constructor(
+    code: JsonRpcErrorCode,
+    message?: string,
+    data?: ErrorData,
+    options?: { cause?: unknown },
+  ) {
+    super(message, options);
+
+    this.code = code;
+    if (data) {
+      // `data` travels to the client on the wire and into every error log and
+      // span. A `RequestContext` carries `auth`, and `auth.token` is the raw
+      // bearer credential — the framework's logger redacts `token` fields
+      // precisely so it is never persisted, and this payload bypasses that.
+      // Authentication is never diagnostic; drop it rather than redact one
+      // field, so a future `AuthContext` addition cannot reopen the hole.
+      const { auth: _auth, ...safe } = data as Record<string, unknown>;
+      this.data = safe;
+    }
+    this.name = 'McpError';
+
+    // `new.target`, not `McpError`: pinning the base prototype strips a subclass
+    // of its identity and its own methods.
+    Object.setPrototypeOf(this, new.target.prototype);
+
+    // Capture the stack trace, excluding the constructor call from it, if available.
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, new.target);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Factory functions — ergonomic alternatives to `new McpError(code, msg, data)`
+// ---------------------------------------------------------------------------
+
+/** Options shared by all error factory functions (re-uses the ES2022 built-in). */
+export type ErrorFactoryOptions = ErrorOptions;
+
+/**
+ * The error factory for `code`, named `name` — its export's name, which
+ * `.name` reports. Its error's stack starts at the factory's caller: captured
+ * again with the factory itself as the cut, so the top frame a log reader sees
+ * is the line that threw rather than this module (#694). An engine without
+ * `Error.captureStackTrace` keeps the constructor's stack.
+ */
+function factoryFor(
+  name: string,
+  code: JsonRpcErrorCode,
+): (message: string, data?: ErrorData, options?: ErrorFactoryOptions) => McpError {
+  const factory = (message: string, data?: ErrorData, options?: ErrorFactoryOptions): McpError => {
+    const error = new McpError(code, message, data, options);
+    Error.captureStackTrace?.(error, factory);
+    return error;
+  };
+  return Object.defineProperty(factory, 'name', { value: name });
+}
+
+/** Create an InvalidParams (-32602) error. */
+export const invalidParams = factoryFor('invalidParams', JsonRpcErrorCode.InvalidParams);
+
+/** Create an InvalidRequest (-32600) error. */
+export const invalidRequest = factoryFor('invalidRequest', JsonRpcErrorCode.InvalidRequest);
+
+/** Create a NotFound (-32001) error. */
+export const notFound = factoryFor('notFound', JsonRpcErrorCode.NotFound);
+
+/** Create a Forbidden (-32005) error. */
+export const forbidden = factoryFor('forbidden', JsonRpcErrorCode.Forbidden);
+
+/** Create an Unauthorized (-32006) error. */
+export const unauthorized = factoryFor('unauthorized', JsonRpcErrorCode.Unauthorized);
+
+/** Create a ValidationError (-32007) error. */
+export const validationError = factoryFor('validationError', JsonRpcErrorCode.ValidationError);
+
+/** Create a Conflict (-32002) error. */
+export const conflict = factoryFor('conflict', JsonRpcErrorCode.Conflict);
+
+/** Create a RateLimited (-32003) error. */
+export const rateLimited = factoryFor('rateLimited', JsonRpcErrorCode.RateLimited);
+
+/** Create a Timeout (-32004) error. */
+export const timeout = factoryFor('timeout', JsonRpcErrorCode.Timeout);
+
+/** Create a ServiceUnavailable (-32000) error. */
+export const serviceUnavailable = factoryFor(
+  'serviceUnavailable',
+  JsonRpcErrorCode.ServiceUnavailable,
+);
+
+/** Create a ConfigurationError (-32008) error. */
+export const configurationError = factoryFor(
+  'configurationError',
+  JsonRpcErrorCode.ConfigurationError,
+);
+
+/** Create an InternalError (-32603) error. */
+export const internalError = factoryFor('internalError', JsonRpcErrorCode.InternalError);
+
+/** Create a SerializationError (-32070) error — JSON/XML/parser failures. */
+export const serializationError = factoryFor(
+  'serializationError',
+  JsonRpcErrorCode.SerializationError,
+);
+
+/** Create a DatabaseError (-32010) error. */
+export const databaseError = factoryFor('databaseError', JsonRpcErrorCode.DatabaseError);
+
+/**
+ * Create a RequestCancelled (-32011) error — the caller abandoned the request
+ * (client disconnect, external abort signal). Not a server fault and never
+ * retryable: there is no longer anyone to answer.
+ */
+export const requestCancelled = factoryFor('requestCancelled', JsonRpcErrorCode.RequestCancelled);
+
+/**
+ * Zod schema for validating error objects. This schema can be used for:
+ * - Validating error structures when parsing error responses from external services.
+ * - Ensuring consistency when creating or handling error objects internally.
+ * - Generating TypeScript types for error objects.
+ *
+ * The schema enforces the presence of a `code` (from {@link JsonRpcErrorCode}) and a `message`,
+ * and allows for optional `data`.
+ */
+export const ErrorSchema = z
+  .object({
+    /**
+     * The error code, corresponding to one of the {@link JsonRpcErrorCode} enum values.
+     * This field is required and helps in programmatically identifying the error type.
+     */
+    code: z
+      .nativeEnum(JsonRpcErrorCode)
+      .describe('Standardized error code from JsonRpcErrorCode enum'),
+    /**
+     * A human-readable, descriptive message explaining the error.
+     * This field is required and provides context to developers or users.
+     */
+    message: z
+      .string()
+      .min(1, 'Error message cannot be empty.')
+      .describe('Detailed human-readable error message'),
+    /**
+     * Optional. A record containing additional structured data or context about the error,
+     * conforming to the JSON-RPC 2.0 `data` field.
+     */
+    data: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe('Optional structured data providing more context about the error'),
+  })
+  .describe(
+    'Schema for validating structured error objects, ensuring consistency in error reporting.',
+  );
+
+/**
+ * TypeScript type inferred from the {@link ErrorSchema}.
+ * This type represents the structure of a validated error object, commonly used
+ * for error responses or when passing error information within the application.
+ */
+export type ErrorResponse = z.infer<typeof ErrorSchema>;
+
+// ---------------------------------------------------------------------------
+// Error contract — declarative documentation of a tool/resource's failure surface
+// ---------------------------------------------------------------------------
+
+/**
+ * Log level a declared failure mode is emitted at, drawn from the logger's own
+ * level names below `error`. Omitting the field keeps `error`, which is what
+ * every failure has always been logged at.
+ */
+export type ErrorContractSeverity = 'debug' | 'info' | 'notice' | 'warning';
+
+/**
+ * Declarative entry in a tool or resource's `errors[]` contract.
+ *
+ * Lets a definition advertise what it can fail with — the JSON-RPC code, a
+ * stable machine-readable `reason`, and a human-readable `when` description.
+ *
+ * **Validation.** Checked by the startup linter — invalid codes, duplicate
+ * `reason` strings within a single definition, and (with the conformance check
+ * enabled) handler bodies that throw codes not in the contract are flagged.
+ *
+ * **Authoring guidance:**
+ * - Keep `reason` short, snake_case, stable. Treat it like a CSS class name
+ *   the client can switch on. Don't change them across versions without notice.
+ * - Use `when` for the natural-language explanation, not the message that ends
+ *   up on the error itself. The error's runtime `message` is per-occurrence;
+ *   `when` is the type-level description.
+ * - Set `retryable` on every entry where retry behavior matters. It drives two
+ *   things: (1) `withRetry`'s default predicate fails fast when
+ *   `data.retryable === false`, even for transient-coded errors — so deterministic
+ *   failures don't hammer the upstream; (2) `ctx.fail` auto-populates
+ *   `data.retryable` from the contract entry so no per-throw-site flag is needed.
+ *   A caller can still override per-occurrence by passing `data.retryable`
+ *   explicitly. When omitted, callers infer retryability from the code.
+ *
+ * @example
+ * ```ts
+ * tool('pubmed_fetch_articles', {
+ *   // ...
+ *   errors: [
+ *     { code: JsonRpcErrorCode.NotFound, reason: 'no_pmid_match',
+ *       when: 'None of the requested PMIDs returned data.',
+ *       recovery: 'Try pubmed_search_articles to discover valid PMIDs first.' },
+ *     { code: JsonRpcErrorCode.RateLimited, reason: 'queue_full',
+ *       when: 'Local request queue is at capacity.', retryable: true,
+ *       recovery: 'Wait 30 seconds and retry, or reduce batch size.' },
+ *     { code: JsonRpcErrorCode.ServiceUnavailable, reason: 'ncbi_down',
+ *       when: 'NCBI E-utilities is unreachable after 6 retries.', retryable: true,
+ *       recovery: 'NCBI is degraded; retry in a few minutes.' },
+ *   ],
+ *   // ...
+ * });
+ * ```
+ */
+export interface ErrorContract {
+  /** JSON-RPC error code this entry surfaces as. */
+  code: JsonRpcErrorCode;
+  /**
+   * Stable machine-readable identifier for this failure mode.
+   * Should be `snake_case`, unique within a single definition's `errors[]`,
+   * and treated as part of the public API — clients may switch on it.
+   */
+  reason: string;
+  /**
+   * Human-readable description of what the agent should do when this failure
+   * occurs. Forcing function for the author: declaring a failure mode without
+   * articulating recovery leaves the agent without a next move.
+   *
+   * **The wire default for this reason.** When a failure whose `data.reason`
+   * names this entry reaches the tool or resource handler factory with no
+   * `data.recovery`, the factory sets `data.recovery.hint` to this text — a bare
+   * `ctx.fail('reason')` and a service throw carrying the reason alike — and
+   * mirrors it into `content[]` text per the error-path parity invariant. A
+   * throw site that knows more (input values, attempted IDs, queue state)
+   * overrides it by passing its own: `ctx.fail('reason', msg, { recovery: {
+   * hint: '...' } })`. The `McpError` the throw site built is never changed.
+   *
+   * **Validation.** Required, non-empty, minimum 5 words (lint warning under
+   * that floor). Specific, actionable guidance beats placeholders like
+   * "Try again." or "Check input."
+   */
+  recovery: string;
+  /**
+   * Whether the failure is transient (eligible for retry).
+   *
+   * This field is now wired to two distinct audiences:
+   *
+   * **Retry engine (`withRetry`).** The default predicate (`defaultIsTransient`)
+   * checks `error.data.retryable === false` and fails fast when set, even when the
+   * error code is in the transient set (`Timeout`, `ServiceUnavailable`,
+   * `RateLimited`). This lets deterministic upstream failures (e.g. a query too
+   * expensive to ever succeed) fail immediately without hammering the upstream
+   * through all retry attempts.
+   *
+   * **Auto-population via `ctx.fail`.** `createFail` uses the contract entry's
+   * `retryable` as a base default on `data.retryable`, so every `ctx.fail(reason)`
+   * call automatically carries the right flag — no per-throw-site flag needed.
+   * A caller can still override it per-occurrence by passing `data.retryable`
+   * explicitly; `reason` is always forced last regardless.
+   *
+   * **Client backoff hint.** Clients that don't use `withRetry` can read
+   * `error.data.retryable` to decide their own backoff strategy; when omitted,
+   * they fall back to inferring from the code.
+   *
+   * When omitted from a contract entry, no `retryable` key is injected onto
+   * `data` — callers can still infer from the code.
+   */
+  retryable?: boolean;
+  /**
+   * Log level for this failure mode, when `error` overstates it.
+   *
+   * An outcome a tool declares here is a modeled result, not an incident: a
+   * caller who answers no to a confirmation prompt, a lookup whose miss is an
+   * ordinary answer. Logging those identically to an upstream fault leaves the
+   * error stream unreadable at the level log-based alerting works on, and the
+   * alternative — dropping `ctx.fail` for them — forfeits the typed contract,
+   * the recovery hint, and the wire envelope.
+   *
+   * **Tools only, and logging only.** Resolved in the tool handler factory
+   * against the thrown error's `data.reason`; resources write no failure record,
+   * so there is no level to set. Nothing client-visible moves —
+   * `isError`, the JSON-RPC code, `structuredContent.error`, and the `content[]`
+   * text are built from the thrown error and are byte-identical either way. The
+   * span still closes ERROR and `mcp.tool.calls` / `mcp.tool.errors` still count
+   * the call: splitting those series would redefine what an error rate means.
+   * The one metric that reflects it is an `mcp.error.severity` attribute on
+   * `mcp.errors.classified`.
+   *
+   * A cancelled request keeps its own `info`, stack-free path regardless.
+   * Omitted, the record logs at `error` — except for the framework's own
+   * refusals, `invalid_arguments` and `client_capability_missing`, which log at
+   * `notice` unless an entry naming them declares otherwise.
+   */
+  severity?: ErrorContractSeverity;
+  /**
+   * Marks the entry as produced below the handler — a service that throws a
+   * factory error carrying `data: { reason }`, rather than a `ctx.fail` the
+   * handler body names.
+   *
+   * **Lint-only metadata.** Nothing at runtime reads it: `ctx.fail` resolves
+   * `code` and `retryable`, the handler factories fill `recovery` and the tool
+   * factory resolves `severity` by reason, wherever the reason was thrown, and
+   * the advertised error envelope carries `reason` and `when`. A marked entry is
+   * advertised, typed, and thrown exactly as an unmarked one, and stays in the
+   * `ctx.fail` / `ctx.recoveryFor` reason union.
+   *
+   * What it changes is `error-contract-unthrown`, whose scan reads only the
+   * handler source: a marked entry is skipped, while every other entry in the
+   * same handler keeps being checked. Mark the entries the service produces
+   * rather than moving the handler's own throws out of scan range.
+   */
+  thrownBy?: 'service';
+  /**
+   * Human-readable description of when this error occurs. Surfaced to LLMs and
+   * UI clients via `tools/list`. Type-level, not per-occurrence — different
+   * from the actual `error.message` thrown at runtime.
+   */
+  when: string;
+}

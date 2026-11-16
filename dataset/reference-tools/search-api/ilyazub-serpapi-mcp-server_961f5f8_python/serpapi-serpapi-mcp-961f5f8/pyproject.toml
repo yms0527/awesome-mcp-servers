@@ -1,0 +1,51 @@
+[project]
+name = "serpapi-mcp-server"
+version = "2.0.0"
+description = "A Model Context Protocol (MCP) server implementation that integrates with SerpApi for comprehensive search engine results and data extraction"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp[apps]>=4.0.3",
+    # Prefab (the MCP Apps UI library) ships frequent breaking changes and
+    # fastmcp does not pin an upper bound, so pin it explicitly here.
+    "prefab-ui>=0.20.2,<0.21",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.25.0",
+    "uvicorn>=0.38.0",
+    # >=1.0.1 avoids CVE-2026-48710 (fastmcp 3.4.1 floors this transitively).
+    "starlette>=1.0.1",
+    "serpapi>=1.1.1",
+    "beautifulsoup4>=4.12.0",
+    "markdownify>=0.14.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "requests>=2",
+    "black>=23.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.black]
+line-length = 100
+target-version = ['py313']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,79 @@
+{
+  "name": "vite-plugin-vue-mcp",
+  "type": "module",
+  "version": "0.3.2",
+  "packageManager": "pnpm@10.6.2",
+  "description": "MCP server helping models to understand your Vue app better.",
+  "author": "Arlo <webfansplz@gmail.com>",
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/webfansplz",
+  "homepage": "https://github.com/webfansplz/vite-plugin-vue-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webfansplz/vite-plugin-vue-mcp.git"
+  },
+  "bugs": "https://github.com/webfansplz/vite-plugin-vue-mcp/issues",
+  "keywords": [
+    "vite-plugin",
+    "vue",
+    "mcp",
+    "modelcontextprotocol"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./*": "./*"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "files": [
+    "dist",
+    "src/overlay.js"
+  ],
+  "scripts": {
+    "build": "unbuild",
+    "dev": "unbuild --stub",
+    "play": "nr -C playground dev",
+    "prepublishOnly": "nr build",
+    "lint": "eslint",
+    "release": "bumpp && pnpm publish --no-git-checks"
+  },
+  "peerDependencies": {
+    "vite": "^3.1.0 || ^4.0.0-0 || ^5.0.0-0 || ^6.0.0-0"
+  },
+  "dependencies": {
+    "@antfu/utils": "catalog:",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "@vue/devtools-core": "catalog:",
+    "@vue/devtools-kit": "catalog:",
+    "ansis": "catalog:",
+    "birpc": "catalog:",
+    "debug": "catalog:",
+    "hookable": "catalog:",
+    "nanoid": "catalog:",
+    "pathe": "catalog:",
+    "vite-dev-rpc": "catalog:",
+    "vite-hot-client": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "catalog:",
+    "@antfu/ni": "catalog:",
+    "@modelcontextprotocol/inspector": "catalog:",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "@types/debug": "catalog:",
+    "@types/node": "catalog:",
+    "bumpp": "catalog:",
+    "eslint": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "unbuild": "catalog:",
+    "vite": "catalog:",
+    "zod": "catalog:"
+  }
+}

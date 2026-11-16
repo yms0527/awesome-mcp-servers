@@ -1,0 +1,69 @@
+{
+  "name": "@aws/run-mcp-servers-with-aws-lambda",
+  "description": "Run Model Context Protocol (MCP) servers with AWS Lambda",
+  "version": "0.5.22",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Amazon Web Services",
+    "url": "http://aws.amazon.com"
+  },
+  "homepage": "https://github.com/awslabs/run-model-context-protocol-servers-with-aws-lambda",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/awslabs/run-model-context-protocol-servers-with-aws-lambda.git"
+  },
+  "bugs": {
+    "url": "https://github.com/awslabs/run-model-context-protocol-servers-with-aws-lambda/issues"
+  },
+  "keywords": [
+    "aws",
+    "lambda",
+    "mcp",
+    "modelcontextprotocol"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepack": "tsc",
+    "clean": "rm -rf dist/",
+    "lint": "eslint src/",
+    "test": "jest",
+    "test-server": "tsx test-stdio-server/echo_server.ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "exports": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@cfworker/json-schema": "^4.1.1",
+    "@eslint/js": "^10.0.1",
+    "@smithy/util-stream": "^4.8.2",
+    "@tsconfig/recommended": "^1.0.13",
+    "@types/aws-lambda": "^8.10.164",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.6.5",
+    "aws-sdk-client-mock": "^4.1.0",
+    "aws-sdk-client-mock-jest": "^4.1.0",
+    "eslint": "^10.12.0",
+    "eslint-plugin-check-file": "^3.3.2",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.4.14",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.2"
+  },
+  "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
+    "@aws-sdk/client-lambda": "^3.1150.0",
+    "@aws-sdk/credential-provider-node": "^3.972.56",
+    "@aws-sdk/protocol-http": "^3.374.0",
+    "@aws-sdk/types": "^3.973.13",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@smithy/signature-v4": "^5.5.0",
+    "winston": "^3.19.0"
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "name": "scumble",
+  "productName": "Scumble",
+  "version": "0.1.49",
+  "description": "Desktop editor for AI inpainting: layers, selection by text, retouch, filters, rendered through your own ComfyUI or API providers.",
+  "author": "DenRakEiw",
+  "license": "GPL-3.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DenRakEiw/scumble.git"
+  },
+  "homepage": "https://github.com/DenRakEiw/scumble",
+  "main": "electron/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis",
+    "dist:portable": "node tools/portable_zip.js",
+    "dist:store": "node tools/build_store.js",
+    "dist:store:test": "node tools/build_store.js --test",
+    "dist:linux": "electron-builder --linux",
+    "release": "electron-builder --win nsis --publish always",
+    "dist:dir": "electron-builder --dir",
+    "build-node": "python tools/build_node.py",
+    "smoke": "python tools/smoke_test.py",
+    "helpers-test": "node tools/helpers_test.js",
+    "commands-test": "python tools/commands_test.py",
+    "mcp-test": "python tools/mcp_test.py",
+    "mcp": "electron . --mcp",
+    "lint": "eslint .",
+    "types": "tsc --noEmit -p tsconfig.check.json",
+    "dist:mcpb": "node tools/mcpb_build.js"
+  },
+  "dependencies": {
+    "@comfyorg/sdk": "0.5.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "electron-updater": "^6.8.9",
+    "onnxruntime-node": "^1.29.0",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@anthropic-ai/mcpb": "2.1.2",
+    "@types/node": "^24.13.6",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "app.scumble.desktop",
+    "productName": "Scumble",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "renderer/**/*",
+      "recipes/**/*",
+      "prompts/**/*",
+      "plugins/**/*",
+      "docs/MANUAL.md",
+      "build/icon.png",
+      "build/icon.ico",
+      "package.json",
+      "LICENSE"
+    ],
+    "icon": "build/icon.png",
+    "fileAssociations": [
+      {
+        "ext": "scumble",
+        "name": "Scumble document",
+        "description": "Scumble document",
+        "role": "Editor",
+        "mimeType": "application/x-scumble",
+        "icon": "icon.ico"
+      }
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "DenRakEiw",
+      "repo": "scumble",
+      "releaseType": "draft"
+    },
+    "asar": true,
+    "electronLanguages": [
+      "en-US",
+      "de"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Scumble Setup ${version}.${ext}",
+      "files": [
+        "electron/**/*",
+        "renderer/**/*",
+        "recipes/**/*",
+        "prompts/**/*",
+        "plugins/**/*",
+        "docs/MANUAL.md",
+        "build/icon.png",
+        "build/icon.ico",
+        "package.json",
+        "LICENSE",
+        "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/linux/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Scumble",
+      "perMachine": false
+    },
+    "appx": {
+      "identityName": "DenRakEiw.Scumble",
+      "publisher": "CN=F2BCAA24-8A1E-43F6-9DFA-1E11616630F1",
+      "publisherDisplayName": "DenRakEiw",
+      "applicationId": "Scumble",
+      "displayName": "Scumble",
+      "backgroundColor": "#1B1714",
+      "languages": [
+        "en-US"
+      ],
+      "customManifestPath": "AppxManifest.xml",
+      "minVersion": "10.0.17763.0",
+      "maxVersionTested": "10.0.26100.0",
+      "artifactName": "Scumble-${version}.msix"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Graphics",
+      "maintainer": "DenRakEiw <89697885+DenRakEiw@users.noreply.github.com>",
+      "synopsis": "Desktop editor for AI inpainting",
+      "executableName": "scumble",
+      "artifactName": "scumble-${version}.${ext}",
+      "files": [
+        "electron/**/*",
+        "renderer/**/*",
+        "recipes/**/*",
+        "prompts/**/*",
+        "plugins/**/*",
+        "docs/MANUAL.md",
+        "build/icon.png",
+        "build/icon.ico",
+        "package.json",
+        "LICENSE",
+        "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/win32/**"
+      ]
+    },
+    "asarUnpack": [
+      "node_modules/onnxruntime-node/bin/**"
+    ]
+  }
+}

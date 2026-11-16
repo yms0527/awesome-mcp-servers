@@ -1,0 +1,37 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required:
+      - ticktickClientId
+      - ticktickClientSecret
+      - ticktickAccessToken
+    properties:
+      ticktickClientId:
+        type: string
+        description: TickTick OAuth Client ID
+      ticktickClientSecret:
+        type: string
+        description: TickTick OAuth Client Secret
+      ticktickAccessToken:
+        type: string
+        description: TickTick Access Token
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => ({
+      command: 'node',
+      args: ['dist/index.js'],
+      env: {
+        TICKTICK_CLIENT_ID: config.ticktickClientId,
+        TICKTICK_CLIENT_SECRET: config.ticktickClientSecret,
+        TICKTICK_ACCESS_TOKEN: config.ticktickAccessToken
+      }
+    })
+  exampleConfig:
+    ticktickClientId: dummy_client_id
+    ticktickClientSecret: dummy_client_secret
+    ticktickAccessToken: dummy_access_token

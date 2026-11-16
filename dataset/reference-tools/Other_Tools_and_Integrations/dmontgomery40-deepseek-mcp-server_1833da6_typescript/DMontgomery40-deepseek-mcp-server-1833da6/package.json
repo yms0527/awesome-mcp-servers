@@ -1,0 +1,57 @@
+{
+  "name": "deepseek-mcp-server",
+  "version": "1.4.0",
+  "mcpName": "io.github.DMontgomery40/deepseek",
+  "description": "MCP server for DeepSeek Flash vision, Pro chat, Responses, FIM, Files, models, and balance APIs.",
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "deepseek-mcp-server": "build/index.js"
+  },
+  "files": [
+    "build/**/*",
+    "assets/favicon.ico",
+    "assets/favicon-32x32.png",
+    "assets/apple-touch-icon.png",
+    "src/docs/*.md",
+    "src/docs/*.txt"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "test": "npm run build && vitest run --config ./vitest.config.ts",
+    "test:watch": "vitest --config ./vitest.config.ts",
+    "test:live": "npm run build && node scripts/live-smoke.mjs",
+    "test:remote": "npm run build && node scripts/remote-smoke.mjs",
+    "prepublishOnly": "npm run build",
+    "inspect": "npx @modelcontextprotocol/inspector build/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/node": "^2.1.1",
+    "@modelcontextprotocol/server": "^2.3.1",
+    "dotenv": "^18.0.7",
+    "hono": "^4.13.13",
+    "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.3.1",
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  },
+  "author": "DMontgomery40",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DMontgomery40/deepseek-mcp-server.git"
+  },
+  "keywords": [
+    "mcp",
+    "deepseek",
+    "ai",
+    "llm"
+  ]
+}

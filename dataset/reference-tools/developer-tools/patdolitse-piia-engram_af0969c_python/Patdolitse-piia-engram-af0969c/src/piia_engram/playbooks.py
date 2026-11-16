@@ -1,0 +1,2973 @@
+"""Playbook storage, scoping, management, and execution plans (PlaybookMixin)."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+from copy import deepcopy
+from pathlib import Path
+from typing import Any
+
+from . import pinning as _pinning
+from . import recall_policy as _recall_policy
+from . import review_boundary as _review_boundary
+from . import strict_mode as _strict_mode
+from . import tombstones as _tombstones
+from .storage import ReadOnlyStoreError
+from .store_paths import confined_path, valid_file_id
+from .storage import (
+    SIMILARITY_THRESHOLD,
+    hold_directory_lock,
+    _ALLOWED_PLAYBOOK_UPDATE_FIELDS,
+    _now_iso,
+    _project_id,
+    _read_json,
+    _update_json,
+    _write_json,
+)
+
+_BUILTIN_PLAYBOOKS: dict[str, dict] = {}
+
+# Content-bearing update fields: a change to any of these is a REVISION under
+# the v4.19 contract (snapshot + version bump). Everything else in
+# _ALLOWED_PLAYBOOK_UPDATE_FIELDS (status, scope) is metadata:
+# applied + audited, but never snapshotted and never version-bumping.
+_PLAYBOOK_CONTENT_FIELDS: frozenset = frozenset({
+    "title", "description", "triggers", "domain", "steps",
+    "preconditions", "pitfalls", "outcome", "parameters",
+    "required_tools", "tool_refs", "source_url",
+})
+
+
+# Fields an update proposal never copies from the row it revises.
+_PROPOSAL_DROP_FIELDS: frozenset = frozenset({
+    "id", "timestamp", "created_at", "last_updated", "last_reviewed", "access_count", "version",
+    "tier", "memory_state", "approval_status", "approval_required", "promoted_at", "promotion_reason",
+    "pending_supersedes", "_replacement_in_progress", "status", "snapshot_of", "superseded_by", "superseded_at", "labeling",
+    # The proposer is a new writer: the provenance stamp fills source_tool.
+    "source_tool",
+})
+
+
+def _stable_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, default=str)
+
+
+
+# A playbook id names a file in playbooks/: a plain token, never a path.
+# Generated ids are 12 hex digits; snapshots add "-prev-<stamp>[-n[-xxxx]]".
+class PlaybookIdExists(Exception):
+    """An insert named a playbook id that is already taken."""
+
+
+def valid_playbook_id(value: Any) -> bool:
+    """True when ``value`` can safely name a file directly inside playbooks/."""
+    # Reserve actual internal JSON filenames, not the legacy underscore namespace.
+    return valid_file_id(value) and value.casefold() not in {"_index"}
+
+
+def playbook_id_key(value: Any) -> str:
+    """Compare ids as filenames, including Windows case-insensitive names."""
+    value = str(value or "")
+    return value.casefold() if os.name == "nt" else value
+
+
+def new_playbook_id(title: str) -> str:
+    """A fresh server-side id (12 hex digits, like every generated id)."""
+    import os
+
+    seed = f"{title}{_now_iso()}{os.urandom(8).hex()}"
+    return hashlib.sha256(seed.encode()).hexdigest()[:12]
+
+
+def _playbook_queue_max() -> int:
+    import os
+
+    try:
+        return max(1, int(os.environ.get("ENGRAM_PLAYBOOK_QUEUE_MAX", "10")))
+    except ValueError:
+        return 10
+
+
+class PlaybookMixin:
+    """Playbook CRUD / scope governance / management / execution plans."""
+
+    # ------------------------------------------------------------------
+    # Playbook CRUD — independent file-per-playbook storage
+    # ------------------------------------------------------------------
+
+    def _read_playbook_index(self) -> list[dict]:
+        """Read the lightweight playbook index (with corpus decryption of title)."""
+        data = _read_json(self._playbooks_dir / "_index.json")
+        if not isinstance(data, list):
+            return []
+        if self._corpus_key:
+            for entry in data:
+                if "title" in entry and isinstance(entry["title"], str):
+                    entry["title"] = self._crypto.corpus_decrypt(
+                        entry["title"], self._corpus_key)
+        return data
+
+    def _write_playbook_index(self, entries: list[dict]) -> None:
+        """Write the playbook index (with corpus encryption of title)."""
+        if self._corpus_key:
+            entries = [dict(e) for e in entries]
+            for e in entries:
+                if "title" in e and isinstance(e["title"], str):
+                    e["title"] = self._crypto.corpus_encrypt(
+                        e["title"], self._corpus_key)
+        _write_json(self._playbooks_dir / "_index.json", entries)
+
+    def _playbook_index_for_locked_mutation(self, entries: Any) -> list[dict]:
+        if not isinstance(entries, list):
+            return []
+        result: list[dict] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            item = dict(entry)
+            if self._corpus_key and "title" in item and isinstance(item["title"], str):
+                item["title"] = self._crypto.corpus_decrypt(item["title"], self._corpus_key)
+            result.append(item)
+        return result
+
+    def _playbook_index_for_storage(self, entries: list[dict]) -> list[dict]:
+        if not self._corpus_key:
+            return entries
+        result = [dict(entry) for entry in entries]
+        for entry in result:
+            if "title" in entry and isinstance(entry["title"], str):
+                entry["title"] = self._crypto.corpus_encrypt(entry["title"], self._corpus_key)
+        return result
+
+    def _update_playbook_index(self, mutator) -> None:
+        def _locked(current: Any) -> list[dict]:
+            index = self._playbook_index_for_locked_mutation(current)
+            updated = mutator(index)
+            if updated is None:
+                updated = index
+            return self._playbook_index_for_storage(updated)
+
+        _update_json(self._playbooks_dir / "_index.json", _locked, default=[])
+
+    def _playbook_path(self, playbook_id: Any) -> Path:
+        """The file of one playbook; ValueError for an id that is not a plain token
+        or that would land outside playbooks/."""
+        import os
+
+        if not valid_playbook_id(playbook_id):
+            raise ValueError("invalid playbook id")
+        base = os.path.normcase(os.path.abspath(self._playbooks_dir))
+        path = self._playbooks_dir / f"{playbook_id}.json"
+        if os.path.dirname(os.path.normcase(os.path.abspath(path))) != base:
+            raise ValueError("invalid playbook id")
+        return confined_path(self._playbooks_dir, f"{playbook_id}.json")
+
+    def _read_playbook_by_id(self, playbook_id: str) -> dict | None:
+        """Read a single playbook file by ID (with corpus decryption)."""
+        try:
+            path = self._playbook_path(playbook_id)
+        except ValueError:
+            return None
+        if not path.exists():
+            return None
+        pb = self._read_playbook_file(path) or None
+        if pb:
+            pb = self._ensure_playbook_fields(pb)
+        return pb
+
+    def _playbook_for_storage(self, playbook: dict) -> dict:
+        if self._corpus_key:
+            return self._crypto.encrypt_entry(playbook, self._corpus_key, "playbook")
+        return playbook
+
+    def _update_playbook_file_by_id(self, playbook_id: str, mutator) -> dict | None:
+        """Apply ``mutator`` to one playbook file under that file's write lock."""
+        if getattr(self, "_read_only", False):
+            raise ReadOnlyStoreError(f"read-only handle: refused write to playbook {playbook_id}")
+        try:
+            path = self._playbook_path(playbook_id)
+        except ValueError:
+            return None
+        if not path.exists():
+            return None
+
+        result_box: dict[str, dict | None] = {}
+        unpinned: list[str] = []
+
+        def _locked(current: Any) -> dict:
+            if not isinstance(current, dict):
+                result_box["result"] = None
+                return {}
+            playbook = current
+            if self._corpus_key:
+                playbook = self._crypto.decrypt_entry(playbook, self._corpus_key, "playbook")
+            playbook = self._ensure_playbook_fields(playbook)
+            updated = mutator(playbook)
+            if updated is None:
+                updated = playbook
+            # A pin counts only on a trusted playbook (see pinning.py).
+            unpinned[:] = _pinning.clear_stale([updated])
+            result_box["result"] = updated
+            return self._playbook_for_storage(updated)
+
+        _update_json(path, _locked, default={})
+        if unpinned:
+            _pinning.audit_auto_unpin(self, "playbook", unpinned, reason="no_longer_trusted")
+        return result_box.get("result")
+
+    @staticmethod
+    def _extract_parameters(playbook: dict) -> list[str]:
+        """Extract ${variable} placeholders from playbook steps and description."""
+        _PARAM_RE = re.compile(r"\$\{(\w+)\}")
+        params: list[str] = []
+        seen: set[str] = set()
+        # Scan steps (handle both string and dict formats)
+        for step in playbook.get("steps", []):
+            if isinstance(step, str):
+                texts = [step]
+            else:
+                texts = [step.get(f) or "" for f in ("action", "detail")]
+            for text in texts:
+                for m in _PARAM_RE.finditer(text):
+                    name = m.group(1)
+                    if name not in seen:
+                        params.append(name)
+                        seen.add(name)
+        # Scan description and outcome
+        for field in ("description", "outcome"):
+            text = playbook.get(field) or ""
+            for m in _PARAM_RE.finditer(text):
+                name = m.group(1)
+                if name not in seen:
+                    params.append(name)
+                    seen.add(name)
+        return params
+
+    @staticmethod
+    def _string_list(value: Any) -> list[str]:
+        """Return a clean list of strings from a scalar or sequence."""
+        if value is None:
+            return []
+        if isinstance(value, (list, tuple, set)):
+            values = value
+        else:
+            values = [value]
+        return [str(item).strip() for item in values if str(item).strip()]
+
+    @staticmethod
+    def _playbook_text_list(
+        value: Any,
+        *,
+        split_punctuation: bool = True,
+    ) -> list[str]:
+        """Normalize Playbook list-like text while preserving item order."""
+        raw_items: list[Any]
+        if value is None:
+            raw_items = []
+        elif isinstance(value, (list, tuple, set)):
+            raw_items = list(value)
+        else:
+            raw_items = [value]
+
+        result: list[str] = []
+        seen: set[str] = set()
+        for item in raw_items:
+            if isinstance(item, str):
+                if split_punctuation:
+                    parts = re.split(r"[\n,;，、；]+", item)
+                else:
+                    parts = re.split(r"[\n]+", item)
+            else:
+                parts = [str(item)]
+            for part in parts:
+                text = str(part).strip()
+                if not text or text in seen:
+                    continue
+                seen.add(text)
+                result.append(text)
+        return result
+
+    @staticmethod
+    def _normalize_playbook_steps(value: Any) -> list[dict]:
+        """Normalize Playbook steps into {order, action, detail} dictionaries."""
+        if not isinstance(value, list):
+            return []
+        steps: list[dict] = []
+        next_order = 1
+        for raw in value:
+            if isinstance(raw, str):
+                action = raw.strip()
+                detail = ""
+                order = next_order
+            elif isinstance(raw, dict):
+                action = str(raw.get("action") or "").strip()
+                detail = str(raw.get("detail") or "").strip()
+                try:
+                    order = int(raw.get("order", next_order))
+                except (TypeError, ValueError):
+                    order = next_order
+            else:
+                continue
+            if not action:
+                continue
+            steps.append({"order": order, "action": action, "detail": detail})
+            next_order = max(next_order + 1, order + 1)
+        return steps
+
+    @staticmethod
+    def _truthy(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+        return bool(value)
+
+    @classmethod
+    def _normalize_playbook_required_tools(
+        cls,
+        required_tools: Any,
+        tool_refs: Any = None,
+    ) -> list[dict]:
+        """Normalize Playbook tool dependencies without resolving local paths."""
+        tools: list[dict] = []
+        seen: set[str] = set()
+
+        def add_tool(raw: Any) -> None:
+            if isinstance(raw, dict):
+                name = str(raw.get("name") or "").strip()
+                if not name:
+                    return
+                item = {
+                    "name": name,
+                    "purpose": str(raw.get("purpose") or "").strip(),
+                    "optional": cls._truthy(raw.get("optional", False)),
+                    "min_version": str(raw.get("min_version") or "").strip(),
+                    "query": str(raw.get("query") or "").strip(),
+                }
+            else:
+                name = str(raw or "").strip()
+                if not name:
+                    return
+                item = {
+                    "name": name,
+                    "purpose": "",
+                    "optional": False,
+                    "min_version": "",
+                    "query": "",
+                }
+            key = item["name"].lower()
+            if key in seen:
+                return
+            seen.add(key)
+            tools.append(item)
+
+        raw_required = required_tools
+        if raw_required is None:
+            raw_required = []
+        elif not isinstance(raw_required, (list, tuple, set)):
+            raw_required = [raw_required]
+        for raw in raw_required:
+            add_tool(raw)
+
+        raw_refs = tool_refs
+        if raw_refs is None:
+            raw_refs = []
+        elif isinstance(raw_refs, str):
+            raw_refs = re.split(r"[\n,;，、；]+", raw_refs)
+        elif not isinstance(raw_refs, (list, tuple, set)):
+            raw_refs = [raw_refs]
+        for raw in raw_refs:
+            add_tool(raw)
+
+        return tools
+
+    @staticmethod
+    def _playbook_contract(entry: dict) -> dict:
+        """Return metadata-only structural quality signals for a Playbook."""
+        from . import quality_eval as _quality_eval
+
+        verdict = _quality_eval.evaluate_candidate(entry)
+        return {
+            "schema_version": entry.get("schema_version", 1),
+            "entry_type": verdict.get("entry_type", "playbook"),
+            "accept": bool(verdict.get("accept", True)),
+            "reasons": list(verdict.get("reasons") or []),
+            "warnings": list(verdict.get("warnings") or []),
+        }
+
+    @staticmethod
+    def _playbook_schema_version(value: Any) -> int:
+        """Return the current Playbook contract version for bad legacy markers."""
+        try:
+            version = int(value or 1)
+        except (TypeError, ValueError):
+            return 1
+        return version if version > 0 else 1
+
+    def _normalize_playbook_scope(
+        self,
+        entry: dict,
+        scope_type: str | None = None,
+        project_folder: str | None = None,
+        project_id: str | None = None,
+        project_folders: list[str] | None = None,
+        project_ids: list[str] | None = None,
+    ) -> dict:
+        """Return the canonical scope dict for a playbook.
+
+        Legacy playbooks have no scope metadata; they read as global so older
+        stores remain visible until the user runs a classification migration.
+        """
+        raw_scope = entry.get("scope") if isinstance(entry.get("scope"), dict) else {}
+        folder = (
+            project_folder
+            if project_folder is not None
+            else entry.get("project_folder") or raw_scope.get("project_folder")
+        )
+        pid = project_id or entry.get("project_id") or raw_scope.get("project_id")
+        raw_type = (
+            scope_type
+            or entry.get("scope_type")
+            or raw_scope.get("type")
+            or ("project" if folder or pid else "global")
+        )
+        raw_type = str(raw_type or "global").strip().lower()
+        if raw_type == "shared":
+            folders = (
+                self._string_list(project_folders)
+                or self._string_list(entry.get("project_folders"))
+                or self._string_list(raw_scope.get("project_folders"))
+            )
+            ids = (
+                self._string_list(project_ids)
+                or self._string_list(entry.get("project_ids"))
+                or self._string_list(raw_scope.get("project_ids"))
+            )
+            ordered_ids: list[str] = []
+            folders_by_id: dict[str, str] = {}
+            seen: set[str] = set()
+            for shared_folder in folders:
+                shared_id = _project_id(shared_folder)
+                if not shared_id or shared_id in seen:
+                    continue
+                seen.add(shared_id)
+                ordered_ids.append(shared_id)
+                folders_by_id[shared_id] = shared_folder
+            for shared_id in ids:
+                if not shared_id or shared_id in seen:
+                    continue
+                seen.add(shared_id)
+                ordered_ids.append(shared_id)
+            if not ordered_ids:
+                return {"type": "global"}
+            scope = {"type": "shared", "project_ids": ordered_ids}
+            ordered_folders = [
+                folders_by_id[shared_id]
+                for shared_id in ordered_ids
+                if shared_id in folders_by_id
+            ]
+            if ordered_folders:
+                scope["project_folders"] = ordered_folders
+            return scope
+        if raw_type != "project":
+            return {"type": "global"}
+        if not pid and folder:
+            pid = _project_id(str(folder))
+        if not pid:
+            return {"type": "global"}
+        scope = {"type": "project", "project_id": str(pid)}
+        if folder:
+            scope["project_folder"] = str(folder)
+        return scope
+
+    @staticmethod
+    def _apply_playbook_scope(entry: dict, scope: dict) -> dict:
+        """Mirror canonical scope fields onto a playbook or index entry."""
+        entry["scope"] = dict(scope)
+        entry["scope_type"] = scope.get("type", "global")
+        if scope.get("type") == "project":
+            entry["project_id"] = scope.get("project_id", "")
+            if scope.get("project_folder"):
+                entry["project_folder"] = scope["project_folder"]
+            entry.pop("project_ids", None)
+            entry.pop("project_folders", None)
+        elif scope.get("type") == "shared":
+            entry["project_id"] = ""
+            entry.pop("project_folder", None)
+            entry["project_ids"] = list(scope.get("project_ids") or [])
+            if scope.get("project_folders"):
+                entry["project_folders"] = list(scope.get("project_folders") or [])
+            else:
+                entry.pop("project_folders", None)
+        else:
+            entry["project_id"] = ""
+            entry.pop("project_folder", None)
+            entry.pop("project_ids", None)
+            entry.pop("project_folders", None)
+        return entry
+
+    def _playbook_visible_for_project(
+        self, playbook: dict, project_folder: str | None = None,
+    ) -> bool:
+        """Whether a playbook should be visible in a project context."""
+        scope = self._normalize_playbook_scope(playbook)
+        if scope.get("type") == "global":
+            return True
+        if not project_folder:
+            return False
+        if scope.get("type") == "shared":
+            return _project_id(project_folder) in set(scope.get("project_ids") or [])
+        return scope.get("project_id") == _project_id(project_folder)
+
+    def _same_playbook_scope(self, left: dict, right: dict) -> bool:
+        """Scope equality for duplicate detection."""
+        l_scope = self._normalize_playbook_scope(left)
+        r_scope = self._normalize_playbook_scope(right)
+        if l_scope.get("type") != r_scope.get("type"):
+            return False
+        if l_scope.get("type") == "project":
+            return l_scope.get("project_id") == r_scope.get("project_id")
+        if l_scope.get("type") == "shared":
+            return set(l_scope.get("project_ids") or []) == set(
+                r_scope.get("project_ids") or []
+            )
+        return True
+
+    def _ensure_playbook_fields(self, entry: dict) -> dict:
+        """Backfill metadata fields on a playbook entry."""
+        if not isinstance(entry, dict):
+            entry = {}
+        entry["schema_version"] = self._playbook_schema_version(
+            entry.get("schema_version")
+        )
+        if not entry.get("timestamp"):
+            entry["timestamp"] = _now_iso()
+        entry.setdefault("created_at", entry.get("timestamp", _now_iso()))
+        entry.setdefault("last_reviewed", entry.get("created_at", _now_iso()))
+        if not entry.get("id"):
+            title = str(entry.get("title") or "")
+            seed = f"{title}{entry.get('timestamp', '')}"
+            entry["id"] = hashlib.sha256(seed.encode()).hexdigest()[:12]
+        entry.setdefault("status", "active")
+        entry.setdefault("access_count", 0)
+        entry.setdefault("tier", "verified")
+        if not isinstance(entry.get("related_ids"), list):
+            entry["related_ids"] = []
+        entry["triggers"] = self._playbook_text_list(
+            entry.get("triggers"),
+            split_punctuation=True,
+        )
+        entry["steps"] = self._normalize_playbook_steps(entry.get("steps"))
+        entry["preconditions"] = self._playbook_text_list(
+            entry.get("preconditions"),
+            split_punctuation=False,
+        )
+        entry["pitfalls"] = self._playbook_text_list(
+            entry.get("pitfalls"),
+            split_punctuation=False,
+        )
+        required_tools = self._normalize_playbook_required_tools(
+            entry.get("required_tools"),
+            entry.get("tool_refs"),
+        )
+        if required_tools:
+            entry["required_tools"] = required_tools
+        else:
+            entry.pop("required_tools", None)
+        entry.pop("tool_refs", None)
+        entry.setdefault("version", 1)
+        scope = self._normalize_playbook_scope(entry)
+        self._apply_playbook_scope(entry, scope)
+        entry["contract"] = self._playbook_contract(entry)
+        return entry
+
+    def _playbook_index_entry(self, pb: dict) -> dict:
+        """Extract lightweight index entry from a full playbook."""
+        entry = {
+            "id": pb.get("id", ""),
+            "title": pb.get("title", ""),
+            "triggers": pb.get("triggers", []),
+            "domain": pb.get("domain", ""),
+            "status": pb.get("status", "active"),
+            "tier": pb.get("tier", "verified"),
+            "updated_at": pb.get("last_updated") or pb.get("created_at") or _now_iso(),
+        }
+        if pb.get("builtin_name"):
+            entry["builtin_name"] = pb.get("builtin_name", "")
+        return self._apply_playbook_scope(entry, self._normalize_playbook_scope(pb))
+
+    @staticmethod
+    def is_pending_playbook(row: dict | None) -> bool:
+        return isinstance(row, dict) and row.get("tier") == "staging"
+
+    def _hide_pending_playbooks(self) -> bool:
+        """Pending playbooks are hidden from use only under strict (unset = 4.21.0)."""
+        return _strict_mode.approval_strict(self.root)
+
+    def _not_approved(self, playbook_id: str) -> dict | None:
+        """A pending playbook never runs, in any approval mode (None when it may run)."""
+        if not self.is_pending_playbook(self._read_playbook_by_id(playbook_id)):
+            return None
+        if self._hide_pending_playbooks():  # strict: the 4.21.1 refusal, unchanged
+            return {"status": "pending_not_executable", "id": playbook_id,
+                    "message": "This playbook is a pending proposal; it runs only after Owner approval."}
+        return {"status": "not_approved", "id": playbook_id, "changed": False,
+                "message": "This playbook waits for review and does not run until the Owner approves it "
+                           "with engram review."}
+
+    def pending_playbook_count(self) -> int:
+        count = 0
+        for entry in self._read_playbook_index():
+            if entry.get("status") != "active":
+                continue
+            if self.is_pending_playbook(self._read_playbook_by_id(entry.get("id", ""))):
+                count += 1
+        return count
+
+    def _playbook_insert_guard(self, new_pb: dict) -> dict | None:
+        stone = _tombstones.lookup(self.root, "playbook", new_pb)
+        if stone is not None:
+            self._audit.log("refused", "playbooks", detail=f"rejected_before rejection_id={stone.get('id')}",
+                            source_tool=str(new_pb.get("source_tool") or ""))
+            return {"status": "rejected_before", "rejection_id": stone.get("id"),
+                    "message": "The Owner rejected this procedure before; it is not proposed again."}
+        h1 = _tombstones.claim_hashes("playbook", new_pb)[0]
+        scope = _tombstones.scope_of(new_pb)
+        for entry in self._read_playbook_index():
+            if entry.get("status", "active") == "active":
+                continue
+            row = self._read_playbook_by_id(entry.get("id", ""))
+            if (
+                row is not None
+                and _tombstones.scope_of(row) == scope
+                and _tombstones.claim_hashes("playbook", row)[0] == h1
+            ):
+                self._audit.log("refused", "playbooks",
+                                detail=f"duplicate_retired existing_id={row.get('id')} where=retired",
+                                source_tool=str(new_pb.get("source_tool") or ""))
+                return {"status": "duplicate_retired", "existing_id": row.get("id"), "where": "retired",
+                        "reason": row.get("status"),
+                        "message": "The same procedure is retired; the Owner can restore it."}
+        return None
+
+    def _review_locks(self):
+        """Hold the knowledge and playbooks write locks across one review decision,
+        so its version check, tombstone and status writes commit together."""
+        from contextlib import ExitStack
+
+        stack = ExitStack()
+        stack.enter_context(hold_directory_lock(self._knowledge_dir, timeout=30))
+        stack.enter_context(hold_directory_lock(self._playbooks_dir, timeout=30))
+        return stack
+
+    @staticmethod
+    def _review_version_conflict(playbook_id: str, row: dict, expected_version: int | None) -> dict | None:
+        if expected_version is None:
+            return None
+        current = int(row.get("version") or 1)
+        if current == expected_version:
+            return None
+        return {"status": "version_conflict", "error": "version_conflict", "id": playbook_id,
+                "item_id": playbook_id, "expected_version": expected_version,
+                "current_version": current, "changed": False}
+
+    def _playbook_replacement_problem(self, row: dict, target: str = "") -> str:
+        """Validate the durable retirement/approval handoff without writing."""
+        if "_replacement_in_progress" not in row:
+            return ""
+        state = row["_replacement_in_progress"]
+        if not isinstance(state, dict):
+            return "replacement_state_invalid"
+        old_id = state.get("target")
+        if (not valid_playbook_id(old_id) or old_id == row.get("id")
+                or old_id != row.get("pending_supersedes") or (target and target != old_id)):
+            return "replacement_target_conflict"
+        for key in ("proposal_version", "target_version"):
+            if type(state.get(key)) is not int or state[key] < 1:
+                return "replacement_state_invalid"
+        old = self._read_playbook_by_id(old_id)
+        if old is None:
+            return "target_not_found"
+        if (int(row.get("version") or 1) != state["proposal_version"]
+                or int(old.get("version") or 1) != state["target_version"]):
+            return "version_conflict"
+        if old.get("status", "active") not in ("active", "outdated"):
+            return "target_not_trusted"
+        if not self._same_playbook_scope(row, old):
+            return "scope_mismatch"
+        return ""
+
+    def unfinished_playbook_replacement(self, row: dict | None) -> str:
+        """The matching replacement still to finish (empty when none).
+
+        A durable handoff covers retirement before approval. An older store
+        with both rows approved and active also completes the retirement.
+        """
+        if not isinstance(row, dict):
+            return ""
+        if "_replacement_in_progress" in row:
+            if (row.get("status", "active") == "active"
+                    and not self._playbook_replacement_problem(row)):
+                return row["_replacement_in_progress"]["target"]
+            return ""
+        if self.is_pending_playbook(row):
+            return ""
+        if row.get("approval_status") != "approved" or row.get("status", "active") != "active":
+            return ""
+        target = str(row.get("pending_supersedes") or "")
+        if not target or target == str(row.get("id") or ""):
+            return ""
+        old = self._read_playbook_by_id(target)
+        if old is None or old.get("status", "active") != "active":
+            return ""
+        return target
+
+    def _reconcile_playbook_index(self, playbook_id: str | None = None, *, dry_run: bool = False) -> dict:
+        """Derive index status/tier from bodies, never delete a body.
+
+        Repairs hold both review locks; a report-only snapshot creates no locks
+        or files. Missing/unreadable bodies are reported, not removed.
+        """
+        from contextlib import nullcontext
+        from .storage import SkipWrite
+
+        if not dry_run:
+            if getattr(self, "_read_only", False):
+                raise ReadOnlyStoreError("read-only handle: refused playbook index reconciliation")
+            if _review_boundary.mcp_origin():
+                return _review_boundary.refusal(playbook_id or "", action="reconcile")
+        with nullcontext() if dry_run else self._review_locks():
+            # Ordinary JSON reads quarantine corrupt files. A diagnostic must
+            # not create those copies; inspect safely contained files directly.
+            index_path = confined_path(self._playbooks_dir, "_index.json")
+            index = json.loads(index_path.read_text(encoding="utf-8-sig")) if index_path.is_file() else []
+            if not isinstance(index, list) or any(not isinstance(e, dict) for e in index):
+                raise ValueError("invalid playbook index")
+            ids = {playbook_id} if playbook_id is not None else {
+                p.stem for p in self._playbooks_dir.glob("*.json") if valid_playbook_id(p.stem)}
+            if playbook_id is None:
+                ids.update(str(e.get("id") or "") for e in index)
+            bodies: dict[str, dict] = {}
+            mismatches: set[str] = set()
+            unpinned: set[str] = set()
+            skipped = 0
+            for item_id in sorted(ids):
+                if not valid_playbook_id(item_id):
+                    skipped += 1
+                    continue
+                try:
+                    path = self._playbook_path(item_id)
+                    row = json.loads(path.read_text(encoding="utf-8-sig"))
+                    if not isinstance(row, dict):
+                        row = None
+                    elif self._corpus_key:
+                        row = self._crypto.decrypt_entry(row, self._corpus_key, "playbook")
+                    if row is not None:
+                        row = self._ensure_playbook_fields(row)
+                except (OSError, ValueError, TypeError):
+                    row = None
+                if row is None or playbook_id_key(row.get("id")) != playbook_id_key(item_id):
+                    skipped += 1
+                    continue
+                key = playbook_id_key(item_id)
+                bodies[key] = row
+                matches = [e for e in index if playbook_id_key(e.get("id")) == key]
+                if not matches or any(e.get("status") != row.get("status", "active")
+                                      or e.get("tier") != row.get("tier", "verified") for e in matches):
+                    mismatches.add(item_id)
+                if (row.get("status", "active") != "active" or row.get("tier") == "retired") and _pinning.has_pin(row):
+                    unpinned.add(item_id)
+                    if not dry_run:
+                        self._update_playbook_file_by_id(item_id, _pinning.strip)
+                        _pinning.audit_auto_unpin(self, "playbook", [item_id], reason="no_longer_trusted")
+
+            def _sync(current: list[dict]) -> list[dict]:
+                changed = False
+                seen: set[str] = set()
+                for entry in current:
+                    key = playbook_id_key(entry.get("id"))
+                    row = bodies.get(key)
+                    if row is None:
+                        continue
+                    seen.add(key)
+                    for field, default in (("status", "active"), ("tier", "verified")):
+                        value = row.get(field, default)
+                        if entry.get(field) != value:
+                            entry[field] = value
+                            changed = True
+                for key, row in bodies.items():
+                    if key not in seen:
+                        current.append(self._playbook_index_entry(row))
+                        changed = True
+                if not changed:
+                    raise SkipWrite
+                return current
+
+            if not dry_run and mismatches:
+                self._update_playbook_index(_sync)
+            return {"checked": len(bodies), "mismatches": len(mismatches), "unpinned": len(unpinned),
+                    "skipped": skipped, "changed": not dry_run and bool(mismatches or unpinned), "dry_run": dry_run}
+
+    def _record_playbook_replacement(self, row: dict, target: str) -> None:
+        """Persist the retirement handoff under the caller's review locks."""
+        if "_replacement_in_progress" in row:
+            return
+        old = self._read_playbook_by_id(target)
+        if old is None:
+            raise ValueError("replacement target not found")
+        state = {"target": target, "proposal_version": int(row.get("version") or 1),
+                 "target_version": int(old.get("version") or 1)}
+        self._update_playbook_file_by_id(row["id"], lambda r: {**r, "_replacement_in_progress": state})
+
+    def _retire_replaced_playbook(self, old_id: str, new_id: str) -> None:
+        """Finish retirement of both body and index under the caller's review locks.
+
+        The replacement handoff remains durable until this operation succeeds,
+        so a retry repairs an index commit interrupted after the body retired.
+        """
+        if getattr(self, "_read_only", False):
+            raise ReadOnlyStoreError("read-only handle: refused replacement retirement")
+        _pinning.auto_unpin(self, old_id, reason="superseded", by=new_id)
+        old = self._read_playbook_by_id(old_id)
+        if old is not None and old.get("status", "active") == "active":
+            self.archive_playbook(old_id)
+            old = self._read_playbook_by_id(old_id)
+        if old is None or old.get("status") != "outdated":
+            raise ValueError("replacement target is not retired")
+        self._reconcile_playbook_index(old_id)
+
+    def approve_playbook(self, playbook_id: str, expected_version: int | None = None) -> dict:
+        """Owner approval: a pending playbook becomes verified; an approved update
+        proposal retires the row it replaces. Never over MCP (local review only).
+
+        ``expected_version`` (the version the Owner reviewed) is compared under
+        the same write locks that commit the approval. The row being replaced is
+        retired first, so an interrupted approval leaves at most one usable
+        version, and approving again completes it.
+        """
+        if _review_boundary.mcp_origin():
+            return _review_boundary.refusal(playbook_id, action="approve")
+        with self._review_locks():
+            return self._approve_playbook_locked(playbook_id, expected_version)
+
+    def _approve_playbook_locked(self, playbook_id: str, expected_version: int | None) -> dict:
+        pb = self._read_playbook_by_id(playbook_id)
+        if pb is None:
+            return {"status": "not_found", "id": playbook_id}
+        stale = self._review_version_conflict(playbook_id, pb, expected_version)
+        if stale is not None:
+            return stale
+        problem = self._playbook_replacement_problem(pb)
+        if problem:
+            return {"status": problem, "error": problem, "id": playbook_id, "changed": False}
+        if not self.is_pending_playbook(pb):
+            self._reconcile_playbook_index(playbook_id)
+            target = str(pb.get("pending_supersedes") or "")
+            if target:
+                self._reconcile_playbook_index(target)
+            unfinished = self.unfinished_playbook_replacement(pb)
+            if unfinished:
+                self._record_playbook_replacement(pb, unfinished)
+                self._retire_replaced_playbook(unfinished, playbook_id)
+                self._reconcile_playbook_index(playbook_id)
+                self._update_playbook_file_by_id(playbook_id, lambda r: {
+                    k: v for k, v in r.items() if k != "_replacement_in_progress"})
+                self._audit.log("write", "playbooks", detail=f"approved {playbook_id} (replacement completed)")
+                return {"status": "promoted", "id": playbook_id, "retired": unfinished, "completed": True}
+            return {"status": "not_staging", "id": playbook_id}
+        if _tombstones.by_id(self.root, playbook_id) or _tombstones.lookup(self.root, "playbook", pb):
+            return {"status": "rejected_before", "id": playbook_id}
+        target = str(pb.get("pending_supersedes") or "")
+        old = self._read_playbook_by_id(target) if target else None
+        if target and old is None:
+            return {"status": "target_not_found", "id": playbook_id, "changed": False}
+        if old is not None and old.get("status", "active") != "active" and "_replacement_in_progress" not in pb:
+            return {"status": "target_not_trusted", "id": playbook_id, "changed": False}
+        if target and _pinning.blocked_targets([(playbook_id, target)],
+                                               [self._read_playbook_by_id(target) or {}]):
+            return {"status": _pinning.ERROR_PINNED_TARGET, "id": playbook_id, "targets": [target]}
+        self._reconcile_playbook_index(playbook_id)
+        if target:
+            self._reconcile_playbook_index(target)
+        now = _now_iso()
+
+        def _approve(row):
+            row["tier"] = "verified"
+            row.pop("duplicate_candidate", None)
+            row["approval_status"] = "approved"
+            row["promoted_at"] = now
+            row["promotion_reason"] = "owner_review"
+            row.pop("_replacement_in_progress", None)
+            return row
+
+        old_id = target
+        if old is not None:
+            self._record_playbook_replacement(pb, old_id)
+            # Even an already-retired body can have an unfinished index commit.
+            # Complete both records before approval clears the durable handoff.
+            self._retire_replaced_playbook(old_id, playbook_id)
+        self._update_playbook_file_by_id(playbook_id, _approve)
+        self._reconcile_playbook_index(playbook_id)
+        self._audit.log("write", "playbooks", detail=f"approved {playbook_id}")
+        return {"status": "promoted", "id": playbook_id, "retired": old_id or None}
+
+    def reject_playbook(self, playbook_id: str, *, _owner_reject: str,
+                        expected_version: int | None = None) -> dict:
+        """Owner reject mark: tombstone first, then archive the pending row.
+
+        ``expected_version`` is compared under the write locks that hold both
+        the tombstone and the archive write: a changed row gets neither.
+        """
+        if _review_boundary.mcp_origin():
+            return _review_boundary.refusal(playbook_id, action="reject")
+        with self._review_locks():
+            pb = self._read_playbook_by_id(playbook_id)
+            if pb is None:
+                return {"error": f"Playbook not found: {playbook_id}"}
+            stale = self._review_version_conflict(playbook_id, pb, expected_version)
+            if stale is not None:
+                return stale
+            if self.is_pending_playbook(pb):
+                _tombstones.append(self.root, "playbook", pb, via=_owner_reject)
+            return self.archive_playbook(playbook_id, expected_version=expected_version)
+
+    def add_playbook(
+        self,
+        playbook: dict,
+        source_tool: str = "",
+        allow_similar_new: bool = False,
+        **extra: Any,
+    ) -> dict:
+        """Add an operational playbook.
+
+        Each playbook is stored as an individual file in ~/.engram/playbooks/.
+        An index file (_index.json) is maintained for fast search.
+
+        This is the single insert point for new playbook rows. Under strict every
+        row is a pending proposal (tier=staging, approval_status=pending) and
+        caller trust fields are ignored; tombstoned and retired procedures are
+        refused in every mode; a strict pending queue is capped.
+        """
+        allow_internal_provenance = extra.pop("_allow_internal_provenance", False) is True
+        update_of = str(extra.pop("_update_proposal_of", "") or "")
+        new_pb = dict(playbook)
+        _pinning.strip(new_pb)
+        new_pb.pop("pending_supersedes", None)
+        # ``supersedes`` names the playbook this one revises: an update
+        # proposal that always waits for the Owner (approval retires the old one).
+        cited = str(new_pb.pop("supersedes", "") or "")
+        if cited and not update_of and self._read_playbook_by_id(cited) is not None:
+            update_of = cited
+        if source_tool:
+            new_pb["source_tool"] = source_tool
+        for key, value in extra.items():
+            if value is not None:
+                new_pb[key] = value
+        # Only the local approval operation creates a recovery handoff.
+        new_pb.pop("_replacement_in_progress", None)
+        if not allow_internal_provenance:
+            from .core import _strip_untrusted_freshness_provenance
+
+            _strip_untrusted_freshness_provenance(new_pb)
+        from . import write_provenance as _write_provenance
+
+        _write_provenance.stamp(new_pb, allow_reserved=allow_internal_provenance)
+        from .dedup_review import strip_caller_fields
+
+        strip_caller_fields(new_pb)
+
+        new_pb = self._repair_incoming_text(new_pb)
+        if not new_pb.get("title"):
+            return {"error": "Playbook must have a title"}
+
+        # The id names the playbook's file: an MCP caller never chooses it, and
+        # a local caller's id must be a plain token (else a fresh one is made).
+        if _pinning.mcp_origin() or not valid_playbook_id(new_pb.get("id")):
+            new_pb["id"] = new_playbook_id(str(new_pb.get("title") or ""))
+        new_pb["timestamp"] = new_pb.get("timestamp") or _now_iso()
+        new_pb = self._ensure_playbook_fields(new_pb)
+        strict = _strict_mode.approval_strict(self.root)
+        # A playbook an AI writes over MCP is a proposal in every approval mode;
+        # local Owner actions are unchanged.
+        proposal = strict or _pinning.mcp_origin()
+        if proposal:
+            for key in [k for k in new_pb if k.startswith(("promotion_", "promoted_", "approval_"))]:
+                new_pb.pop(key, None)
+            new_pb.pop("user_confirmed", None)
+            new_pb["status"] = "active"
+            new_pb["tier"] = "staging"
+            new_pb["approval_status"] = "pending"
+        if update_of:
+            new_pb["pending_supersedes"] = update_of
+            if new_pb.get("tier") != "staging":
+                # An update proposal is the Owner's decision in every approval mode.
+                for key in [k for k in new_pb if k.startswith(("promotion_", "promoted_"))]:
+                    new_pb.pop(key, None)
+                new_pb["status"] = "active"
+                new_pb["tier"] = "staging"
+                new_pb["approval_status"] = "pending"
+
+        refusal = self._playbook_insert_guard(new_pb)
+        if refusal is not None:
+            return refusal
+
+        # Duplicate detection against existing playbooks
+        index = self._read_playbook_index()
+        new_title = str(new_pb.get("title", ""))
+        for entry in index:
+            if entry.get("status") != "active":
+                continue
+            if update_of and entry.get("id") == update_of:
+                continue  # an update proposal replaces this row; it is not a duplicate
+            if not self._same_playbook_scope(new_pb, entry):
+                continue
+            sim = self._bigram_similarity(new_title, entry.get("title", ""))
+            if sim >= SIMILARITY_THRESHOLD:
+                titles_identical = str(entry.get("title", "")) == new_title
+                if allow_similar_new and not titles_identical:
+                    # Explicit new-entry mode: the caller knows this is a
+                    # DISTINCT playbook; a different title bypasses the gate.
+                    continue
+                existing_id = str(entry.get("id") or "")
+                existing_pb = self._read_playbook_by_id(existing_id)
+                body_differs = existing_pb is None or self._playbook_body_differs(
+                    new_pb, existing_pb
+                )
+                result = {
+                    "status": "duplicate",
+                    "similarity": round(sim, 2),
+                    "existing_id": existing_id,
+                    "existing_title": entry.get("title"),
+                    "message": f"与现有 Playbook 相似度 {sim:.0%}，未重复添加",
+                    "likely_revision": body_differs,
+                }
+                if body_differs and existing_pb is not None:
+                    if titles_identical:
+                        # EXACT identity: the rejection can safely point at the
+                        # revision target (v4.19.1: fuzzy hits never do —
+                        # similarity must never auto-select a revise target).
+                        # allow_similar_new cannot bypass an identical title,
+                        # so the reply does not offer it.
+                        from .dedup_review import existing_guidance
+
+                        result["guidance"] = {
+                            "revision": {
+                                "tool_hint": "update_knowledge",
+                                "target_id": existing_id,
+                                "expected_version": int(existing_pb.get("version") or 1),
+                            },
+                            "existing": existing_guidance(existing_id, "playbook"),
+                        }
+                    else:
+                        # Fuzzy title match: name the new-entry escape hatch
+                        # only; picking a revision target is the caller's job.
+                        result["guidance"] = {
+                            "new_entry": {
+                                "param": "allow_similar_new",
+                                "note": "titles are similar but not identical; if this is genuinely a distinct playbook, set allow_similar_new=true, otherwise locate the exact target id yourself",
+                            },
+                        }
+                return result
+
+        if proposal:
+            cap = _playbook_queue_max()
+            if self.pending_playbook_count() >= cap:
+                self._audit.log("refused", "playbooks", detail=f"queue_full pending playbooks cap={cap}",
+                                source_tool=str(new_pb.get("source_tool") or ""))
+                return {"status": "queue_full", "kind": "playbook", "cap": cap,
+                        "message": "The pending playbook queue is full; nothing was dropped."}
+
+        try:
+            self._write_playbook_and_index(new_pb, create=True)
+        except PlaybookIdExists:
+            return {"status": "id_exists", "error": "id_exists", "existing_id": new_pb.get("id"),
+                    "message": "A playbook with this id already exists; nothing was written."}
+
+        if self.is_pending_playbook(new_pb) and proposal:
+            # A pending proposal's text stays out of agent-readable surfaces,
+            # including get_audit_log: record the id only.
+            self._audit.log("write", "playbooks", detail=f"pending proposal {new_pb.get('id')}")
+        else:
+            self._audit.log("write", "playbooks", detail=new_title[:100])
+        if new_pb.get("domain"):
+            for _d in new_pb["domain"].split(","):
+                _d = _d.strip()
+                if _d:
+                    self.increment_domain_usage(_d)
+        return new_pb
+
+    @staticmethod
+    def available_builtin_playbooks() -> list[str]:
+        """Return built-in Playbook template names."""
+        return sorted(_BUILTIN_PLAYBOOKS)
+
+    def builtin_playbook_template(
+        self,
+        name: str,
+        project_folder: str | None = None,
+    ) -> dict:
+        """Return a normalized built-in Playbook template without writing it."""
+        key = str(name or "").strip().lower()
+        if key not in _BUILTIN_PLAYBOOKS:
+            return {
+                "error": f"Unknown builtin playbook: {name}",
+                "available": self.available_builtin_playbooks(),
+            }
+        template = deepcopy(_BUILTIN_PLAYBOOKS[key])
+        scope_type = "project" if project_folder else "global"
+        scope = self._normalize_playbook_scope(
+            template, scope_type=scope_type, project_folder=project_folder,
+        )
+        self._apply_playbook_scope(template, scope)
+        return self._ensure_playbook_fields(template)
+
+    def _find_existing_builtin_playbook(self, template: dict) -> dict | None:
+        builtin_name = str(template.get("builtin_name") or "").strip().lower()
+        title = str(template.get("title") or "").strip().lower()
+        for entry in self._read_playbook_index():
+            if entry.get("status") != "active":
+                continue
+            entry_builtin_name = str(entry.get("builtin_name") or "").strip().lower()
+            if builtin_name and entry_builtin_name and entry_builtin_name != builtin_name:
+                continue
+            if not entry_builtin_name:
+                if str(entry.get("title") or "").strip().lower() != title:
+                    continue
+            if self._same_playbook_scope(template, entry):
+                return entry
+        return None
+
+    def install_builtin_playbook(
+        self,
+        name: str,
+        *,
+        project_folder: str | None = None,
+        dry_run: bool = True,
+        confirm: bool = False,
+    ) -> dict:
+        """Install a built-in Playbook template with dry-run and idempotency.
+
+        Built-ins are verified local templates, but installation still defaults
+        to preview-only so setup/CLI callers never mutate stores by accident.
+        """
+        template = self.builtin_playbook_template(name, project_folder=project_folder)
+        if "error" in template:
+            return template
+
+        existing = self._find_existing_builtin_playbook(template)
+        if existing:
+            return {
+                "dry_run": bool(dry_run or not confirm),
+                "status": "already_installed",
+                "existing_id": existing.get("id", ""),
+                "playbook": existing,
+            }
+
+        effective_dry_run = bool(dry_run or not confirm)
+        if effective_dry_run:
+            return {
+                "dry_run": True,
+                "requires_confirmation": not confirm,
+                "status": "would_install",
+                "playbook": template,
+            }
+
+        installed = self.add_playbook(
+            template,
+            source_tool=str(template.get("source_tool") or "engram_builtin"),
+        )
+        if "error" in installed or installed.get("status") == "duplicate":
+            return {
+                "dry_run": False,
+                "status": installed.get("status", "error"),
+                "playbook": installed,
+                "existing_id": installed.get("existing_id", ""),
+            }
+        return {
+            "dry_run": False,
+            "status": "installed",
+            "playbook_id": installed.get("id", ""),
+            "playbook": installed,
+        }
+
+    def get_playbooks(
+        self,
+        domain: str | None = None,
+        limit: int | None = 20,
+        project_folder: str | None = None,
+        _update_access: bool = True,
+    ) -> list[dict]:
+        """List active playbooks, optionally filtered by domain."""
+        index = self._read_playbook_index()
+        result = []
+        for entry in index:
+            if entry.get("status") != "active":
+                continue
+            if domain:
+                pb_domains = {d.strip() for d in (entry.get("domain") or "").split(",") if d.strip()}
+                if domain not in pb_domains:
+                    continue
+            pb = self._read_playbook_by_id(entry.get("id", ""))
+            if pb and self._hide_pending_playbooks() and self.is_pending_playbook(pb):
+                continue
+            if pb and self._playbook_visible_for_project(pb, project_folder):
+                result.append(pb)
+
+        result = result[-limit:] if limit is not None else result
+
+        if _update_access and result and not getattr(self, "_read_only", False):
+            now = _now_iso()
+            for pb in result:
+                def _bump_access(p, _now=now):
+                    if p.get("status", "active") != "active":
+                        return p
+                    p["access_count"] = p.get("access_count", 0) + 1  # a read never sets last_reviewed
+                    return p
+                updated = self._update_playbook_file_by_id(pb["id"], _bump_access)
+                if updated:
+                    pb.update(updated)
+
+        self._audit.log("read", "playbooks", detail=f"returned {len(result)} items")
+        if _update_access:
+            # Model-facing read: write-back above used the raw (still-encrypted)
+            # objects; sanitize only the returned copies so leaked ciphertext is
+            # never surfaced as content.
+            result = self._display_sanitize(result, "playbook")
+        return result
+
+    def get_playbook(
+        self,
+        playbook_id: str,
+        _update_access: bool = True,
+        project_folder: str | None = None,
+        confirm_cross_project: bool = False,
+    ) -> dict:
+        """Get a single playbook by ID. Includes extracted parameters list.
+
+        When a project_folder is supplied, project-scoped playbooks from other
+        projects are refused unless confirm_cross_project=True. Calls without a
+        project context preserve the legacy direct-ID behavior.
+        """
+        if self._hide_pending_playbooks() and self.is_pending_playbook(self._read_playbook_by_id(playbook_id)):
+            return {"error": f"Playbook not found: {playbook_id}", "status": "pending"}
+        pb = self._read_playbook_by_id(playbook_id)
+        if pb is None:
+            return {"error": f"Playbook not found: {playbook_id}"}
+        # v4.19.1: history snapshots are reachable only via get_knowledge_history
+        if self._is_snapshot_record(pb):
+            return {
+                "error": "snapshot_immutable",
+                "item_id": playbook_id,
+                "message": "this id is a superseded history snapshot; read it via get_knowledge_history",
+            }
+        if project_folder is not None and not self._playbook_visible_for_project(pb, project_folder):
+            if not confirm_cross_project:
+                return {
+                    "error": "cross_project_playbook",
+                    "playbook_id": playbook_id,
+                    "scope": pb.get("scope", {"type": "global"}),
+                    "project_folder": project_folder,
+                    "message": "Playbook belongs to another project; pass confirm_cross_project=True to use it explicitly.",
+                }
+
+        if _update_access:
+            now = _now_iso()
+            def _bump_single(p, _now=now):
+                if p.get("status", "active") != "active":
+                    return p
+                p["access_count"] = p.get("access_count", 0) + 1  # a read never sets last_reviewed
+                return p
+            updated = self._update_playbook_file_by_id(playbook_id, _bump_single)
+            if updated:
+                pb = updated
+            pb = self._display_sanitize_one(pb, "playbook")
+
+        # Always include dynamic parameters extraction
+        pb["parameters"] = self._extract_parameters(pb)
+        return pb
+
+    def get_recent_playbooks(
+        self, limit: int = 5, project_folder: str | None = None,
+    ) -> list[dict]:
+        """Return recent verified active playbooks by last_reviewed descending."""
+        all_pbs = self._export_playbooks()
+        active = [
+            pb for pb in all_pbs
+            if pb.get("status") == "active"
+            and pb.get("tier") == "verified"
+            and self._playbook_visible_for_project(pb, project_folder)
+        ]
+        active.sort(key=lambda pb: pb.get("last_reviewed", ""), reverse=True)
+        # Owner-pinned playbooks first (stable), so a cap keeps them.
+        active = _recall_policy.pinned_first(active)
+        result = active[:limit]
+        for pb in result:
+            pb["parameters"] = self._extract_parameters(pb)
+        return result
+
+    @staticmethod
+    def _playbook_text_for_classification(pb: dict) -> str:
+        parts: list[str] = [
+            str(pb.get("title", "")),
+            str(pb.get("domain", "")),
+            str(pb.get("description", "")),
+            " ".join(str(t) for t in pb.get("triggers", []) if t),
+            " ".join(str(p) for p in pb.get("pitfalls", []) if p),
+        ]
+        for step in pb.get("steps", []):
+            if isinstance(step, str):
+                parts.append(step)
+            elif isinstance(step, dict):
+                parts.append(str(step.get("action", "")))
+                parts.append(str(step.get("detail", "")))
+        return " ".join(parts).lower()
+
+    def classify_legacy_playbooks(
+        self,
+        project_folders: list[str] | None = None,
+    ) -> dict:
+        """Dry-run legacy playbook scope classification.
+
+        This intentionally does not mutate stored playbooks. It produces a
+        reviewable migration plan with confidence and evidence so old users can
+        batch-apply only the high-confidence items later.
+        """
+        projects: list[dict] = []
+        if project_folders is not None:
+            for folder in project_folders:
+                projects.append({
+                    "folder": str(folder),
+                    "title": self._sanitize_project(str(folder)),
+                })
+        else:
+            projects = self.list_projects()
+
+        project_terms: list[dict] = []
+        for project in projects:
+            folder = str(project.get("folder") or project.get("project_folder") or "")
+            title = str(project.get("title") or "")
+            terms = {term.strip().lower() for term in [title, Path(folder).name] if term}
+            terms = {term for term in terms if len(term) >= 3}
+            if folder and terms:
+                project_terms.append({
+                    "folder": folder,
+                    "project_id": _project_id(folder),
+                    "terms": sorted(terms),
+                })
+
+        global_markers = {
+            "global", "universal", "common", "general", "shared",
+            "cross-project", "通用", "共通", "全局",
+        }
+
+        suggestions = []
+        for pb in self._export_playbooks():
+            if pb.get("status") != "active":
+                continue
+            text = self._playbook_text_for_classification(pb)
+            project_matches: list[dict] = []
+            for project in project_terms:
+                evidence = [term for term in project["terms"] if term in text]
+                if evidence:
+                    project_matches.append({
+                        "folder": project["folder"],
+                        "project_id": project["project_id"],
+                        "evidence": evidence,
+                    })
+
+            project_matches.sort(key=lambda match: len(match["evidence"]), reverse=True)
+            if (
+                len(project_matches) >= 2
+                and len(project_matches[0]["evidence"]) == len(project_matches[1]["evidence"])
+            ):
+                top_count = len(project_matches[0]["evidence"])
+                shared_matches = [
+                    match for match in project_matches
+                    if len(match["evidence"]) == top_count
+                ]
+                confidence = min(
+                    0.95,
+                    0.7 + 0.05 * len(shared_matches)
+                    + 0.03 * sum(len(match["evidence"]) for match in shared_matches),
+                )
+                suggested_scope = {
+                    "type": "shared",
+                    "project_ids": [match["project_id"] for match in shared_matches],
+                    "project_folders": [match["folder"] for match in shared_matches],
+                }
+                evidence = [
+                    f"matched project term: {term}"
+                    for match in shared_matches
+                    for term in match["evidence"]
+                ]
+            elif project_matches:
+                match = project_matches[0]
+                confidence = min(0.95, 0.65 + 0.1 * len(match["evidence"]))
+                suggested_scope = {
+                    "type": "project",
+                    "project_id": match["project_id"],
+                    "project_folder": match["folder"],
+                }
+                evidence = [f"matched project term: {term}" for term in match["evidence"]]
+            elif any(marker in text for marker in global_markers):
+                confidence = 0.75
+                suggested_scope = {"type": "global"}
+                evidence = ["matched global/common marker"]
+            else:
+                confidence = 0.35
+                suggested_scope = {"type": "needs_review"}
+                evidence = ["no strong project or global evidence"]
+
+            suggestions.append({
+                "id": pb.get("id", ""),
+                "title": pb.get("title", ""),
+                "current_scope": pb.get("scope", {"type": "global"}),
+                "suggested_scope": suggested_scope,
+                "confidence": round(confidence, 2),
+                "evidence": evidence,
+                "apply_ready": confidence >= 0.7 and suggested_scope.get("type") != "needs_review",
+            })
+
+        return {
+            "dry_run": True,
+            "total": len(suggestions),
+            "suggestions": suggestions,
+        }
+
+    def _write_playbook_and_index(self, pb: dict, *, create: bool = False) -> None:
+        """Persist a playbook and keep the lightweight index in sync.
+
+        Refused on a read-only handle (a backstop behind the verb guard), and
+        for an id that is not a plain token inside playbooks/ (ValueError).
+        ``create=True`` (a new row) reserves the file with an exclusive create
+        and raises PlaybookIdExists when the id is already taken, so an insert
+        never overwrites an existing playbook.
+
+        Body and index writes share the directory lock; on index failure a
+        new body is removed and an existing body is restored byte-for-byte.
+        """
+        if getattr(self, "_read_only", False):
+            raise ReadOnlyStoreError("read-only handle: refused playbook write")
+        playbook_id = str(pb.get("id") or "")
+        if not playbook_id:
+            raise ValueError("missing playbook id")
+
+        body_path = self._playbook_path(playbook_id)
+        with hold_directory_lock(self._playbooks_dir, timeout=30):
+            self._write_playbook_and_index_locked(pb, body_path, create=create)
+
+    def _write_playbook_and_index_locked(self, pb: dict, body_path: Path, *, create: bool) -> None:
+        import os as _os
+
+        playbook_id = pb["id"]
+        previous_body = body_path.read_bytes() if not create and body_path.exists() else None
+        if create:
+            if any(playbook_id_key(e.get("id")) == playbook_id_key(playbook_id)
+                   for e in self._read_playbook_index()):
+                raise PlaybookIdExists(playbook_id)
+            self._playbooks_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                fd = _os.open(str(body_path), _os.O_CREAT | _os.O_EXCL | _os.O_WRONLY)
+            except FileExistsError:
+                raise PlaybookIdExists(playbook_id) from None
+            _os.close(fd)
+        try:
+            self._write_playbook_file(body_path, pb)
+        except Exception:
+            if create:
+                body_path.unlink(missing_ok=True)
+            raise
+
+        idx_entry = self._playbook_index_entry(pb)
+
+        def _upsert(index: list[dict]) -> list[dict]:
+            for i, entry in enumerate(index):
+                if playbook_id_key(entry.get("id")) == playbook_id_key(playbook_id):
+                    index[i] = idx_entry
+                    break
+            else:
+                index.append(idx_entry)
+            return index
+
+        try:
+            self._update_playbook_index(_upsert)
+        except Exception:
+            if previous_body is not None:
+                self._atomic_write_bytes(body_path, previous_body)
+            else:
+                body_path.unlink(missing_ok=True)
+            raise
+
+    @staticmethod
+    def _scope_impact_summary(
+        *,
+        pending_key: str,
+        completed_key: str,
+        pending: list[dict],
+        completed: list[dict],
+        skipped: list[dict],
+        requires_confirmation: bool,
+    ) -> dict:
+        """Return metadata-only batch impact counts for management surfaces."""
+        target_scope_counts: dict[str, int] = {}
+        for change in [*pending, *completed]:
+            scope = change.get("to_scope")
+            if not isinstance(scope, dict):
+                continue
+            scope_type = str(scope.get("type") or "unknown")
+            target_scope_counts[scope_type] = target_scope_counts.get(scope_type, 0) + 1
+
+        skipped_reason_counts: dict[str, int] = {}
+        for item in skipped:
+            reason = str(item.get("reason") or "unknown")
+            skipped_reason_counts[reason] = skipped_reason_counts.get(reason, 0) + 1
+
+        return {
+            pending_key: len(pending),
+            completed_key: len(completed),
+            "skipped_count": len(skipped),
+            "target_scope_counts": target_scope_counts,
+            "skipped_reason_counts": skipped_reason_counts,
+            "requires_confirmation": bool(requires_confirmation),
+        }
+
+    def apply_legacy_playbook_scope_suggestions(
+        self,
+        project_folders: list[str] | None = None,
+        playbook_ids: list[str] | None = None,
+        min_confidence: float = 0.7,
+        dry_run: bool = True,
+        confirm: bool = False,
+    ) -> dict:
+        """Apply high-confidence legacy Playbook scope suggestions.
+
+        The default is a write-free preview. Actual migration requires
+        ``dry_run=False`` and ``confirm=True`` so old-user data is never
+        silently reorganized.
+        """
+        effective_dry_run = bool(dry_run or not confirm)
+        selected_ids = set(playbook_ids or [])
+        classification = self.classify_legacy_playbooks(project_folders=project_folders)
+        now = _now_iso()
+        would_apply: list[dict] = []
+        applied: list[dict] = []
+        skipped: list[dict] = []
+
+        for suggestion in classification.get("suggestions", []):
+            playbook_id = str(suggestion.get("id") or "")
+            if selected_ids and playbook_id not in selected_ids:
+                continue
+
+            if (
+                not suggestion.get("apply_ready")
+                or float(suggestion.get("confidence") or 0) < min_confidence
+            ):
+                skipped.append({
+                    "id": playbook_id,
+                    "title": suggestion.get("title", ""),
+                    "reason": "not_apply_ready",
+                    "suggested_scope": suggestion.get("suggested_scope"),
+                    "confidence": suggestion.get("confidence", 0),
+                })
+                continue
+
+            pb = self._read_playbook_by_id(playbook_id)
+            if pb is None:
+                skipped.append({
+                    "id": playbook_id,
+                    "title": suggestion.get("title", ""),
+                    "reason": "not_found",
+                })
+                continue
+
+            current_scope = self._normalize_playbook_scope(pb)
+            if current_scope.get("type") != "global":
+                skipped.append({
+                    "id": playbook_id,
+                    "title": pb.get("title", ""),
+                    "reason": "already_scoped",
+                    "current_scope": current_scope,
+                    "suggested_scope": suggestion.get("suggested_scope"),
+                    "confidence": suggestion.get("confidence", 0),
+                })
+                continue
+
+            target_scope = self._normalize_playbook_scope(
+                {"scope": suggestion.get("suggested_scope") or {}}
+            )
+            if target_scope.get("type") not in {"global", "project", "shared"}:
+                skipped.append({
+                    "id": playbook_id,
+                    "title": suggestion.get("title", ""),
+                    "reason": "invalid_scope",
+                    "suggested_scope": suggestion.get("suggested_scope"),
+                })
+                continue
+
+            if current_scope == target_scope:
+                skipped.append({
+                    "id": playbook_id,
+                    "title": pb.get("title", ""),
+                    "reason": "unchanged",
+                    "suggested_scope": target_scope,
+                    "confidence": suggestion.get("confidence", 0),
+                })
+                continue
+
+            change = {
+                "id": playbook_id,
+                "title": pb.get("title", suggestion.get("title", "")),
+                "from_scope": current_scope,
+                "to_scope": target_scope,
+                "confidence": suggestion.get("confidence", 0),
+                "evidence": suggestion.get("evidence", []),
+            }
+            if effective_dry_run:
+                would_apply.append(change)
+                continue
+
+            history = list(pb.get("scope_migration_history") or [])
+            history.append({
+                "timestamp": now,
+                "from_scope": current_scope,
+                "to_scope": target_scope,
+                "confidence": suggestion.get("confidence", 0),
+                "evidence": suggestion.get("evidence", []),
+                "reason": "legacy_playbook_scope_classification",
+            })
+            self._apply_playbook_scope(pb, target_scope)
+            pb["scope_migration_history"] = history
+            pb["last_updated"] = now
+            pb["version"] = pb.get("version", 1) + 1
+            self._write_playbook_and_index(pb)
+            applied.append(change)
+
+        if applied:
+            self._audit.log(
+                "write", "playbooks",
+                detail=f"applied scope migration to {len(applied)} playbooks",
+            )
+
+        return {
+            "dry_run": effective_dry_run,
+            "requires_confirmation": not confirm,
+            "total": classification.get("total", 0),
+            "would_apply": would_apply,
+            "applied": applied,
+            "skipped": skipped,
+            "impact": self._scope_impact_summary(
+                pending_key="would_apply_count",
+                completed_key="applied_count",
+                pending=would_apply,
+                completed=applied,
+                skipped=skipped,
+                requires_confirmation=not confirm,
+            ),
+        }
+
+    def rollback_playbook_scope_migration(
+        self,
+        playbook_ids: list[str] | None = None,
+        dry_run: bool = True,
+        confirm: bool = False,
+    ) -> dict:
+        """Rollback the latest scope migration for selected Playbooks."""
+        effective_dry_run = bool(dry_run or not confirm)
+        selected_ids = set(playbook_ids or [])
+        candidates = self._export_playbooks()
+        if selected_ids:
+            seen = {pb.get("id") for pb in candidates}
+            for missing_id in sorted(selected_ids - seen):
+                candidates.append({"id": missing_id, "_missing": True})
+
+        would_rollback: list[dict] = []
+        rolled_back: list[dict] = []
+        skipped: list[dict] = []
+        now = _now_iso()
+
+        for pb in candidates:
+            playbook_id = str(pb.get("id") or "")
+            if selected_ids and playbook_id not in selected_ids:
+                continue
+            if pb.get("_missing"):
+                skipped.append({"id": playbook_id, "reason": "not_found"})
+                continue
+
+            history = list(pb.get("scope_migration_history") or [])
+            if not history:
+                skipped.append({
+                    "id": playbook_id,
+                    "title": pb.get("title", ""),
+                    "reason": "no_migration_history",
+                })
+                continue
+
+            last = history[-1]
+            target_scope = self._normalize_playbook_scope(
+                {"scope": last.get("from_scope") or {}}
+            )
+            current_scope = self._normalize_playbook_scope(pb)
+            change = {
+                "id": playbook_id,
+                "title": pb.get("title", ""),
+                "from_scope": current_scope,
+                "to_scope": target_scope,
+                "rolled_back_migration": last,
+            }
+            if effective_dry_run:
+                would_rollback.append(change)
+                continue
+
+            history.pop()
+            self._apply_playbook_scope(pb, target_scope)
+            pb["scope_migration_history"] = history
+            pb["last_updated"] = now
+            pb["version"] = pb.get("version", 1) + 1
+            self._write_playbook_and_index(pb)
+            rolled_back.append(change)
+
+        if rolled_back:
+            self._audit.log(
+                "write", "playbooks",
+                detail=f"rolled back scope migration for {len(rolled_back)} playbooks",
+            )
+
+        return {
+            "dry_run": effective_dry_run,
+            "requires_confirmation": not confirm,
+            "would_rollback": would_rollback,
+            "rolled_back": rolled_back,
+            "skipped": skipped,
+            "impact": self._scope_impact_summary(
+                pending_key="would_rollback_count",
+                completed_key="rolled_back_count",
+                pending=would_rollback,
+                completed=rolled_back,
+                skipped=skipped,
+                requires_confirmation=not confirm,
+            ),
+        }
+
+    @staticmethod
+    def _playbook_review_summary(pb: dict, max_chars: int = 160) -> str:
+        """Short metadata preview so reviewers can judge scope without
+        fetching the full playbook body for every queue item."""
+        summary = str(pb.get("description") or "").strip()
+        if not summary:
+            steps = pb.get("steps") or []
+            if isinstance(steps, list):
+                parts = [
+                    str(s.get("action") or "").strip()
+                    for s in steps if isinstance(s, dict)
+                ]
+                summary = " → ".join(p for p in parts if p)
+        if not summary:
+            raw = pb.get("steps_json")
+            if isinstance(raw, str) and raw.strip():
+                try:
+                    arr = json.loads(raw)
+                    if isinstance(arr, list) and arr:
+                        summary = str(arr[0]).strip()
+                except (ValueError, TypeError):
+                    pass
+        if not summary:
+            summary = str(pb.get("domain") or "").strip()
+        if len(summary) > max_chars:
+            summary = summary[: max_chars - 1] + "…"
+        return summary
+
+    def get_playbook_scope_review_queue(
+        self,
+        project_folders: list[str] | None = None,
+        include_resolved: bool = False,
+        limit: int | None = None,
+    ) -> dict:
+        """Return unresolved legacy Playbooks that need manual scope review."""
+        classification = self.classify_legacy_playbooks(project_folders=project_folders)
+        items: list[dict] = []
+        for suggestion in classification.get("suggestions", []):
+            playbook_id = str(suggestion.get("id") or "")
+            pb = self._read_playbook_by_id(playbook_id)
+            if pb is None or pb.get("status") != "active":
+                continue
+            current_scope = self._normalize_playbook_scope(pb)
+            if current_scope.get("type") != "global":
+                continue
+            review_status = str(pb.get("scope_review_status") or "unresolved")
+            if review_status in {"resolved", "skipped"} and not include_resolved:
+                continue
+            if (
+                suggestion.get("suggested_scope", {}).get("type") != "needs_review"
+                and not include_resolved
+            ):
+                continue
+            item = dict(suggestion)
+            item["scope_review_status"] = review_status
+            item["scope_review_history"] = list(pb.get("scope_review_history") or [])
+            item["summary"] = self._playbook_review_summary(pb)
+            items.append(item)
+
+        if limit is not None:
+            items = items[:limit]
+        return {
+            "dry_run": True,
+            "total": len(items),
+            "items": items,
+        }
+
+    def resolve_playbook_scope_review(
+        self,
+        playbook_id: str,
+        action: str,
+        project_folder: str | None = None,
+        project_folders: list[str] | None = None,
+        note: str = "",
+        dry_run: bool = True,
+        confirm: bool = False,
+    ) -> dict:
+        """Resolve one Playbook scope review item by keeping, assigning, or skipping."""
+        action = str(action or "").strip().lower()
+        if action not in {"accept_global", "accept_project", "accept_shared", "skip"}:
+            return {
+                "error": "invalid_action",
+                "allowed_actions": [
+                    "accept_global",
+                    "accept_project",
+                    "accept_shared",
+                    "skip",
+                ],
+            }
+        # Tolerant aliasing: callers often mix up the singular/plural folder
+        # parameters. When intent is unambiguous, accept either spelling.
+        if action == "accept_project" and not project_folder:
+            folders = [f for f in (project_folders or []) if str(f).strip()]
+            if len(folders) == 1:
+                project_folder = folders[0]
+        if action == "accept_shared" and not project_folders and project_folder:
+            project_folders = [project_folder]
+
+        if action == "accept_project" and not project_folder:
+            return {
+                "error": "project_folder_required",
+                "hint": "accept_project needs project_folder='<folder path>' "
+                        "(a single-item project_folders list is also accepted)",
+            }
+        if action == "accept_shared" and not project_folders:
+            return {
+                "error": "project_folders_required",
+                "hint": "accept_shared needs project_folders=['<folder>', ...] "
+                        "(project_folder alone is also accepted as one entry)",
+            }
+
+        pb = self._read_playbook_by_id(playbook_id)
+        if pb is None:
+            return {"error": f"Playbook not found: {playbook_id}"}
+
+        current_scope = self._normalize_playbook_scope(pb)
+        if action == "accept_project":
+            target_scope = self._normalize_playbook_scope(
+                {}, scope_type="project", project_folder=project_folder,
+            )
+        elif action == "accept_shared":
+            target_scope = self._normalize_playbook_scope(
+                {}, scope_type="shared", project_folders=project_folders,
+            )
+        elif action == "accept_global":
+            target_scope = self._normalize_playbook_scope({}, scope_type="global")
+        else:
+            target_scope = current_scope
+
+        change = {
+            "id": playbook_id,
+            "title": pb.get("title", ""),
+            "action": action,
+            "from_scope": current_scope,
+            "to_scope": target_scope,
+            "note": note,
+        }
+        effective_dry_run = bool(dry_run or not confirm)
+        if effective_dry_run:
+            return {
+                "dry_run": True,
+                "requires_confirmation": not confirm,
+                "would_update": change,
+            }
+
+        now = _now_iso()
+        history = list(pb.get("scope_review_history") or [])
+        history.append({
+            "timestamp": now,
+            "action": action,
+            "from_scope": current_scope,
+            "to_scope": target_scope,
+            "note": note,
+            "reason": "manual_playbook_scope_review",
+        })
+        if action != "skip":
+            self._apply_playbook_scope(pb, target_scope)
+        pb["scope_review_status"] = "skipped" if action == "skip" else "resolved"
+        pb["scope_review_resolution"] = action
+        pb["scope_review_history"] = history
+        pb["last_updated"] = now
+        pb["version"] = pb.get("version", 1) + 1
+        self._write_playbook_and_index(pb)
+        self._audit.log(
+            "write", "playbooks",
+            detail=f"resolved scope review for {playbook_id}: {action}",
+        )
+        return {
+            "dry_run": False,
+            "requires_confirmation": False,
+            "updated": change,
+        }
+
+    def _playbook_body_differs(self, left: dict, right: dict) -> bool:
+        """True when any content-bearing field differs between two playbooks."""
+        for field in _PLAYBOOK_CONTENT_FIELDS:
+            if field == "tool_refs":
+                # normalized away by _ensure_playbook_fields; ignore on compare
+                continue
+            if _stable_json(left.get(field)) != _stable_json(right.get(field)):
+                return True
+        return False
+
+    def _write_playbook_snapshot(self, pb: dict) -> str | None:
+        """Persist the pre-revision playbook body as an immutable snapshot.
+
+        State machine addendum v2.2: snapshot id reuses the lesson scheme
+        ``{head_id}-prev-{alphanumeric timestamp}`` with a collision counter;
+        the record carries status/tier/snapshot_of/superseded_by/superseded_at
+        plus ``snapshot_version`` (the numeric version the body had).
+
+        v4.19.1: the id is RESERVED with an exclusive file create so two
+        concurrent revisions of one head in the same second cannot collide on
+        one id (the winner keeps the plain scheme; a racer that loses the
+        exclusive create falls back to the counter/entropy suffix). Without
+        this, the loser's conflict cleanup could delete the winner's snapshot.
+        """
+        import os as _os
+
+        head_id = str(pb.get("id") or "")
+        if not head_id:
+            return None
+        now = _now_iso()
+        suffix = re.sub(r"[^0-9A-Za-z]+", "", now) or "snapshot"
+        base_id = f"{head_id}-prev-{suffix}"
+        if not valid_playbook_id(base_id):
+            return None
+        existing_index_ids = {e.get("id") for e in self._read_playbook_index()}
+        snapshot_id = base_id
+        counter = 2
+        body_path = self._playbook_path(snapshot_id)
+        while True:
+            if snapshot_id in existing_index_ids:
+                snapshot_id = f"{base_id}-{counter}"
+                counter += 1
+                body_path = self._playbook_path(snapshot_id)
+                continue
+            try:
+                self._playbooks_dir.mkdir(parents=True, exist_ok=True)
+                fd = _os.open(str(body_path), _os.O_CREAT | _os.O_EXCL | _os.O_WRONLY)
+                _os.close(fd)
+                break
+            except FileExistsError:
+                snapshot_id = f"{base_id}-{counter}-{_os.urandom(2).hex()}"
+                counter += 1
+                body_path = self._playbook_path(snapshot_id)
+                continue
+            except OSError:
+                # fall back to non-exclusive write (exotic filesystems)
+                break
+        current_version = int(pb.get("version") or 1)
+        snapshot = deepcopy(dict(pb))
+        snapshot["id"] = snapshot_id
+        snapshot["status"] = "superseded"
+        snapshot["tier"] = "archived"
+        snapshot["snapshot_of"] = head_id
+        snapshot["superseded_by"] = head_id
+        snapshot["superseded_at"] = now
+        snapshot["last_updated"] = now
+        snapshot["snapshot_version"] = current_version
+        snapshot["version"] = current_version
+        snapshot = self._ensure_playbook_fields(snapshot)
+        self._write_playbook_and_index(snapshot)
+        return snapshot_id
+
+    def _delete_playbook_snapshot(self, snapshot_id: str) -> None:
+        """Best-effort removal of an orphaned snapshot (body file + index row)."""
+        if not valid_playbook_id(snapshot_id):
+            return
+        try:
+            body_path = self._playbook_path(snapshot_id)
+            if body_path.exists():
+                body_path.unlink()
+
+            def _drop(index: list[dict]) -> list[dict]:
+                return [e for e in index if e.get("id") != snapshot_id]
+
+            self._update_playbook_index(_drop)
+        except OSError:
+            # orphan cleanup is best-effort; a leftover snapshot is reported
+            # by get_knowledge_history as a pending commit, never as history
+            pass
+
+    def update_playbook(
+        self,
+        playbook_id: str,
+        updates: dict,
+        expected_version: int | None = None,
+    ) -> dict:
+        """Update fields on a playbook entry.
+
+        v4.19 revision contract (state machine addendum v2.2): a content
+        change first writes an immutable snapshot of the pre-revision body
+        (own file + superseded index entry), then bumps the head version.
+        Metadata-only changes (status/scope) apply without snapshot or bump.
+        A stale ``expected_version`` fails closed (CAS pre-check plus a
+        re-check inside the per-file write lock; the orphaned snapshot of a
+        lost race is removed best-effort). An updates dict that changes
+        nothing is a no-op.
+
+        Two-phase on purpose: JSON writes in one directory serialize on a
+        shared lock file, so the snapshot write must happen OUTSIDE the head
+        file's locked mutation or the nested lock self-deadlocks.
+        """
+        updates = self._repair_incoming_text(dict(updates))
+
+        current = self._read_playbook_by_id(playbook_id)
+        if (
+            current is not None
+            and current.get("status", "active") != "active"
+            and not current.get("snapshot_of")  # snapshots keep their own snapshot_immutable error
+            and any(key != "status" for key in updates)
+        ):
+            # Only a status change (archive / restore) may touch a non-active row.
+            return {"error": "not_active", "id": playbook_id,
+                    "message": "Restore the playbook before editing it."}
+        if current is None:
+            return {"error": f"Playbook not found: {playbook_id}"}
+        refusal = self._reject_update_payload(current, updates)
+        if refusal is not None:
+            return refusal
+        if _pinning.mcp_refuses(current):
+            return _pinning.refusal(playbook_id, "playbook", current)
+        decided = _review_boundary.update_refusal(current, updates, playbook_id)
+        if decided is not None:
+            return decided
+        current_version = int(current.get("version") or 1)
+        if expected_version is not None and expected_version != current_version:
+            return {
+                "error": "version_conflict",
+                "item_id": playbook_id,
+                "expected_version": expected_version,
+                "actual_version": current_version,
+                "current_version": current_version,
+            }
+        if _pinning.mcp_origin() and not self.is_pending_playbook(current):
+            # An AI's content change of an approved playbook is a pending
+            # revision proposal through every entry point; the approved
+            # version stays in use until the Owner approves the new one.
+            content_keys = {
+                key for key, value in updates.items()
+                if key in _PLAYBOOK_CONTENT_FIELDS and value != current.get(key)
+            }
+            if content_keys:
+                if "status" in updates and updates["status"] != current.get("status", "active"):
+                    return {
+                        "error": "mixed_update",
+                        "item_id": playbook_id,
+                        "changed": False,
+                        "message": "A content change of an approved playbook is a proposal and a status "
+                                   "change is a direct edit; send them as two calls.",
+                    }
+                return self.propose_playbook_update(playbook_id, updates)
+
+        allowed_updates = {
+            key: value
+            for key, value in updates.items()
+            if key in _ALLOWED_PLAYBOOK_UPDATE_FIELDS
+        }
+        any_changed = any(value != current.get(key) for key, value in allowed_updates.items())
+        if not any_changed:
+            result = dict(current)
+            result["revision_outcome"] = "noop"
+            return result
+        content_changed = any(
+            key in _PLAYBOOK_CONTENT_FIELDS and value != current.get(key)
+            for key, value in allowed_updates.items()
+        )
+
+        snapshot_id: str | None = None
+        if content_changed:
+            snapshot_id = self._write_playbook_snapshot(current)
+
+        outcome: dict[str, Any] = {}
+
+        def _apply(pb: dict) -> dict:
+            # v4.19.1 in-lock recheck: the pre-read outside the lock is only
+            # advisory (another writer may have landed first). The CAS and the
+            # change detection are re-decided against the LIVE record here.
+            if self._is_snapshot_record(pb):
+                outcome["error"] = {
+                    "error": "snapshot_immutable",
+                    "item_id": playbook_id,
+                }
+                return pb
+            if _pinning.mcp_refuses(pb):
+                outcome["error"] = _pinning.refusal(playbook_id, "playbook", pb)
+                return pb
+            decided_live = _review_boundary.update_refusal(pb, allowed_updates, playbook_id)
+            if decided_live is not None:
+                outcome["error"] = decided_live
+                return pb
+            live_version = int(pb.get("version") or 1)
+            if expected_version is not None and expected_version != live_version:
+                outcome["error"] = {
+                    "error": "version_conflict",
+                    "item_id": playbook_id,
+                    "expected_version": expected_version,
+                    "actual_version": live_version,
+                    "current_version": live_version,
+                }
+                return pb
+            live_changed = False
+            for key, value in allowed_updates.items():
+                if value != pb.get(key):
+                    live_changed = True
+                    pb[key] = value
+            if not live_changed:
+                outcome["noop"] = True
+                return pb
+            pb["last_updated"] = _now_iso()
+            if content_changed:
+                pb["version"] = live_version + 1
+            return self._ensure_playbook_fields(pb)
+
+        result = self._update_playbook_file_by_id(playbook_id, _apply)
+        if outcome.get("error") or result is None:
+            if snapshot_id:
+                self._delete_playbook_snapshot(snapshot_id)
+            return outcome.get("error") or {"error": f"Playbook not found: {playbook_id}"}
+        if outcome.get("noop"):
+            # the live record already had these values (lost race): the
+            # pre-lock snapshot is an orphan — remove it, bump nothing
+            if snapshot_id:
+                self._delete_playbook_snapshot(snapshot_id)
+            result["revision_outcome"] = "noop"
+            return result
+
+        idx_entry = self._playbook_index_entry(result)
+
+        def _upsert(index: list[dict]) -> list[dict]:
+            for i, entry in enumerate(index):
+                if entry.get("id") == playbook_id:
+                    index[i] = idx_entry
+                    break
+            else:
+                index.append(idx_entry)
+            return index
+
+        self._update_playbook_index(_upsert)
+        if snapshot_id:
+            self._commit_version_edge(playbook_id, snapshot_id)
+            self._audit.log(
+                "write",
+                "knowledge/version_snapshot",
+                detail=f"playbook {playbook_id} supersedes {snapshot_id}",
+            )
+        self._audit.log("write", "playbooks", detail=f"updated {playbook_id}")
+        return result
+
+    def propose_playbook_update(self, playbook_id: str, updates: dict) -> dict:
+        """A revision of ``playbook_id`` as a new pending row (the full merged
+        content, ``pending_supersedes`` = the row it replaces); the current row
+        is not touched. Owner approval retires the old one."""
+        current = self._read_playbook_by_id(playbook_id)
+        if current is None:
+            return {"error": f"Playbook not found: {playbook_id}"}
+        merged = {k: v for k, v in current.items() if k not in _PROPOSAL_DROP_FIELDS}
+        merged.update(updates)
+        merged.pop("status", None)
+        result = self.add_playbook(merged, allow_similar_new=True, _update_proposal_of=playbook_id)
+        if result.get("error") or result.get("status") in (
+            "duplicate", "rejected_before", "duplicate_retired", "queue_full", "id_exists",
+        ):
+            return result
+        return {
+            "status": "pending", "id": result.get("id"), "pending_supersedes": playbook_id,
+            "changed": False,
+            "message": "Update proposal saved; the current playbook stays in use until the Owner approves "
+                       "it with engram review.",
+        }
+
+    def archive_playbook(self, playbook_id: str, expected_version: int | None = None) -> dict:
+        """Mark a playbook as outdated without deleting it."""
+        return self.update_playbook(playbook_id, {"status": "outdated"}, expected_version=expected_version)
+
+    @staticmethod
+    def _normalize_playbook_status_filter(status: str | None) -> str:
+        value = str(status or "all").strip().lower()
+        aliases = {
+            "archived": "outdated",
+            "archive": "outdated",
+            "hidden": "deleted",
+            "trash": "deleted",
+        }
+        return aliases.get(value, value)
+
+    def _playbook_management_entry(self, pb: dict, include_content: bool = False) -> dict:
+        """Return a Playbook entry suitable for management views."""
+        if include_content:
+            return dict(pb)
+        scope = self._normalize_playbook_scope(pb)
+        scope_type = str(scope.get("type") or "global")
+        if scope_type == "shared":
+            project_count = len(scope.get("project_ids") or [])
+        elif scope_type == "project":
+            project_count = 1
+        else:
+            project_count = 0
+        public_scope = dict(scope)
+        public_scope.pop("project_folder", None)
+        public_scope.pop("project_folders", None)
+        return {
+            "id": pb.get("id", ""),
+            "status": pb.get("status", "active"),
+            "tier": pb.get("tier", "verified"),
+            "scope": public_scope,
+            "scope_type": scope_type,
+            "project_count": project_count,
+            "scope_review_status": pb.get("scope_review_status", ""),
+            "scope_review_resolution": pb.get("scope_review_resolution", ""),
+            "created_at": pb.get("created_at", ""),
+            "last_updated": pb.get("last_updated", ""),
+            "last_reviewed": pb.get("last_reviewed", ""),
+            "version": pb.get("version", 1),
+            "deleted_at": pb.get("deleted_at", ""),
+            "pinned": _recall_policy.is_pinned(pb),
+        }
+
+    def list_playbooks_for_management(
+        self,
+        status: str = "all",
+        project_folder: str | None = None,
+        scope_type: str = "all",
+        include_content: bool = False,
+        limit: int | None = None,
+        include_pending: bool = False,
+    ) -> dict:
+        """List Playbooks for management UI/API surfaces, including hidden items.
+
+        Under strict, pending proposals are left out unless ``include_pending`` is
+        set -- only the Owner's local CLI does that.
+        """
+        hide_pending = self._hide_pending_playbooks() and not include_pending
+        status_filter = self._normalize_playbook_status_filter(status)
+        scope_filter = str(scope_type or "all").strip().lower()
+        valid_statuses = {"all", "active", "outdated", "staging", "deleted"}
+        valid_scopes = {"all", "global", "project", "shared"}
+        if status_filter not in valid_statuses:
+            return {"error": f"Invalid status {status!r}; must be one of {sorted(valid_statuses)}"}
+        if scope_filter not in valid_scopes:
+            return {"error": f"Invalid scope_type {scope_type!r}; must be one of {sorted(valid_scopes)}"}
+        if limit is not None and limit < 0:
+            return {"error": "limit_must_be_positive"}
+
+        items: list[dict] = []
+        for pb in self._export_playbooks():
+            if hide_pending and self.is_pending_playbook(pb):
+                continue
+            pb_status = self._normalize_playbook_status_filter(pb.get("status", "active"))
+            if status_filter != "all" and pb_status != status_filter:
+                continue
+            scope = self._normalize_playbook_scope(pb)
+            if scope_filter != "all" and scope.get("type") != scope_filter:
+                continue
+            if project_folder and not self._playbook_visible_for_project(pb, project_folder):
+                continue
+            items.append(self._playbook_management_entry(pb, include_content=include_content))
+
+        items.sort(
+            key=lambda item: (
+                item.get("last_updated")
+                or item.get("last_reviewed")
+                or item.get("created_at")
+                or ""
+            ),
+            reverse=True,
+        )
+        if limit is not None:
+            items = items[:limit]
+        self._audit.log("read", "playbooks", detail=f"management list returned {len(items)} items")
+        return {
+            "total": len(items),
+            "status": status_filter,
+            "scope_type": scope_filter,
+            "items": items,
+        }
+
+    def delete_playbook(
+        self,
+        playbook_id: str,
+        reason: str = "",
+        dry_run: bool = True,
+        confirm: bool = False,
+        expected_version: int | None = None,
+    ) -> dict:
+        """Soft-delete a Playbook so it is hidden but recoverable."""
+        if dry_run or not confirm:
+            return self._delete_playbook_locked(playbook_id, reason, dry_run, confirm, expected_version)
+        with hold_directory_lock(self._playbooks_dir, timeout=30):
+            return self._delete_playbook_locked(playbook_id, reason, dry_run, confirm, expected_version)
+
+    def _delete_playbook_locked(self, playbook_id: str, reason: str, dry_run: bool,
+                                confirm: bool, expected_version: int | None) -> dict:
+        pb = self._read_playbook_by_id(playbook_id)
+        if pb is None:
+            return {"error": f"Playbook not found: {playbook_id}"}
+        if _pinning.mcp_refuses(pb):
+            return _pinning.refusal(playbook_id, "playbook", pb)
+        if _review_boundary.refuses_decision(pb):
+            return _review_boundary.refusal(playbook_id, action="delete")
+        stale = self._playbook_version_conflict(playbook_id, pb, expected_version)
+        if stale is not None:
+            return stale
+
+        current_status = self._normalize_playbook_status_filter(pb.get("status", "active"))
+        if current_status == "deleted":
+            return {"error": "playbook_already_deleted", "playbook_id": playbook_id}
+        change = {
+            "id": playbook_id,
+            "from_status": current_status,
+            "to_status": "deleted",
+            "soft_delete": True,
+        }
+        effective_dry_run = bool(dry_run or not confirm)
+        if effective_dry_run:
+            return {
+                "dry_run": True,
+                "requires_confirmation": not confirm,
+                "would_delete": change,
+            }
+
+        now = _now_iso()
+        history = list(pb.get("deletion_history") or [])
+        history.append({
+            "timestamp": now,
+            "action": "delete",
+            "from_status": current_status,
+            "to_status": "deleted",
+            "reason": reason,
+        })
+        pb["status"] = "deleted"
+        pb["deleted_at"] = now
+        pb["deletion_reason"] = reason
+        pb["deletion_history"] = history
+        pb["last_updated"] = now
+        pb["version"] = pb.get("version", 1) + 1
+        was_pinned = _pinning.has_pin(pb)
+        _pinning.strip(pb)  # a deleted playbook keeps no pin, so a restore never brings one back
+        self._write_playbook_and_index(pb)
+        if was_pinned:
+            _pinning.audit_auto_unpin(self, "playbook", [playbook_id], reason="no_longer_trusted")
+        self._audit.log("write", "playbooks", detail=f"soft-deleted {playbook_id}")
+        return {
+            "dry_run": False,
+            "requires_confirmation": False,
+            "deleted": change,
+        }
+
+    def restore_playbook(
+        self,
+        playbook_id: str,
+        dry_run: bool = True,
+        confirm: bool = False,
+        expected_version: int | None = None,
+    ) -> dict:
+        """Restore a deleted/outdated Playbook to active status."""
+        if dry_run or not confirm:
+            return self._restore_playbook_locked(playbook_id, dry_run, confirm, expected_version)
+        with hold_directory_lock(self._playbooks_dir, timeout=30):
+            return self._restore_playbook_locked(playbook_id, dry_run, confirm, expected_version)
+
+    def _restore_playbook_locked(self, playbook_id: str, dry_run: bool, confirm: bool,
+                                 expected_version: int | None) -> dict:
+        pb = self._read_playbook_by_id(playbook_id)
+        if pb is None:
+            return {"error": f"Playbook not found: {playbook_id}"}
+        if _review_boundary.refuses_decision(pb):
+            # a retired proposal comes back only through the Owner's review
+            return _review_boundary.refusal(playbook_id, action="restore")
+        stale = self._playbook_version_conflict(playbook_id, pb, expected_version)
+        if stale is not None:
+            return stale
+
+        current_status = self._normalize_playbook_status_filter(pb.get("status", "active"))
+        if current_status == "active":
+            return {"error": "playbook_already_active", "playbook_id": playbook_id}
+        change = {
+            "id": playbook_id,
+            "from_status": current_status,
+            "to_status": "active",
+        }
+        effective_dry_run = bool(dry_run or not confirm)
+        if effective_dry_run:
+            return {
+                "dry_run": True,
+                "requires_confirmation": not confirm,
+                "would_restore": change,
+            }
+
+        now = _now_iso()
+        history = list(pb.get("deletion_history") or [])
+        history.append({
+            "timestamp": now,
+            "action": "restore",
+            "from_status": current_status,
+            "to_status": "active",
+        })
+        pb["status"] = "active"
+        pb["restored_at"] = now
+        pb["deletion_history"] = history
+        pb["last_updated"] = now
+        pb["version"] = pb.get("version", 1) + 1
+        _pinning.strip(pb)  # a restore never brings a pin back; the Owner pins again
+        self._write_playbook_and_index(pb)
+        self._audit.log("write", "playbooks", detail=f"restored {playbook_id}")
+        return {
+            "dry_run": False,
+            "requires_confirmation": False,
+            "restored": change,
+        }
+
+    @staticmethod
+    def _playbook_version_conflict(playbook_id: str, pb: dict, expected_version: int | None) -> dict | None:
+        if expected_version is None:
+            return None
+        current = int(pb.get("version") or 1)
+        if int(expected_version) == current:
+            return None
+        return {
+            "error": "version_conflict",
+            "item_id": playbook_id,
+            "expected_version": expected_version,
+            "actual_version": current,
+            "current_version": current,
+        }
+
+    def merge_playbooks(self, target_id: str, source: dict) -> dict:
+        """Merge steps and pitfalls from *source* dict into existing playbook *target_id*.
+
+        Steps are de-duplicated by action text similarity. Pitfalls and triggers
+        are union-merged. The target playbook is updated in-place.
+        """
+        target = self._read_playbook_by_id(target_id)
+        if target is not None and target.get("status", "active") != "active":
+            return {"error": "not_active", "id": target_id,
+                    "message": "A retired or deleted playbook is never merged into."}
+        if target is None:
+            return {"error": f"Playbook not found: {target_id}"}
+
+        # Merge steps (de-dup by similarity, handle both string and dict formats)
+        def _step_action(s: Any) -> str:
+            return s if isinstance(s, str) else s.get("action", "")
+
+        def _step_order(s: Any) -> int:
+            return s.get("order", 0) if isinstance(s, dict) else 0
+
+        existing_actions = {_step_action(s): True for s in target.get("steps", [])}
+        next_order = max((_step_order(s) for s in target.get("steps", [])), default=0)
+        merged_steps = list(target.get("steps", []))
+        for s in source.get("steps", []):
+            action = _step_action(s)
+            # Skip if already exists (exact or highly similar)
+            is_dup = False
+            for existing_action in existing_actions:
+                if self._bigram_similarity(action, existing_action) >= 0.6:
+                    is_dup = True
+                    break
+            if not is_dup and action:
+                next_order += 1
+                merged_steps.append({"order": next_order, "action": action})
+                existing_actions[action] = True
+
+        # Merge pitfalls (union)
+        existing_pitfalls = set(target.get("pitfalls", []))
+        merged_pitfalls = list(target.get("pitfalls", []))
+        for p in source.get("pitfalls", []):
+            if p not in existing_pitfalls:
+                merged_pitfalls.append(p)
+                existing_pitfalls.add(p)
+
+        # Merge triggers (union)
+        existing_triggers = set(target.get("triggers", []))
+        merged_triggers = list(target.get("triggers", []))
+        for t in source.get("triggers", []):
+            if t not in existing_triggers:
+                merged_triggers.append(t)
+                existing_triggers.add(t)
+
+        existing_tools = self._normalize_playbook_required_tools(
+            target.get("required_tools"),
+            target.get("tool_refs"),
+        )
+        merged_tools = list(existing_tools)
+        existing_tool_names = {tool["name"].lower() for tool in merged_tools}
+        for tool in self._normalize_playbook_required_tools(
+            source.get("required_tools"),
+            source.get("tool_refs"),
+        ):
+            key = tool["name"].lower()
+            if key in existing_tool_names:
+                continue
+            existing_tool_names.add(key)
+            merged_tools.append(tool)
+
+        updates = {
+            "steps": merged_steps,
+            "pitfalls": merged_pitfalls,
+            "triggers": merged_triggers,
+        }
+        if merged_tools:
+            updates["required_tools"] = merged_tools
+        result = self.update_playbook(target_id, updates)
+        result["merged"] = True
+        return result
+
+    @staticmethod
+    def _version_tuple(value: Any) -> tuple[int, ...]:
+        parts = re.findall(r"\d+", str(value or ""))
+        return tuple(int(part) for part in parts[:4])
+
+    @classmethod
+    def _version_satisfies(cls, actual: Any, minimum: Any) -> bool | None:
+        actual_parts = cls._version_tuple(actual)
+        min_parts = cls._version_tuple(minimum)
+        if not actual_parts or not min_parts:
+            return None
+        width = max(len(actual_parts), len(min_parts))
+        actual_padded = actual_parts + (0,) * (width - len(actual_parts))
+        min_padded = min_parts + (0,) * (width - len(min_parts))
+        return actual_padded >= min_padded
+
+    def _resolved_tool_entry(
+        self,
+        requirement: dict,
+        *,
+        candidate: dict | None = None,
+        status: str,
+        candidate_count: int | None = None,
+    ) -> dict:
+        item = {
+            "name": requirement.get("name", ""),
+            "status": status,
+            "optional": bool(requirement.get("optional")),
+        }
+        if candidate is not None:
+            item["tool_id"] = candidate.get("id", "")
+            if candidate.get("path"):
+                item["path"] = candidate.get("path", "")
+            if candidate.get("version"):
+                item["version"] = candidate.get("version", "")
+            if requirement.get("min_version"):
+                satisfied = self._version_satisfies(
+                    candidate.get("version", ""),
+                    requirement.get("min_version", ""),
+                )
+                if satisfied is None:
+                    item["version_satisfied"] = False
+                    item["version_status"] = "unknown"
+                else:
+                    item["version_satisfied"] = satisfied
+        if candidate_count is not None:
+            item["candidate_count"] = candidate_count
+        return item
+
+    def _resolve_playbook_required_tools(self, required_tools: Any) -> dict:
+        """Resolve Playbook tool dependencies against the local tools registry."""
+        requirements = self._normalize_playbook_required_tools(required_tools)
+        resolved_tools: list[dict] = []
+        missing_tools: list[str] = []
+
+        for requirement in requirements:
+            name = requirement["name"]
+            optional = bool(requirement.get("optional"))
+            query = requirement.get("query") or name
+            candidates = self.find_tool(query)
+            exact = [
+                candidate for candidate in candidates
+                if str(candidate.get("name", "")).lower() == name.lower()
+            ]
+            if len(exact) == 1:
+                resolved = self._resolved_tool_entry(
+                    requirement,
+                    candidate=exact[0],
+                    status="resolved",
+                )
+            elif len(exact) > 1:
+                resolved = self._resolved_tool_entry(
+                    requirement,
+                    status="ambiguous",
+                    candidate_count=len(exact),
+                )
+            elif candidates:
+                resolved = self._resolved_tool_entry(
+                    requirement,
+                    status="ambiguous",
+                    candidate_count=len(candidates),
+                )
+            elif requirement.get("purpose"):
+                purpose_candidates = self.find_tool(requirement["purpose"])
+                if len(purpose_candidates) == 1:
+                    resolved = self._resolved_tool_entry(
+                        requirement,
+                        candidate=purpose_candidates[0],
+                        status="resolved_by_purpose",
+                    )
+                else:
+                    resolved = self._resolved_tool_entry(requirement, status="missing")
+            else:
+                resolved = self._resolved_tool_entry(requirement, status="missing")
+
+            resolved_tools.append(resolved)
+            ready_status = resolved.get("status") in {"resolved", "resolved_by_purpose"}
+            version_ready = resolved.get("version_satisfied", True) is not False
+            if not optional and (not ready_status or not version_ready):
+                missing_tools.append(name)
+
+        return {
+            "resolved_tools": resolved_tools,
+            "tools_ready": not missing_tools,
+            "missing_tools": missing_tools,
+        }
+
+    def prepare_playbook_execution(
+        self,
+        playbook_id: str,
+        params: dict[str, str] | None = None,
+        project_folder: str | None = None,
+        confirm_cross_project: bool = False,
+    ) -> dict:
+        """Prepare a playbook for guided execution with parameter substitution.
+
+        Returns a copy of the playbook with ``${variable}`` placeholders
+        replaced by values from *params*, plus per-step status tracking fields.
+        Does NOT auto-execute — the AI tool should walk through steps one by one.
+
+        Args:
+            playbook_id: ID of the playbook to prepare.
+            params: ``{variable_name: value}`` for ``${variable}`` substitution.
+
+        Returns:
+            ``{playbook_id, title, execution_plan: [{order, action, status}], parameters_used}``
+        """
+        refusal = self._not_approved(playbook_id)
+        if refusal is not None:
+            return refusal
+        pb = self.get_playbook(
+            playbook_id,
+            _update_access=True,
+            project_folder=project_folder,
+            confirm_cross_project=confirm_cross_project,
+        )
+        if pb.get("error"):
+            return pb
+
+        params = params or {}
+
+        # Substitute parameters in steps (handle both string and dict formats)
+        execution_plan = []
+        for i, step in enumerate(pb.get("steps", []), 1):
+            if isinstance(step, str):
+                action, detail = step, ""
+            else:
+                action = step.get("action", "")
+                detail = step.get("detail", "")
+            for var_name, var_value in params.items():
+                action = action.replace(f"${{{var_name}}}", var_value)
+                detail = detail.replace(f"${{{var_name}}}", var_value)
+            execution_plan.append({
+                "order": step.get("order", i) if isinstance(step, dict) else i,
+                "action": action,
+                "detail": detail,
+                "status": "pending",
+            })
+
+        result = {
+            "playbook_id": playbook_id,
+            "title": pb.get("title", ""),
+            "execution_plan": execution_plan,
+            "parameters_used": params,
+            "pitfalls": pb.get("pitfalls", []),
+            "preconditions": pb.get("preconditions", []),
+            "scope": pb.get("scope", {"type": "global"}),
+        }
+        if confirm_cross_project and project_folder and not self._playbook_visible_for_project(pb, project_folder):
+            result["cross_project_confirmed"] = True
+            result["requested_project_folder"] = project_folder
+        self.save_execution_plan(result)
+        result.update(self._resolve_playbook_required_tools(pb.get("required_tools")))
+        return result
+
+    # ------------------------------------------------------------------
+    # Playbook execution tracking
+    # ------------------------------------------------------------------
+
+    def _executions_dir(self) -> Path:
+        d = confined_path(self._playbooks_dir, "executions")
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _execution_path(self, playbook_id: str) -> Path:
+        if not valid_playbook_id(playbook_id):
+            raise ValueError("invalid playbook id")
+        return confined_path(self._executions_dir(), f"{playbook_id}.json")
+
+    def _update_execution_plan_file(self, playbook_id: str, mutator, *, allow_create: bool = False):
+        """Apply ``mutator`` to execution plan under file lock."""
+        path = self._execution_path(playbook_id)
+
+        result_box: dict = {}
+
+        def _locked(current):
+            if not isinstance(current, dict):
+                current = {}
+            if not current and not allow_create:
+                result_box["result"] = None
+                return {}
+            plan = self._decrypt_execution_plan(current) if current else current
+            updated = mutator(plan)
+            if updated is None:
+                updated = plan
+            result_box["result"] = updated
+            return self._encrypt_execution_plan(updated)
+
+        _update_json(path, _locked, default={})
+        return result_box.get("result")
+
+    @staticmethod
+    def _execution_outcome(steps: list[dict]) -> dict:
+        """Summarize step states without treating skipped work as success."""
+        total = len(steps)
+        completed = sum(1 for s in steps if s.get("status") == "completed")
+        skipped = sum(1 for s in steps if s.get("status") == "skipped")
+        failed = sum(1 for s in steps if s.get("status") == "failed")
+        pending = sum(1 for s in steps if s.get("status", "pending") == "pending")
+        if failed:
+            status = "failed"
+        elif total == 0 or (completed == 0 and skipped == 0 and pending == total):
+            status = "pending"
+        elif completed == total:
+            status = "succeeded"
+        else:
+            status = "partial"
+        return {
+            "status": status,
+            "completed": completed,
+            "skipped": skipped,
+            "failed": failed,
+            "pending": pending,
+            "total": total,
+        }
+
+    def _encrypt_execution_plan(self, plan: dict) -> dict:
+        """Encrypt sensitive fields in an execution plan for at-rest storage."""
+        if not self._corpus_key:
+            return plan
+        result = dict(plan)
+        # Encrypt title (derived from playbook)
+        if "title" in result and isinstance(result["title"], str):
+            result["title"] = self._crypto.corpus_encrypt(result["title"], self._corpus_key)
+        # Encrypt step action/detail and list fields
+        for list_field in ("execution_plan", "pitfalls", "preconditions"):
+            if list_field not in result or not isinstance(result[list_field], list):
+                continue
+            encrypted_items = []
+            for item in result[list_field]:
+                if isinstance(item, dict):
+                    d = dict(item)
+                    for k in ("action", "detail", "notes"):
+                        if k in d and isinstance(d[k], str) and d[k]:
+                            d[k] = self._crypto.corpus_encrypt(d[k], self._corpus_key)
+                    encrypted_items.append(d)
+                elif isinstance(item, str):
+                    encrypted_items.append(self._crypto.corpus_encrypt(item, self._corpus_key))
+                else:
+                    encrypted_items.append(item)
+            result[list_field] = encrypted_items
+        return result
+
+    def _decrypt_execution_plan(self, plan: dict) -> dict:
+        """Decrypt sensitive fields in an execution plan for in-memory use."""
+        if not self._corpus_key or not isinstance(plan, dict):
+            return plan
+        result = dict(plan)
+        if "title" in result and isinstance(result["title"], str):
+            result["title"] = self._crypto.corpus_decrypt(result["title"], self._corpus_key)
+        for list_field in ("execution_plan", "pitfalls", "preconditions"):
+            if list_field not in result or not isinstance(result[list_field], list):
+                continue
+            decrypted_items = []
+            for item in result[list_field]:
+                if isinstance(item, dict):
+                    d = dict(item)
+                    for k in ("action", "detail", "notes"):
+                        if k in d and isinstance(d[k], str) and d[k]:
+                            d[k] = self._crypto.corpus_decrypt(d[k], self._corpus_key)
+                    decrypted_items.append(d)
+                elif isinstance(item, str):
+                    decrypted_items.append(self._crypto.corpus_decrypt(item, self._corpus_key))
+                else:
+                    decrypted_items.append(item)
+            result[list_field] = decrypted_items
+        return result
+
+    def save_execution_plan(self, plan: dict) -> dict:
+        """Persist an execution plan returned by prepare_playbook_execution.
+
+        If a plan already exists for this playbook, step statuses that have
+        progressed beyond ``"pending"`` are preserved (merged from the existing
+        plan into the new one).  This prevents a second ``save_execution_plan``
+        call from silently wiping in-progress step states.
+        """
+        pid = plan.get("playbook_id", "")
+        if not pid:
+            return {"error": "missing playbook_id"}
+        if not valid_playbook_id(pid):
+            return {"error": "invalid playbook_id"}
+        plan["started_at"] = _now_iso()
+        plan["updated_at"] = _now_iso()
+
+        def _init(current):
+            if not current:
+                return plan
+            old_steps = {
+                s.get("order"): s
+                for s in current.get("execution_plan", [])
+                if isinstance(s, dict)
+            }
+            for step in plan.get("execution_plan", []):
+                order = step.get("order")
+                old = old_steps.get(order)
+                if old and old.get("status", "pending") != "pending":
+                    step["status"] = old["status"]
+                    if old.get("notes"):
+                        step["notes"] = old["notes"]
+                    if old.get("updated_at"):
+                        step["updated_at"] = old["updated_at"]
+            return plan
+
+        self._update_execution_plan_file(pid, _init, allow_create=True)
+        return {"status": "saved", "playbook_id": pid}
+
+    def update_execution_step(
+        self,
+        playbook_id: str,
+        step_order: int,
+        status: str,
+        notes: str = "",
+    ) -> dict:
+        """Update the status of a step in a saved execution plan.
+
+        Args:
+            playbook_id: ID of the playbook being executed.
+            step_order: The ``order`` number of the step to update.
+            status: One of ``"completed"``, ``"skipped"``, ``"failed"``.
+            notes: Optional note (e.g. error message for failed steps).
+
+        Returns:
+            ``{status, step_order, playbook_id, completed, total}``
+        """
+        valid = {"completed", "skipped", "failed"}
+        if status not in valid:
+            return {"error": f"status must be one of {valid}"}
+        if not valid_playbook_id(playbook_id):
+            return {"error": "invalid playbook_id"}
+        refusal = self._not_approved(playbook_id)
+        if refusal is not None:
+            return refusal
+
+        result_box: dict = {}
+
+        def _apply_step(plan):
+            found = False
+            for step in plan.get("execution_plan", []):
+                if step.get("order") == step_order:
+                    step["status"] = status
+                    if notes:
+                        step["notes"] = notes
+                    step["updated_at"] = _now_iso()
+                    found = True
+                    break
+            if not found:
+                result_box["error"] = f"step {step_order} not found in execution plan"
+                return plan
+
+            plan["updated_at"] = _now_iso()
+            steps = plan.get("execution_plan", [])
+            outcome = self._execution_outcome(steps)
+            completed = outcome["completed"] + outcome["skipped"]
+            total = outcome["total"]
+            if outcome["status"] == "succeeded":
+                plan["completed_at"] = plan.get("completed_at") or _now_iso()
+            else:
+                plan.pop("completed_at", None)
+
+            result_box["result"] = {
+                "status": "updated",
+                "step_order": step_order,
+                "step_status": status,
+                "playbook_id": playbook_id,
+                "completed": completed,
+                "total": total,
+                "outcome": outcome,
+            }
+            return plan
+
+        updated_plan = self._update_execution_plan_file(playbook_id, _apply_step)
+        if updated_plan is None:
+            return {"error": f"no execution plan found for {playbook_id}"}
+        if "error" in result_box:
+            return {"error": result_box["error"]}
+        return result_box.get("result", {"error": "unexpected"})
+
+    def get_execution_status(self, playbook_id: str) -> dict:
+        """Return the current execution state for a playbook."""
+        if not valid_playbook_id(playbook_id):
+            return {"error": "invalid playbook_id"}
+        plan = _read_json(self._execution_path(playbook_id))
+        if not plan:
+            return {"error": f"no execution plan found for {playbook_id}"}
+        plan = self._decrypt_execution_plan(plan)
+        steps = plan.get("execution_plan", [])
+        return {
+            "playbook_id": playbook_id,
+            "title": plan.get("title", ""),
+            "started_at": plan.get("started_at"),
+            "completed_at": plan.get("completed_at"),
+            "steps": steps,
+            "completed": sum(1 for s in steps if s.get("status") in ("completed", "skipped")),
+            "total": len(steps),
+            "outcome": self._execution_outcome(steps),
+        }
+
+    def _export_playbooks(self) -> list[dict]:
+        """Export ACTIVE playbooks as a list for backup.
+
+        v4.19.1: history snapshots (superseded records) are excluded — export
+        surfaces HEADs only; snapshot bodies remain local store artifacts
+        reachable via get_knowledge_history.
+        """
+        index = self._read_playbook_index()
+        result = []
+        for entry in index:
+            if entry.get("status") == "superseded":
+                continue
+            pb = self._read_playbook_by_id(entry.get("id", ""))
+            if pb and not self._is_snapshot_record(pb):
+                result.append(pb)
+        return result
+

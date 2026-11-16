@@ -1,3 +1,0 @@
-"""
-MCP Server implementation package.
-"""

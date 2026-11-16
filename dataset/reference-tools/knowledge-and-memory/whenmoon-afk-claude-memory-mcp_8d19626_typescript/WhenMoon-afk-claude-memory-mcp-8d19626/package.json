@@ -1,0 +1,99 @@
+{
+  "name": "@whenmoon-afk/mooncite",
+  "version": "4.0.7",
+  "description": "Local citation-backed context recall for coding agents.",
+  "type": "module",
+  "os": [
+    "linux"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "mooncite": "./dist/cli.js"
+  },
+  "files": [
+    ".mcp.json",
+    "dist/",
+    "docs/",
+    "skills/",
+    "CONTEXT.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "omp": {
+    "description": "Local citation-backed context recall"
+  },
+  "pi": {
+    "extensions": [
+      "./dist/pi/extension.js"
+    ],
+    "skills": [
+      "./skills/mooncite/SKILL.md"
+    ]
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/copy-semantic-assets.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:focused": "vitest run test/engine.test.ts test/mcp.test.ts test/pi-extension.test.ts test/lifecycle.test.ts test/source-config.test.ts",
+    "lint:complexity": "eslint \"src/**/*.ts\"",
+    "verify": "npm run lint:complexity && npm run typecheck && npm test && npm run build",
+    "smoke:package": "npm run build && node scripts/package-smoke.mjs",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "@ternlight/mini": "0.1.1",
+    "typebox": "1.3.7",
+    "zod": "4.3.6"
+  },
+  "bundleDependencies": [
+    "@modelcontextprotocol/server",
+    "@ternlight/mini",
+    "typebox",
+    "zod"
+  ],
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@typescript-eslint/parser": "8.68.0",
+    "eslint": "10.9.1",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.4"
+  },
+  "optionalDependencies": {
+    "sqlite-vec-linux-x64": "0.1.9"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WhenMoon-afk/claude-memory-mcp.git"
+  },
+  "homepage": "https://github.com/WhenMoon-afk/claude-memory-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/WhenMoon-afk/claude-memory-mcp/issues"
+  },
+  "keywords": [
+    "mooncite",
+    "claude-memory-mcp",
+    "mcp",
+    "context-retrieval",
+    "conversation-history",
+    "local-first",
+    "citations",
+    "pi",
+    "omp",
+    "codex",
+    "claude-code",
+    "chatgpt"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,18 @@
+# Smithery.ai configuration
+runtime: 'container'
+startCommand:
+  type: 'http'
+  configSchema:
+    type: 'object'
+    properties:
+      tags:
+        type: 'string'
+        description: 'Tags to filter the MCP servers'
+build:
+  dockerfile: 'Dockerfile'
+  dockerBuildPath: '.'
+env:
+  ONE_MCP_CONFIG: /etc/1mcp/config.json
+  # ONE_MCP_EXTERNAL_URL: "http://localhost:3050"
+  # ONE_MCP_PORT: 3050
+  # ONE_MCP_ENABLE_AUTH: true

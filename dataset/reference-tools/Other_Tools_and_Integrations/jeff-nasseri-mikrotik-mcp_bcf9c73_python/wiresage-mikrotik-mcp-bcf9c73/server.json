@@ -1,0 +1,85 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.wiresage/mikrotik-mcp",
+  "description": "MCP server for MikroTik routers: firewall, NAT, routing, DHCP, DNS, WireGuard and more via SSH.",
+  "repository": {
+    "url": "https://github.com/wiresage/mikrotik-mcp",
+    "source": "github"
+  },
+  "version": "0.14.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "mcp-server-mikrotik",
+      "version": "0.14.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MIKROTIK_HOST",
+          "description": "IP address or hostname of the MikroTik router (single-device mode; default: 127.0.0.1). Not needed when an inventory is configured.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "MIKROTIK_USERNAME",
+          "description": "SSH username for the MikroTik router (single-device mode; default: admin)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "MIKROTIK_PASSWORD",
+          "description": "SSH password for the MikroTik router (single-device mode)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "MIKROTIK_PORT",
+          "description": "SSH port of the MikroTik router (single-device mode; default: 22)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "MIKROTIK_KEY_FILENAME",
+          "description": "Path to SSH private key file for key-based authentication (single-device mode)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "MIKROTIK_READ_ONLY",
+          "description": "When true, expose only tools that do not modify RouterOS or its file store. Use a read-only RouterOS account as defence in depth.",
+          "isRequired": false,
+          "format": "boolean",
+          "isSecret": false
+        },
+        {
+          "name": "MIKROTIK_SENSITIVE_HIDING",
+          "description": "When true, redact recognized credentials and private key material from tool results, MCP notifications, and logs, and omit tools that return opaque sensitive payloads.",
+          "isRequired": false,
+          "format": "boolean",
+          "isSecret": false
+        },
+        {
+          "name": "MIKROTIK_INVENTORY_FILE",
+          "description": "Path to a YAML file listing multiple MikroTik devices (title, host, port, username, password, key_filename, tags, region). See docs/reference/inventory.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "MIKROTIK_INVENTORY",
+          "description": "Inline multi-device inventory as a YAML (or JSON) list; takes precedence over MIKROTIK_INVENTORY_FILE and the single-device variables. Holds credentials.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "pyxel": {
-      "type": "stdio",
-      "command": "uv",
-      "args": ["run", "--directory", ".", "python", "-m", "pyxel_mcp.server"]
-    }
-  }
-}

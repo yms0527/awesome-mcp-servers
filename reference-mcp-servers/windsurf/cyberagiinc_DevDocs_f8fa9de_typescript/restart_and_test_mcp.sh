@@ -1,1 +1,0 @@
-scripts/mcp/restart_and_test_mcp.sh

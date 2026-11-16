@@ -1,0 +1,1094 @@
+"""Main entry point for UniFi MCP Server."""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import importlib.metadata
+import json
+import os
+from collections.abc import AsyncIterator, Awaitable, Callable
+from pathlib import Path
+from typing import Any
+
+try:
+    _SERVER_VERSION = importlib.metadata.version("unifi-mcp-server")
+except importlib.metadata.PackageNotFoundError:
+    _SERVER_VERSION = "unknown"
+
+from fastmcp import FastMCP
+
+from .a2a import A2AState
+from .a2a.audit import get_audit_logger
+from .a2a.auth import AuthManager
+from .a2a.route_policy import ConfirmationWorkflow, SafetyController
+from .api.pool import ClientPool
+from .config import APIType, Settings, TransportMode
+from .fleet import EnvRegistry
+from .fleet.router import FleetRouter
+from .fleet.tools import register_fleet_tools
+from .resources import ClientsResource, DevicesResource, NetworksResource, SitesResource
+from .resources import protect as protect_resource
+from .resources import site_manager as site_manager_resource
+from .tool_registry import TOOL_TIERS, register_module_tools
+from .tools import acls as acls_tools
+from .tools import application as application_tools
+from .tools import backups as backups_tools
+from .tools import carrier as carrier_tools
+from .tools import channel_planning as channel_planning_tools
+from .tools import client_management as client_mgmt_tools
+from .tools import clients as clients_tools
+from .tools import connector as connector_tools
+from .tools import content_filtering as content_filtering_tools
+from .tools import debug as debug_tools
+from .tools import device_control as device_control_tools
+from .tools import device_migration as device_migration_tools
+from .tools import devices as devices_tools
+from .tools import dhcp_reservations as dhcp_tools
+from .tools import diagnostics as diagnostics_tools
+from .tools import dns_management as dns_tools
+from .tools import dpi as dpi_tools
+from .tools import dpi_tools as dpi_new_tools
+from .tools import events as events_tools
+from .tools import firewall as firewall_tools
+from .tools import firewall_groups as firewall_groups_tools
+from .tools import firewall_policies as firewall_policies_tools
+from .tools import firewall_zones as firewall_zones_tools
+from .tools import innerspace as innerspace_tools
+from .tools import integration_api as integration_api_tools
+from .tools import mac_tags as mac_tags_tools
+from .tools import mobility as mobility_tools
+from .tools import network_config as network_config_tools
+from .tools import networks as networks_tools
+from .tools import port_forwarding as port_fwd_tools
+from .tools import port_profiles as port_profile_tools
+from .tools import protect_alarm as protect_alarm_tools
+from .tools import protect_alarm_hubs as protect_alarm_hubs_tools
+from .tools import protect_bridges as protect_bridges_tools
+from .tools import protect_cameras as protect_cameras_tools
+from .tools import protect_devices as protect_devices_tools
+from .tools import protect_events as protect_events_tools
+from .tools import protect_fobs as protect_fobs_tools
+from .tools import protect_link_stations as protect_link_stations_tools
+from .tools import protect_nvr as protect_nvr_tools
+from .tools import protect_pos as protect_pos_tools
+from .tools import protect_relays as protect_relays_tools
+from .tools import protect_sirens as protect_sirens_tools
+from .tools import protect_speakers as protect_speakers_tools
+from .tools import protect_users as protect_users_tools
+from .tools import protect_views as protect_views_tools
+from .tools import qos as qos_tools
+from .tools import radius as radius_tools
+from .tools import reference_data as ref_tools
+from .tools import site_manager as site_manager_tools
+from .tools import site_vpn as site_vpn_tools
+from .tools import sites as sites_tools
+from .tools import switching as switching_tools
+from .tools import topology as topology_tools
+from .tools import traffic_flows as traffic_flows_tools
+from .tools import traffic_matching_lists as tml_tools
+from .tools import vouchers as vouchers_tools
+from .tools import vpn as vpn_tools
+from .tools import wans as wans_tools
+from .tools import wifi as wifi_tools
+from .utils import get_logger
+from .utils.audit import get_audit_logger as get_tool_audit_logger
+
+# ---------------------------------------------------------------------------
+# Initialisation
+# ---------------------------------------------------------------------------
+
+settings = Settings()
+logger = get_logger(__name__, settings.log_level)
+
+# Resolves each tool call to a controller (docs/FLEET_SCALING_PLAN.md). Without
+# DATABASE_URL the environment registry holds one ``default`` controller built
+# from UNIFI_*, which hands every tool the same ``settings`` object as before.
+# With it, controllers come from Postgres (imported lazily: the base install
+# has no database driver).
+if settings.database_url:
+    from .fleet.postgres_registry import PostgresRegistry
+
+    fleet_registry: Any = PostgresRegistry.from_settings(settings)
+else:
+    fleet_registry = EnvRegistry(settings)
+fleet_router = FleetRouter(settings, fleet_registry)
+
+# One long-lived connection per controller, shared by every tool call
+# (connection reuse, one rate limiter, cached auth probe, circuit breaker).
+client_pool = ClientPool(max_open=settings.fleet_max_open_clients)
+
+# Read-through cache in Redis, only when Redis is configured explicitly (imported
+# lazily so an unconfigured server never loads the redis package).
+read_cache: Any = None
+if settings.cache_enabled and (settings.redis_url or "redis_host" in settings.model_fields_set):
+    from .cache import ReadCache
+
+    read_cache = ReadCache.from_settings(settings)
+
+
+@contextlib.asynccontextmanager
+async def _lifespan(server: Any) -> AsyncIterator[None]:
+    """Start the Postgres registry and audit store with the server, then audit the start."""
+    # The forwarder comes first: registry startup can already store audit
+    # records (registry_seeded), and every stored record is exported.
+    forwarder = await start_siem_forwarder(settings)
+    try:
+        if hasattr(fleet_registry, "start"):
+            from .fleet.db import audit_store
+
+            audit_store.install(settings, fleet_registry.store.engine)
+            await fleet_registry.start()
+            await fleet_router.warn_insecure_controllers()
+        health_listener = start_health_listener(settings, client_pool)
+        try:
+            await audit_server_start()
+            yield
+        finally:
+            if health_listener is not None:
+                health_listener.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await health_listener
+            await client_pool.aclose()
+            if hasattr(fleet_registry, "stop"):
+                await fleet_registry.stop()
+    finally:
+        if forwarder is not None:
+            await forwarder.stop()
+
+
+def start_health_listener(current_settings: Settings, pool: Any) -> asyncio.Task[None] | None:
+    """Half-open circuit breakers when a worker reports the controller healthy.
+
+    Needs Redis (the workers publish on it); returns the listening task, or
+    None without Redis.
+    """
+    from .fleet.bus import HealthBus
+
+    bus = HealthBus.from_settings(current_settings)
+    if bus is None:
+        return None
+    return asyncio.create_task(bus.listen(pool.health_ok))
+
+
+async def start_siem_forwarder(current_settings: Settings) -> Any:
+    """Start exporting audit records to ``UNIFI_AUDIT_SIEM_TARGETS``, if set.
+
+    Raises:
+        ConfigurationError: For an invalid target, so a misconfigured export
+            stops the server instead of silently sending nothing
+    """
+    if not current_settings.audit_log_enabled or not current_settings.audit_siem_targets:
+        return None
+    from .utils.audit import get_audit_logger
+    from .utils.siem import SiemForwarder
+
+    forwarder = SiemForwarder.from_settings(current_settings)
+    if forwarder is None:
+        return None
+    get_audit_logger(current_settings.audit_log_file).forwarder = forwarder
+    await forwarder.start()
+    logger.info("Exporting audit records to %d SIEM target(s)", len(forwarder.targets))
+    return forwarder
+
+
+def build_auth_provider(current_settings: Settings, token_store: Any = None) -> Any:
+    """Build the MCP authentication provider from settings.
+
+    With a fleet registry (``token_store``), returns a ``FleetTokenVerifier``
+    accepting ``MCP_AUTH_TOKEN`` tokens and server-issued API tokens. Otherwise
+    returns a ``StaticTokenVerifier`` that accepts the bearer token(s) in
+    ``MCP_AUTH_TOKEN`` when at least one is configured, otherwise ``None``.
+    Either way each ``MCP_AUTH_TOKEN`` token carries its role (``<role>:<token>``,
+    default ``fleet-admin``) as the ``static_role`` claim.
+    Over stdio the provider is ignored; over a network transport ``None``
+    means the server refuses to start (see
+    :func:`ensure_network_transport_authenticated`).
+
+    Args:
+        current_settings: Loaded application settings
+        token_store: The fleet registry's ``TokenStore``, when DATABASE_URL is set
+
+    Returns:
+        A FastMCP auth provider, or None when no token is configured
+
+    Raises:
+        SystemExit: If ``MCP_AUTH_TOKEN`` has an entry with a role and no
+            token, or gives one token two roles
+    """
+    try:
+        token_roles = current_settings.mcp_auth_token_roles
+    except ValueError as e:
+        raise SystemExit(f"Invalid MCP_AUTH_TOKEN: {e}") from None
+    if token_store is not None:
+        from .fleet.tokens import FleetTokenVerifier
+
+        return FleetTokenVerifier(token_roles, token_store)
+    if not token_roles:
+        return None
+
+    from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
+
+    return StaticTokenVerifier(
+        tokens={
+            token: {"client_id": "mcp-client", "scopes": [], "static_role": role}
+            for token, role in token_roles.items()
+        }
+    )
+
+
+def ensure_network_transport_authenticated(current_settings: Settings, auth_provider: Any) -> None:
+    """Refuse to start a network transport without authentication.
+
+    stdio is a local subprocess channel and needs no token. The http, sse
+    and streamable_http transports open a TCP listener, so starting one
+    without an auth provider would expose every registered tool — including
+    destructive ones — to any host that can reach the port. Fail closed.
+
+    Args:
+        current_settings: Loaded application settings
+        auth_provider: The provider returned by :func:`build_auth_provider`
+
+    Raises:
+        SystemExit: If a network transport is selected without a token
+    """
+    if current_settings.server_transport == TransportMode.STDIO:
+        return
+    if auth_provider is None:
+        raise SystemExit(
+            "Refusing to start the "
+            f"'{current_settings.server_transport.value}' transport without "
+            "authentication: set MCP_AUTH_TOKEN to a bearer token (clients then "
+            "send 'Authorization: Bearer <token>'), or use "
+            "MCP_SERVER_TRANSPORT=stdio for local clients."
+        )
+
+
+def register_a2a_routes(server: FastMCP, state: A2AState, auth_provider: Any) -> None:
+    """Register the /a2a/* HTTP endpoints on a FastMCP server.
+
+    FastMCP's auth provider only guards the MCP endpoint itself; custom
+    routes are served without enforcement. ``/a2a/delegate`` and
+    ``/a2a/confirm`` can trigger tool execution and ``/a2a/audit`` returns
+    logged tool parameters, so every route here checks the same bearer
+    token as ``/mcp`` via ``auth_provider.verify_token``.
+
+    Args:
+        server: The FastMCP server to register the routes on
+        state: Shared A2A handler state
+        auth_provider: The provider returned by :func:`build_auth_provider`
+            (must not be None; see :func:`ensure_network_transport_authenticated`)
+    """
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse, Response
+
+    from .a2a.http_handlers import (
+        confirm_handler,
+        delegate_handler,
+        discover_handler,
+        get_agent_card_handler,
+        get_audit_handler,
+    )
+
+    def _bearer_required(
+        handler: Callable[[Request], Awaitable[Response]],
+    ) -> Callable[[Request], Awaitable[Response]]:
+        async def wrapper(request: Request) -> Response:
+            scheme, _, token = request.headers.get("authorization", "").partition(" ")
+            if scheme.lower() != "bearer" or not token.strip():
+                authorized = False
+            else:
+                authorized = await auth_provider.verify_token(token.strip()) is not None
+            if not authorized:
+                return JSONResponse(
+                    {"error": "invalid_token", "error_description": "Authentication required"},
+                    status_code=401,
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            return await handler(request)
+
+        return wrapper
+
+    async def _a2a_agent_card(request: Request) -> Response:
+        return JSONResponse(get_agent_card_handler())
+
+    async def _a2a_discover(request: Request) -> Response:
+        body = await request.body()
+        payload = await request.json() if body else {}
+        return JSONResponse(await discover_handler(payload, state=state))
+
+    async def _a2a_delegate(request: Request) -> Response:
+        payload = await request.json()
+        return JSONResponse(await delegate_handler(payload, state=state))
+
+    async def _a2a_confirm(request: Request) -> Response:
+        payload = await request.json()
+        return JSONResponse(await confirm_handler(payload, state=state))
+
+    async def _a2a_audit(request: Request) -> Response:
+        payload = dict(request.query_params)
+        return JSONResponse(await get_audit_handler(payload, state=state))
+
+    for path, methods, handler in (
+        ("/a2a/agent-card", ["GET"], _a2a_agent_card),
+        ("/a2a/discover", ["POST"], _a2a_discover),
+        ("/a2a/delegate", ["POST"], _a2a_delegate),
+        ("/a2a/confirm", ["POST"], _a2a_confirm),
+        ("/a2a/audit", ["GET"], _a2a_audit),
+    ):
+        server.custom_route(path, methods=methods)(_bearer_required(handler))
+
+
+def register_metrics_route(server: FastMCP, auth_provider: Any) -> None:
+    """Register the GET /metrics endpoint on a FastMCP server.
+
+    Serves the ``unifi_mcp_*`` counters from :data:`src.utils.metrics.REGISTRY`
+    in Prometheus text exposition format (``text/plain; version=0.0.4``).
+    Like the /a2a routes, FastMCP's auth provider does not guard custom
+    routes, so the same bearer token as ``/mcp`` is verified here when a
+    provider exists. When *auth_provider* is None the endpoint is served
+    unauthenticated — reachable only on stdio deployments, which expose no
+    HTTP surface; network transports refuse to start without a token (see
+    :func:`ensure_network_transport_authenticated`).
+
+    Args:
+        server: The FastMCP server to register the route on
+        auth_provider: The provider returned by :func:`build_auth_provider`,
+            or None when no token is configured
+    """
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse, PlainTextResponse, Response
+
+    from .utils.metrics import REGISTRY
+
+    async def _metrics(request: Request) -> Response:
+        if auth_provider is not None:
+            scheme, _, token = request.headers.get("authorization", "").partition(" ")
+            verified = (
+                scheme.lower() == "bearer"
+                and token.strip() != ""
+                and await auth_provider.verify_token(token.strip()) is not None
+            )
+            if not verified:
+                return JSONResponse(
+                    {"error": "invalid_token", "error_description": "Authentication required"},
+                    status_code=401,
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        body = REGISTRY.render(version=_SERVER_VERSION, api_type=settings.api_type.value)
+        return PlainTextResponse(body, media_type="text/plain; version=0.0.4")
+
+    server.custom_route("/metrics", methods=["GET"])(_metrics)
+
+
+def register_health_route(server: FastMCP) -> None:
+    """Register ``GET /healthz``: an unauthenticated liveness check.
+
+    Load balancers, container health checks and Kubernetes probes cannot
+    send the bearer token, so this answers without one. It says only that the
+    process is serving HTTP (``{"status": "ok"}``): no version, controller,
+    configuration or registry state, nothing a scanner could use. Readiness
+    to reach controllers is a different question, answered by the
+    ``fleet_health`` tool.
+
+    Args:
+        server: The FastMCP server to register the route on
+    """
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse, Response
+
+    async def _healthz(request: Request) -> Response:
+        return JSONResponse({"status": "ok"}, headers={"Cache-Control": "no-store"})
+
+    server.custom_route("/healthz", methods=["GET"])(_healthz)
+
+
+def register_webhook_route(server: FastMCP, current_settings: Settings) -> Any:
+    """Mount ``POST /webhooks/unifi`` when ``WEBHOOK_SECRET`` is set.
+
+    Without a secret nothing is mounted, so an unconfigured server exposes no
+    webhook endpoint at all. The route is not behind the MCP bearer token:
+    UniFi cannot send one, and every delivery must instead carry a valid
+    ``X-UniFi-Signature`` (HMAC-SHA256 of the body, keyed with the secret).
+    The default handlers are registered: event logging, and clearing the
+    module's ``read_cache`` (when Redis is configured) on device and client
+    state changes.
+
+    Args:
+        server: The FastMCP server to register the route on
+        current_settings: Loaded application settings
+
+    Returns:
+        The mounted ``WebhookReceiver``, or None when no secret is configured
+    """
+    if not current_settings.webhook_secret:
+        return None
+
+    from .webhooks import WebhookEventHandler, WebhookReceiver
+
+    receiver = WebhookReceiver(current_settings)
+    WebhookEventHandler(current_settings, read_cache=read_cache).register_default_handlers(receiver)
+    server.custom_route(receiver.path, methods=["POST"])(receiver.handle_request)
+    return receiver
+
+
+if settings.database_url:
+    from .fleet.tokens import TokenStore
+
+    mcp_auth = build_auth_provider(settings, TokenStore(fleet_registry.store.engine))
+else:
+    mcp_auth = build_auth_provider(settings)
+mcp = FastMCP("UniFi MCP Server", auth=mcp_auth, lifespan=_lifespan)
+
+# ---------------------------------------------------------------------------
+# Optional: agnost tracking
+# ---------------------------------------------------------------------------
+
+if os.getenv("AGNOST_ENABLED", "false").lower() in ("true", "1", "yes"):
+    agnost_org_id = os.getenv("AGNOST_ORG_ID")
+    if agnost_org_id:
+        try:
+            from agnost import config as agnost_config
+            from agnost import track
+
+            disable_input = os.getenv("AGNOST_DISABLE_INPUT", "false").lower() in (
+                "true",
+                "1",
+                "yes",
+            )
+            disable_output = os.getenv("AGNOST_DISABLE_OUTPUT", "false").lower() in (
+                "true",
+                "1",
+                "yes",
+            )
+
+            track(
+                mcp,
+                agnost_org_id,
+                agnost_config(
+                    endpoint=os.getenv("AGNOST_ENDPOINT", "https://api.agnost.ai"),
+                    disable_input=disable_input,
+                    disable_output=disable_output,
+                ),
+            )
+            logger.info(
+                f"Agnost.ai performance tracking enabled (input: {not disable_input}, output: {not disable_output})"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to initialize agnost tracking: {e}")
+    else:
+        logger.warning("AGNOST_ENABLED is true but AGNOST_ORG_ID is not set")
+
+# ---------------------------------------------------------------------------
+# Conditional tool modules based on API type
+# ---------------------------------------------------------------------------
+
+# Registered in every API mode. Mobility, InnerSpace and Carrier Fabric are
+# cloud APIs on api.ui.com (SiteManagerClient), like Site Manager, so they
+# belong here rather than with the local-only modules.
+_CLOUD_TOOL_MODULES = [
+    sites_tools,
+    site_manager_tools,
+    connector_tools,
+    integration_api_tools,
+    carrier_tools,
+    innerspace_tools,
+    mobility_tools,
+]
+
+_LOCAL_TOOL_MODULES = [
+    acls_tools,
+    application_tools,
+    backups_tools,
+    channel_planning_tools,
+    client_mgmt_tools,
+    clients_tools,
+    content_filtering_tools,
+    device_control_tools,
+    device_migration_tools,
+    diagnostics_tools,
+    dhcp_tools,
+    dns_tools,
+    events_tools,
+    devices_tools,
+    ref_tools,
+    dpi_tools,
+    dpi_new_tools,
+    firewall_tools,
+    firewall_groups_tools,
+    firewall_policies_tools,
+    firewall_zones_tools,
+    mac_tags_tools,
+    network_config_tools,
+    networks_tools,
+    port_fwd_tools,
+    port_profile_tools,
+    protect_devices_tools,
+    protect_cameras_tools,
+    protect_views_tools,
+    protect_events_tools,
+    protect_nvr_tools,
+    protect_sirens_tools,
+    protect_alarm_tools,
+    protect_alarm_hubs_tools,
+    protect_bridges_tools,
+    protect_fobs_tools,
+    protect_link_stations_tools,
+    protect_pos_tools,
+    protect_relays_tools,
+    protect_speakers_tools,
+    protect_users_tools,
+    qos_tools,
+    radius_tools,
+    ref_tools,
+    site_vpn_tools,
+    switching_tools,
+    topology_tools,
+    traffic_flows_tools,
+    tml_tools,
+    vouchers_tools,
+    vpn_tools,
+    wans_tools,
+    wifi_tools,
+]
+
+# ---------------------------------------------------------------------------
+# Profile-based module filtering (UNIFI_PROFILE env var)
+#
+# Set UNIFI_PROFILE to load only a subset of tools, reducing LLM context size.
+# Valid profiles: network, devices, security, system, minimal, protect
+# Omit UNIFI_PROFILE (or set to "all") to load all tools for the API type.
+# ---------------------------------------------------------------------------
+
+_PROFILE_MODULES: dict[str, list[Any]] = {
+    "network": [
+        channel_planning_tools,
+        client_mgmt_tools,
+        clients_tools,
+        dhcp_tools,
+        dns_tools,
+        network_config_tools,
+        networks_tools,
+        vouchers_tools,
+        wans_tools,
+        wifi_tools,
+    ],
+    "devices": [
+        device_control_tools,
+        device_migration_tools,
+        devices_tools,
+        diagnostics_tools,
+        mac_tags_tools,
+        port_profile_tools,
+        switching_tools,
+        topology_tools,
+    ],
+    "security": [
+        acls_tools,
+        content_filtering_tools,
+        firewall_tools,
+        firewall_groups_tools,
+        firewall_policies_tools,
+        firewall_zones_tools,
+        port_fwd_tools,
+        site_vpn_tools,
+        vpn_tools,
+    ],
+    "system": [
+        application_tools,
+        events_tools,
+        backups_tools,
+        connector_tools,
+        dpi_tools,
+        dpi_new_tools,
+        integration_api_tools,
+        qos_tools,
+        radius_tools,
+        ref_tools,
+        site_manager_tools,
+        sites_tools,
+        protect_devices_tools,
+        protect_cameras_tools,
+        protect_views_tools,
+        protect_events_tools,
+        protect_nvr_tools,
+        protect_sirens_tools,
+        protect_alarm_tools,
+        protect_alarm_hubs_tools,
+        protect_bridges_tools,
+        protect_fobs_tools,
+        protect_link_stations_tools,
+        protect_pos_tools,
+        protect_relays_tools,
+        protect_speakers_tools,
+        protect_users_tools,
+        traffic_flows_tools,
+        tml_tools,
+    ],
+    "minimal": [
+        sites_tools,
+        clients_tools,
+        devices_tools,
+    ],
+    "protect": [
+        protect_devices_tools,
+        protect_cameras_tools,
+        protect_views_tools,
+        protect_events_tools,
+        protect_nvr_tools,
+        protect_sirens_tools,
+        protect_alarm_tools,
+        protect_alarm_hubs_tools,
+        protect_bridges_tools,
+        protect_fobs_tools,
+        protect_link_stations_tools,
+        protect_pos_tools,
+        protect_relays_tools,
+        protect_speakers_tools,
+        protect_users_tools,
+    ],
+    "mobility": [
+        mobility_tools,
+    ],
+    "innerspace": [
+        innerspace_tools,
+    ],
+    "carrier": [
+        carrier_tools,
+    ],
+}
+
+_active_profile = os.getenv("UNIFI_PROFILE", "").lower().strip()
+
+# An unrecognised profile silently falls back to "every module" further down.
+# Warn loudly, because the failure mode is fail-open: an operator who sets a
+# profile expecting a reduced tool surface would otherwise get the full one.
+if (
+    _active_profile
+    and _active_profile not in ("all", "")
+    and _active_profile not in _PROFILE_MODULES
+):
+    logger.warning(
+        "Unknown UNIFI_PROFILE=%r - falling back to all tool modules. Known profiles: %s. "
+        "To expose only non-mutating tools, set UNIFI_READ_ONLY=true.",
+        _active_profile,
+        ", ".join(sorted(_PROFILE_MODULES)),
+    )
+
+# Verification off accepts any certificate, and sends the API key to whoever
+# presents it. Nothing else reports it, so warn at startup. Fleet controllers
+# with their own TLS settings are warned about by the router.
+for _tls_warning in settings.tls_warnings():
+    logger.warning(_tls_warning)
+
+if settings.read_only:
+    logger.info("Read-only mode enabled (UNIFI_READ_ONLY) - mutating tools will not be registered")
+
+_TOOL_MODULES: list[Any] = []
+if settings.api_type in (APIType.CLOUD_V1, APIType.CLOUD_EA):
+    _base_modules = list(_CLOUD_TOOL_MODULES)
+    if _active_profile and _active_profile not in ("all", ""):
+        _profile_set = set(_PROFILE_MODULES.get(_active_profile, []))
+        _base_modules = [m for m in _base_modules if m in _profile_set] or _base_modules
+    _TOOL_MODULES = _base_modules
+    logger.info(
+        f"Cloud API mode ({settings.api_type.value})"
+        + (f", profile={_active_profile}" if _active_profile else "")
+        + f" - registering {len(_TOOL_MODULES)} tool module(s)"
+    )
+    # get_site_statistics calls /ea/sites/{id}/devices, /sta, /rest/networkconf
+    # which all 404 on the live Cloud API
+    for _module in _TOOL_MODULES:
+        if _module is sites_tools:
+            register_module_tools(
+                mcp,
+                _module,
+                settings,
+                exclude=["get_site_statistics"],
+                router=fleet_router,
+                pool=client_pool,
+                read_cache=read_cache,
+            )
+        else:
+            register_module_tools(
+                mcp, _module, settings, router=fleet_router, pool=client_pool, read_cache=read_cache
+            )
+else:
+    _all_local = list(_CLOUD_TOOL_MODULES) + list(_LOCAL_TOOL_MODULES)
+    if _active_profile and _active_profile not in ("all", ""):
+        _profile_set = set(_PROFILE_MODULES.get(_active_profile, []))
+        _TOOL_MODULES = [m for m in _all_local if m in _profile_set] or _all_local
+    else:
+        _TOOL_MODULES = _all_local
+    logger.info(
+        "Local API mode"
+        + (f", profile={_active_profile}" if _active_profile else "")
+        + f" - registering {len(_TOOL_MODULES)} tool module(s)"
+    )
+    for _module in _TOOL_MODULES:
+        register_module_tools(
+            mcp, _module, settings, router=fleet_router, pool=client_pool, read_cache=read_cache
+        )
+
+register_fleet_tools(mcp, fleet_router)
+if settings.database_url:
+    from .fleet.admin_tools import register_admin_tools
+
+    register_admin_tools(mcp, fleet_registry, settings)
+
+    from .fleet.db.snapshots import SnapshotStore
+    from .fleet.fleet_tools import register_fleet_read_tools
+
+    register_fleet_read_tools(
+        mcp, fleet_registry, settings, SnapshotStore(fleet_registry.store.engine)
+    )
+
+# ---------------------------------------------------------------------------
+# Resource handlers
+# ---------------------------------------------------------------------------
+
+sites_resource = SitesResource(settings)
+site_manager_res = site_manager_resource.SiteManagerResource(settings)
+
+if settings.api_type == APIType.LOCAL:
+    devices_resource = DevicesResource(settings)
+    clients_resource = ClientsResource(settings)
+    networks_resource = NetworksResource(settings)
+    protect_res = protect_resource.ProtectResource(settings)
+
+# ---------------------------------------------------------------------------
+# Built-in tools (not in a module, or require special handling)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def health_check() -> dict[str, str]:
+    """Health check endpoint to verify server is running.
+
+    Returns:
+        Status information
+    """
+    return {
+        "status": "healthy",
+        "version": _SERVER_VERSION,
+        "api_type": settings.api_type.value,
+    }
+
+
+# Debug passthrough: arbitrary GET or DELETE to any controller endpoint. Only
+# under DEBUG, and through register_module_tools so read-only mode removes it,
+# dry-run mode previews it, and the destructive tier and confirm apply.
+if os.getenv("DEBUG", "").lower() in ("true", "1", "yes"):
+    if register_module_tools(
+        mcp, debug_tools, settings, router=fleet_router, pool=client_pool, read_cache=read_cache
+    ):
+        logger.warning(
+            "DEBUG is set - debug_api_request is registered (arbitrary GET/DELETE, "
+            "destructive tier). Unset DEBUG in production"
+        )
+
+
+# ---------------------------------------------------------------------------
+# MCP Resources
+# ---------------------------------------------------------------------------
+
+
+@mcp.resource("sites://")
+async def get_sites_resource() -> str:
+    """Get all UniFi sites.
+
+    Returns:
+        JSON string of sites list
+    """
+    sites = await sites_resource.list_sites()
+    return "\n".join([f"Site: {s.name} ({s.id})" for s in sites])
+
+
+if settings.api_type == APIType.LOCAL:
+
+    @mcp.resource("sites://{site_id}/devices")
+    async def get_devices_resource(site_id: str) -> str:
+        """Get all devices for a site.
+
+        Args:
+            site_id: Site identifier
+
+        Returns:
+            JSON string of devices list
+        """
+        devices = await devices_resource.list_devices(site_id)
+        return "\n".join([f"Device: {d.name or d.model} ({d.mac}) - {d.ip}" for d in devices])
+
+    @mcp.resource("sites://{site_id}/clients")
+    async def get_clients_resource(site_id: str) -> str:
+        """Get all clients for a site.
+
+        Args:
+            site_id: Site identifier
+
+        Returns:
+            JSON string of clients list
+        """
+        clients = await clients_resource.list_clients(site_id, active_only=True)
+        return "\n".join([f"Client: {c.hostname or c.name or c.mac} ({c.ip})" for c in clients])
+
+    @mcp.resource("sites://{site_id}/networks")
+    async def get_networks_resource(site_id: str) -> str:
+        """Get all networks for a site.
+
+        Args:
+            site_id: Site identifier
+
+        Returns:
+            JSON string of networks list
+        """
+        networks = await networks_resource.list_networks(site_id)
+        return "\n".join(
+            [f"Network: {n.name} (VLAN {n.vlan_id or 'none'}) - {n.ip_subnet}" for n in networks]
+        )
+
+    @mcp.resource("sites://{site_id}/traffic/flows")
+    async def get_traffic_flows_resource(site_id: str) -> str:
+        """Get traffic flows for a site.
+
+        Args:
+            site_id: Site identifier
+
+        Returns:
+            JSON string of traffic flows
+        """
+        flows = await traffic_flows_tools.get_traffic_flows(site_id, settings)
+        return json.dumps(flows, indent=2)
+
+    @mcp.resource("protect://nvrs")
+    async def get_protect_nvrs_resource() -> str:
+        """Get all UniFi Protect NVRs.
+
+        Returns:
+            JSON string of NVRs list
+        """
+        nvrs = await protect_res.list_nvrs()
+        return "\n".join([f"NVR: {n.name} ({n.id}) - {n.model}" for n in nvrs])
+
+    @mcp.resource("protect://nvrs/{nvr_id}")
+    async def get_protect_nvr_resource(nvr_id: str) -> str:
+        """Get a single UniFi Protect NVR.
+
+        Args:
+            nvr_id: NVR identifier
+
+        Returns:
+            JSON string of NVR details
+        """
+        nvr = await protect_res.get_nvr(nvr_id)
+        if nvr is None:
+            return f"NVR {nvr_id} not found"
+        return f"NVR: {nvr.name} ({nvr.id}) - {nvr.model}"
+
+    @mcp.resource("protect://cameras")
+    async def get_protect_cameras_resource() -> str:
+        """Get all UniFi Protect cameras.
+
+        Returns:
+            JSON string of cameras list
+        """
+        cameras = await protect_res.list_cameras()
+        return "\n".join([f"Camera: {c.name} ({c.id}) - {c.model}" for c in cameras])
+
+    @mcp.resource("protect://cameras/{camera_id}")
+    async def get_protect_camera_resource(camera_id: str) -> str:
+        """Get a single UniFi Protect camera.
+
+        Args:
+            camera_id: Camera identifier
+
+        Returns:
+            JSON string of camera details
+        """
+        camera = await protect_res.get_camera(camera_id)
+        if camera is None:
+            return f"Camera {camera_id} not found"
+        return f"Camera: {camera.name} ({camera.id}) - {camera.model}"
+
+
+@mcp.resource("site-manager://sites")
+async def get_site_manager_sites_resource() -> str:
+    """Get all sites from Site Manager API.
+
+    Returns:
+        JSON string of sites list
+    """
+    return await site_manager_res.get_all_sites()
+
+
+@mcp.resource("site-manager://health")
+async def get_site_manager_health_resource() -> str:
+    """Get cross-site health metrics.
+
+    Returns:
+        JSON string of health metrics
+    """
+    return await site_manager_res.get_health_metrics()
+
+
+@mcp.resource("site-manager://internet-health")
+async def get_site_manager_internet_health_resource() -> str:
+    """Get internet connectivity status.
+
+    Returns:
+        JSON string of internet health
+    """
+    return await site_manager_res.get_internet_health_status()
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+
+async def audit_server_start() -> None:
+    """Write a ``system`` audit record with the server's effective safety configuration."""
+    if not settings.audit_log_enabled:
+        return
+    await get_tool_audit_logger(settings.audit_log_file).alog_event(
+        "system",
+        "server_start",
+        "success",
+        config={
+            "version": _SERVER_VERSION,
+            "api_type": settings.api_type.value,
+            "transport": settings.server_transport.value,
+            "read_only": settings.read_only,
+            "dry_run": settings.dry_run,
+            "profile": _active_profile or None,
+            "audit_fail_closed": settings.audit_fail_closed,
+            "audit_store": "postgres" if settings.database_url else "jsonl",
+            "stdio_role": settings.stdio_role,
+            "controller_registry": type(fleet_router.registry).__name__,
+            "tools_registered": len(TOOL_TIERS),
+        },
+    )
+
+
+def warn_relative_audit_path(current_settings: Settings) -> None:
+    """Warn when the audit log file depends on the working directory.
+
+    ``UNIFI_AUDIT_LOG_PATH`` defaults to ``audit.log``, and a relative path
+    resolves against the process working directory, which an MCP client
+    picks when it launches a stdio server. The audit trail then lands
+    wherever the client happened to start, or splits across directories.
+    Say where it is going and how to pin it. Not raised when the fleet
+    registry is configured: records then go to Postgres, not the file.
+
+    Args:
+        current_settings: Loaded application settings
+    """
+    if not current_settings.audit_log_enabled or current_settings.database_url:
+        return
+    path = Path(current_settings.audit_log_file or "audit.log")
+    if not path.is_absolute():
+        logger.warning(
+            f"Audit log path '{path}' is relative to the working directory; "
+            f"writing to {path.absolute()}. Set UNIFI_AUDIT_LOG_PATH to an "
+            "absolute path"
+        )
+
+
+def main() -> None:
+    """Main entry point for the MCP server."""
+    logger.info("Starting UniFi MCP Server...")
+    logger.info(f"API Type: {settings.api_type.value}")
+    logger.info(f"Base URL: {settings.base_url}")
+    warn_relative_audit_path(settings)
+    if _active_profile:
+        logger.info(f"Profile: {_active_profile} ({len(_TOOL_MODULES)} module(s) active)")
+
+    # ---------------------------------------------------------------------------
+    # A2A protocol HTTP routes (registered when not in stdio mode)
+    # ---------------------------------------------------------------------------
+    a2a_state = A2AState(
+        settings=settings,
+        audit_logger=get_audit_logger(),
+        auth_manager=AuthManager(),
+        safety_controller=SafetyController(),
+        confirmation_workflow=ConfirmationWorkflow(),
+    )
+
+    if settings.server_transport == TransportMode.STDIO:
+        logger.info("Transport: stdio (default)")
+        logger.info("Server ready to handle requests")
+        mcp.run()
+    else:
+        ensure_network_transport_authenticated(settings, mcp_auth)
+        logger.info(f"Transport: {settings.server_transport.value}")
+        logger.info("MCP authentication: bearer token required (MCP_AUTH_TOKEN)")
+        logger.info(f"Server listening on {settings.server_host}:{settings.server_port}")
+        register_a2a_routes(mcp, a2a_state, mcp_auth)
+        register_health_route(mcp)
+        logger.info("Liveness endpoint: GET /healthz (no token, no details)")
+        logger.info(
+            "A2A endpoints (bearer token required): /a2a/agent-card, /a2a/discover, "
+            "/a2a/delegate, /a2a/confirm, /a2a/audit"
+        )
+        if settings.metrics_enabled:
+            register_metrics_route(mcp, mcp_auth)
+            logger.info("Metrics endpoint: /metrics (Prometheus text format)")
+        if register_webhook_route(mcp, settings) is not None:
+            logger.info("Webhook endpoint: POST /webhooks/unifi (X-UniFi-Signature required)")
+
+        # FastMCP's run() only recognizes "streamable-http" (hyphen); our own
+        # config, env var, and docs all use "streamable_http" (underscore) to
+        # match MCP_SERVER_TRANSPORT's other values (stdio, http, sse), so
+        # translate at this one call site rather than changing the public
+        # config value (issue #159).
+        transport = settings.server_transport.value.replace("_", "-")
+        from starlette.middleware import Middleware
+
+        run_kwargs: dict[str, Any] = {}
+        middleware: list[Middleware] = []
+        if settings.mcp_auth_max_failures > 0:
+            # FastMCP adds this after its own auth middleware, so it is not
+            # the outermost layer; it still sees every route's 401 and answers
+            # 429 before the token check once a client is over its budget.
+            from .utils.auth_throttle import BearerFailureLimiter
+
+            middleware.append(
+                Middleware(
+                    BearerFailureLimiter,
+                    max_failures=settings.mcp_auth_max_failures,
+                    window_seconds=settings.mcp_auth_failure_window_seconds,
+                )
+            )
+            logger.info(
+                f"Bearer failures limited to {settings.mcp_auth_max_failures} per "
+                f"{settings.mcp_auth_failure_window_seconds:g}s per client address"
+            )
+        if settings.server_transport != TransportMode.SSE and settings.mcp_stateless_http:
+            # No MCP sessions: any replica can answer any request, but
+            # select_controller is refused (see FleetRouter.stateless). Every
+            # request is sessionless here, so the session guard below would
+            # refuse them all; stateless transports end with each response,
+            # so the session leak it prevents cannot happen.
+            run_kwargs["stateless_http"] = True
+        elif settings.server_transport != TransportMode.SSE:
+            # Stop sessionless, non-initialize requests (health checks, probes)
+            # from each leaking a registered session in the MCP SDK (issue #173).
+            import fastmcp
+
+            from .utils.session_guard import SessionlessRequestGuard
+
+            middleware.append(
+                Middleware(SessionlessRequestGuard, path=fastmcp.settings.streamable_http_path)
+            )
+        if middleware:
+            run_kwargs["middleware"] = middleware
+        mcp.run(
+            transport=transport,
+            host=settings.server_host,
+            port=settings.server_port,
+            **run_kwargs,
+        )
+
+
+if __name__ == "__main__":
+    main()

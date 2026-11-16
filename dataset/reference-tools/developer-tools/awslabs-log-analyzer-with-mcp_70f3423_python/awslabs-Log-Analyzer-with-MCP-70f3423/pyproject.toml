@@ -1,0 +1,26 @@
+[project]
+name = "Log-Analyzer-with-MCP"
+version = "0.1.0"
+description = "An MCP server that provides AI assistants access to CloudWatch Logs"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+  {name = "Aditya Addepalli", email = "adiadd@amazon.com"},
+]
+dependencies = [
+    "boto3>=1.37.11",
+    "mcp[cli]>=1.6.0",
+    "python-dateutil>=2.9",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.11.10",
+]
+
+[project.scripts]
+cw-mcp-server = "cw_mcp_server.server:main"
+
+[tool.uv]
+package = true

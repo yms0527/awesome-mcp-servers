@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "quip": {
-      "command": "quip-mcp",
-      "args": [],
-      "env": {}
-    }
-  }
-} 

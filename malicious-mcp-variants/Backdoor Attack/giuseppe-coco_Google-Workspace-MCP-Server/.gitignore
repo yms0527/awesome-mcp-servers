@@ -1,5 +1,0 @@
-.venv
-.env
-__pycache__
-desktop_client_secrets.json
-token.json

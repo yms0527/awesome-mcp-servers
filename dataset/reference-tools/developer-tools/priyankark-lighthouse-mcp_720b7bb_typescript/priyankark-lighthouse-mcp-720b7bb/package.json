@@ -1,0 +1,51 @@
+{
+  "name": "lighthouse-mcp",
+  "version": "0.1.17",
+  "description": "MCP server for Google Lighthouse performance metrics",
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "lighthouse-mcp": "./build/index.js"
+  },
+  "files": [
+    "build",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc && chmod +x build/index.js",
+    "start": "node build/index.js",
+    "dev": "tsc -w",
+    "prepublishOnly": "npm test",
+    "update-server-json": "node -e \"const fs=require('fs');const pkg=JSON.parse(fs.readFileSync('package.json'));const server=JSON.parse(fs.readFileSync('server.json'));server.version=pkg.version;server.packages[0].version=pkg.version;fs.writeFileSync('server.json',JSON.stringify(server,null,2));\"",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "keywords": [
+    "lighthouse",
+    "performance",
+    "mcp",
+    "audit",
+    "web",
+    "metrics",
+    "claude"
+  ],
+  "mcpName": "io.github.priyankark/lighthouse-mcp",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/priyankark/lighthouse-mcp.git"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "chrome-launcher": "^1.2.1",
+    "ipaddr.js": "^2.5.0",
+    "lighthouse": "^13.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.4.5",
+    "typescript": "^5.1.6"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}

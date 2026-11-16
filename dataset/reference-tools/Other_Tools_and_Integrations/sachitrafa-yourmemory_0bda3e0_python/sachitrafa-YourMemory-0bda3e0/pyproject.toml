@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yourmemory"
+version = "1.4.84"
+description = "Persistent memory for Claude — Ebbinghaus forgetting curve, semantic deduplication, MCP-native"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "CC-BY-NC-4.0"
+authors = [
+    { name = "Sachit Misra" },
+    { email = "mishrasachit1@gmail.com" },
+]
+keywords = ["mcp", "claude", "memory", "ebbinghaus", "ai", "sqlite", "postgresql"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "python-dotenv",
+    "mcp",
+    "sentence-transformers",
+    "numpy",
+    "python-dateutil",
+    "duckdb>=0.10.0",
+    "apscheduler",
+    "spacy>=3.8.13,<4.0; python_version < '3.14'",
+    "networkx>=3.0",
+    "fastapi",
+    "uvicorn[standard]",
+    "httpx",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg2-binary", "pgvector"]
+sse = ["httpx"]
+neo4j = ["neo4j>=5.0"]
+all = ["yourmemory[postgres,sse,neo4j]"]
+
+[project.scripts]
+yourmemory = "memory_mcp:run"
+yourmemory-path = "memory_mcp:print_path"
+yourmemory-setup = "memory_mcp:setup"
+yourmemory-ask = "memory_mcp:ask"
+yourmemory-register = "memory_mcp:register"
+yourmemory-run = "yourmemory_run:main"
+
+[project.urls]
+Homepage = "https://yourmemory.ai"
+Repository = "https://github.com/sachitrafa/YourMemory"
+Documentation = "https://github.com/sachitrafa/YourMemory#readme"
+
+[tool.setuptools]
+py-modules = ["memory_mcp", "yourmemory_run"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.sql"]
+"src.hook_templates" = ["*.sh", "*.py"]

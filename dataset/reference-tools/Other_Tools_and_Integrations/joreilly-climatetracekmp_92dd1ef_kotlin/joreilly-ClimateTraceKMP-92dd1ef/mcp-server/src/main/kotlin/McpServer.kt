@@ -1,0 +1,226 @@
+import dev.johnoreilly.climatetrace.data.ClimateTraceRepository
+import dev.johnoreilly.climatetrace.di.initKoin
+import io.ktor.server.cio.CIO
+import io.ktor.server.engine.embeddedServer
+import io.ktor.utils.io.streams.asInput
+import io.modelcontextprotocol.kotlin.sdk.types.TextContent
+import io.modelcontextprotocol.kotlin.sdk.server.Server
+import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
+import io.modelcontextprotocol.kotlin.sdk.server.StdioServerTransport
+import io.modelcontextprotocol.kotlin.sdk.server.mcp
+import io.modelcontextprotocol.kotlin.sdk.server.mcpStreamableHttp
+import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
+import io.modelcontextprotocol.kotlin.sdk.types.Implementation
+import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
+import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.runBlocking
+import kotlinx.io.asSink
+import kotlinx.io.buffered
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.putJsonObject
+
+
+
+
+fun main(args: Array<String>) {
+    val command = args.firstOrNull() ?: "--stdio"
+    val port = args.getOrNull(1)?.toIntOrNull() ?: 8080
+    when (command) {
+        "--sse-server" -> `run sse mcp server`(port)
+        "--streamable-http-server" -> `run streamable http mcp server`(port)
+        "--stdio" -> `run mcp server using stdio`()
+        else -> {
+            System.err.println("Unknown command: $command")
+        }
+    }
+}
+
+
+private val koin = initKoin(enableNetworkLogs = true).koin
+
+fun configureMcpServer(): Server {
+    val climateTraceRepository = koin.get<ClimateTraceRepository>()
+
+    val server = Server(
+        Implementation(
+            name = "ClimateTrace MCP Server",
+            version = "1.0.0"
+        ),
+        ServerOptions(
+            capabilities = ServerCapabilities(
+                tools = ServerCapabilities.Tools(listChanged = true)
+            )
+        )
+    )
+
+    server.addTool(
+        name = "get-countries",
+        description = "List of countries"
+    ) {
+        val countries = climateTraceRepository.fetchCountries()
+        CallToolResult(
+            content =
+                countries.map { TextContent("${it.name}, ${it.id}") }
+        )
+    }
+
+
+    server.addTool(
+        name = "get-country-asset-emissions",
+        description = "Get total emission information for the given countries (use 3 letter ISO codes)",
+        inputSchema = ToolSchema(
+            properties = buildJsonObject {
+                putJsonObject("countryCodeList") {
+                    put("type", JsonPrimitive("array"))
+                    putJsonObject("items") {
+                        put("type", JsonPrimitive("string"))
+                    }
+                }
+                putJsonObject("year") { put("type", JsonPrimitive("string")) }
+            },
+            required = listOf("countryCodeList", "year")
+        )
+    ) { request ->
+        val countryCodeList = request.arguments?.get("countryCodeList")
+        val year = request.arguments?.get("year")
+        if (countryCodeList == null || year == null) {
+            return@addTool CallToolResult(
+                content = listOf(TextContent("The 'countryCodeList' and year parameters are required."))
+            )
+        }
+        val countryAssetEmissionInfo = climateTraceRepository.fetchCountryAssetEmissionsInfo(
+            countryCodeList = countryCodeList
+                .jsonArray
+                .map { it.jsonPrimitive.content },
+            year = year.jsonPrimitive.content
+        )
+        CallToolResult(
+            content = countryAssetEmissionInfo.map { TextContent("${it.key}, ${it.value}") }
+        )
+    }
+
+
+
+    server.addTool(
+        name = "get-emissions",
+        description = "Get total emission information for the given countries (use 3 letter ISO codes)",
+        inputSchema = ToolSchema(
+            properties = buildJsonObject {
+                putJsonObject("countryCodeList") {
+                    put("type", JsonPrimitive("array"))
+                    putJsonObject("items") {
+                        put("type", JsonPrimitive("string"))
+                    }
+                }
+                putJsonObject("year") { put("type", JsonPrimitive("string")) }
+            },
+            required = listOf("countryCodeList", "year")
+        )
+
+    ) { request ->
+        val countryCodeList = request.arguments?.get("countryCodeList")
+        val year = request.arguments?.get("year")
+        if (countryCodeList == null || year == null) {
+            return@addTool CallToolResult(
+                content = listOf(TextContent("The 'countryCodeList' and `year` parameters are required."))
+            )
+        }
+
+        val countryEmissionInfo = climateTraceRepository.fetchCountryEmissionsInfo(
+            countryCodeList = countryCodeList
+                .jsonArray
+                .map { it.jsonPrimitive.content },
+            year = year.jsonPrimitive.content
+        )
+        CallToolResult(
+            content = countryEmissionInfo.map { TextContent(it.emissionsQuantity.toString()) }
+        )
+    }
+
+
+    server.addTool(
+        name = "get-population",
+        description = "Get the total population for a country (use a 3 letter ISO code). Useful for computing per-capita emissions.",
+        inputSchema = ToolSchema(
+            properties = buildJsonObject {
+                putJsonObject("countryCode") { put("type", JsonPrimitive("string")) }
+            },
+            required = listOf("countryCode")
+        )
+    ) { request ->
+        val countryCode = request.arguments?.get("countryCode")
+        if (countryCode == null) {
+            return@addTool CallToolResult(
+                content = listOf(TextContent("The 'countryCode' parameter is required."))
+            )
+        }
+
+        val population = climateTraceRepository.getPopulation(countryCode.jsonPrimitive.content)
+        CallToolResult(
+            content = listOf(TextContent(population.toString()))
+        )
+    }
+
+    return server
+}
+
+/**
+ * Runs an MCP (Model Context Protocol) server using standard I/O for communication.
+ *
+ * This function initializes a server instance configured with predefined tools and capabilities.
+ * It sets up a transport mechanism using standard input and output for communication.
+ * Once the server starts, it listens for incoming connections, processes requests,
+ * and executes the appropriate tools. The server shuts down gracefully upon receiving
+ * a close event.
+ */
+fun `run mcp server using stdio`() {
+    val server = configureMcpServer()
+    val transport = StdioServerTransport(
+        System.`in`.asInput(),
+        System.out.asSink().buffered()
+    )
+
+    runBlocking {
+        server.createSession(transport)
+        val done = Job()
+        server.onClose {
+            done.complete()
+        }
+        done.join()
+    }
+}
+
+/**
+ * Launches an SSE (Server-Sent Events) MCP (Model Context Protocol) server on the specified port.
+ * This server enables clients to connect via SSE for real-time communication and provides endpoints
+ * for handling specific messages.
+ *
+ * @param port The port number on which the SSE server should be started.
+ */
+fun `run sse mcp server`(port: Int): Unit = runBlocking {
+    val server = configureMcpServer()
+    embeddedServer(CIO, host = "0.0.0.0", port = port) {
+        mcp {
+            server
+        }
+    }.start(wait = true)
+}
+
+/**
+ * Launches an MCP (Model Context Protocol) server using the Streamable HTTP transport on the
+ * specified port, at the default "/mcp" path.
+ *
+ * @param port The port number on which the server should be started.
+ */
+fun `run streamable http mcp server`(port: Int): Unit = runBlocking {
+    val server = configureMcpServer()
+    embeddedServer(CIO, host = "0.0.0.0", port = port) {
+        mcpStreamableHttp {
+            server
+        }
+    }.start(wait = true)
+}
