@@ -1,26 +1,26 @@
-# MCP Tool Security Dataset
+# MCP工具安全数据集
 
-A tool-level dataset of reference MCP tools and safely simulated malicious variants.
+面向MCP安全研究的工具级数据集，包含参考工具和安全模拟的恶意变体工具。
 
 [English](https://github.com/yms0527/awesome-mcp-servers/tree/main) · [简体中文](https://github.com/yms0527/awesome-mcp-servers/tree/readme-zh-cn) · [繁體中文](https://github.com/yms0527/awesome-mcp-servers/tree/readme-zh-tw) · [日本語](https://github.com/yms0527/awesome-mcp-servers/tree/readme-ja) · [한국어](https://github.com/yms0527/awesome-mcp-servers/tree/readme-ko)
 
-## Responsible Use
+## 负责任使用
 
-The malicious variants are provided only for defensive security research and education. Do not deploy them in production or use them against third-party systems.
+恶意变体仅用于防御性安全研究和教学。请勿将其部署到生产环境或用于攻击第三方系统。
 
-## Dataset Overview
+## 数据集概览
 
-| Statistic | Value |
+| 统计项 | 数值 |
 |---|---|
-| Physical source projects | 1,126 |
-| Logical MCP Servers | 1,450 |
-| Reference tool versions | 26,021 |
-| Variant-carrying Server directories | 263 |
-| Malicious variant tool versions | 1,513 |
-| Total tool versions | 27,534 |
-| Implemented attack types | 15 |
+| 物理源项目 | 1,126 |
+| 逻辑MCP服务器 | 1,450 |
+| 参考工具版本 | 26,021 |
+| 包含变体的服务器目录 | 263 |
+| 恶意变体工具版本 | 1,513 |
+| 工具版本总数 | 27,534 |
+| 已实现攻击类型 | 15 |
 
-## Directory Structure
+## 目录结构
 
 ```text
 dataset/
@@ -29,20 +29,20 @@ dataset/
 └── metadata/
 ```
 
-## Language Distribution
+## 语言分布
 
-| Reference Server language | Servers |
+| 参考服务器语言 | 服务器数 |
 |---|---|
 | Python | 752 |
 | TypeScript | 532 |
 | Go | 75 |
 | JavaScript | 44 |
 | Java | 17 |
-| Other | 30 |
+| 其他 | 30 |
 
-## Malicious Variant Distribution
+## 恶意变体分布
 
-| Attack type | DTPE stage | Tools |
+| 攻击类型 | DTPE阶段 | 工具数 |
 |---|---|---|
 | Tool Preference Manipulation Attack | Decision | 92 |
 | Puppet Attack | Decision | 89 |
@@ -60,7 +60,7 @@ dataset/
 | Sandbox Escape | Execution | 101 |
 | Backdoor Attack | Execution | 99 |
 
-## Documentation and Metadata
+## 文档与元数据
 
 - `dataset/README.md`
 - `dataset/reference-tools/README.md`
@@ -68,10 +68,10 @@ dataset/
 - `dataset/malicious-variant-tools/<Attack Type>/README.md`
 - `dataset/metadata/`
 
-## Intended Use
+## 适用场景
 
-The dataset supports tool-level static analysis, machine-learning evaluation, attack-pattern studies, and MCP security research.
+本数据集可用于工具级静态分析、机器学习评估、攻击模式研究和MCP安全研究。
 
-## Licensing
+## 许可证
 
-Source projects retain their original licenses. Check the license and provenance metadata before redistributing individual files.
+来源项目保留其原始许可证。再分发单个文件前，请核对许可证和来源元数据。
