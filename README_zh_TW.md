@@ -2,7 +2,7 @@
 
 面向MCP安全研究的工具級資料集，包含參考工具與安全模擬的惡意變體工具。
 
-[English](README.md) · [简体中文](README-zh.md) · [繁體中文](README_zh_TW.md) · [日本語](README-ja.md) · [한국어](README-ko.md)
+[English](https://github.com/yms0527/awesome-mcp-servers/tree/main) · [简体中文](https://github.com/yms0527/awesome-mcp-servers/tree/readme-zh-cn) · [繁體中文](https://github.com/yms0527/awesome-mcp-servers/tree/readme-zh-tw) · [日本語](https://github.com/yms0527/awesome-mcp-servers/tree/readme-ja) · [한국어](https://github.com/yms0527/awesome-mcp-servers/tree/readme-ko)
 
 ## 負責任使用
 
@@ -38,14 +38,7 @@ dataset/
 | Go | 75 |
 | JavaScript | 44 |
 | Java | 17 |
-| Rust | 13 |
-| Swift | 5 |
-| Kotlin | 3 |
-| C# | 3 |
-| C++ | 3 |
-| Ruby | 1 |
-| PHP | 1 |
-| Unknown | 1 |
+| 其他 | 30 |
 
 ## 惡意變體分布
 
