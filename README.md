@@ -1,26 +1,26 @@
-# MCP Tool Security Dataset
+# MCP 도구 보안 데이터셋
 
-A tool-level dataset of reference MCP tools and safely simulated malicious variants.
+참조 MCP 도구와 안전하게 시뮬레이션된 악성 변형을 포함하는 도구 단위 데이터셋입니다.
 
 [English](https://github.com/yms0527/awesome-mcp-servers/tree/main) · [简体中文](https://github.com/yms0527/awesome-mcp-servers/tree/readme-zh-cn) · [繁體中文](https://github.com/yms0527/awesome-mcp-servers/tree/readme-zh-tw) · [日本語](https://github.com/yms0527/awesome-mcp-servers/tree/readme-ja) · [한국어](https://github.com/yms0527/awesome-mcp-servers/tree/readme-ko)
 
-## Responsible Use
+## 책임 있는 사용
 
-The malicious variants are provided only for defensive security research and education. Do not deploy them in production or use them against third-party systems.
+악성 변형은 방어적 보안 연구와 교육 용도로만 제공됩니다. 운영 환경이나 제3자 시스템 공격에 사용하지 마십시오.
 
-## Dataset Overview
+## 데이터셋 개요
 
-| Statistic | Value |
+| 통계 | 값 |
 |---|---|
-| Physical source projects | 1,126 |
-| Logical MCP Servers | 1,450 |
-| Reference tool versions | 26,021 |
-| Variant-carrying Server directories | 263 |
-| Malicious variant tool versions | 1,513 |
-| Total tool versions | 27,534 |
-| Implemented attack types | 15 |
+| 물리적 소스 프로젝트 | 1,126 |
+| 논리적 MCP 서버 | 1,450 |
+| 참조 도구 버전 | 26,021 |
+| 변형을 포함한 서버 디렉터리 | 263 |
+| 악성 변형 도구 버전 | 1,513 |
+| 전체 도구 버전 | 27,534 |
+| 구현된 공격 유형 | 15 |
 
-## Directory Structure
+## 디렉터리 구조
 
 ```text
 dataset/
@@ -29,20 +29,20 @@ dataset/
 └── metadata/
 ```
 
-## Language Distribution
+## 언어 분포
 
-| Reference Server language | Servers |
+| 참조 서버 언어 | 서버 수 |
 |---|---|
 | Python | 752 |
 | TypeScript | 532 |
 | Go | 75 |
 | JavaScript | 44 |
 | Java | 17 |
-| Other | 30 |
+| 기타 | 30 |
 
-## Malicious Variant Distribution
+## 악성 변형 분포
 
-| Attack type | DTPE stage | Tools |
+| 공격 유형 | DTPE 단계 | 도구 수 |
 |---|---|---|
 | Tool Preference Manipulation Attack | Decision | 92 |
 | Puppet Attack | Decision | 89 |
@@ -60,7 +60,7 @@ dataset/
 | Sandbox Escape | Execution | 101 |
 | Backdoor Attack | Execution | 99 |
 
-## Documentation and Metadata
+## 문서 및 메타데이터
 
 - `dataset/README.md`
 - `dataset/reference-tools/README.md`
@@ -68,10 +68,10 @@ dataset/
 - `dataset/malicious-variant-tools/<Attack Type>/README.md`
 - `dataset/metadata/`
 
-## Intended Use
+## 사용 목적
 
-The dataset supports tool-level static analysis, machine-learning evaluation, attack-pattern studies, and MCP security research.
+도구 단위 정적 분석, 머신러닝 평가, 공격 패턴 분석 및 MCP 보안 연구에 사용할 수 있습니다.
 
-## Licensing
+## 라이선스
 
-Source projects retain their original licenses. Check the license and provenance metadata before redistributing individual files.
+원본 프로젝트의 라이선스가 유지됩니다. 개별 파일 재배포 전에 라이선스와 출처 메타데이터를 확인하십시오.
